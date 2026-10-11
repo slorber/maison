@@ -1,0 +1,12 @@
+{
+  "name": "maison-merlettes-3d",
+  "private": true,
+  "description": "Maquette 3D de la maison des Merlettes (Three.js), page HTML autonome",
+  "scripts": {
+    "build": "node scripts/dirs.mjs && node build.mjs && node scripts/dist.mjs"
+  },
+  "dependencies": {
+    "esbuild": "0.24.0",
+    "three": "0.169.0"
+  }
+}

@@ -1,0 +1,154 @@
+<title>Maison des Merlettes</title>
+<style>
+/* Plein écran 3D, panneau flottant façon cartouche d'architecte */
+:root {
+  --bg: #e9e6df;
+  --panel: rgba(250, 248, 243, 0.94);
+  --ink: #23272a;
+  --muted: #6c6a64;
+  --line: #d6d1c6;
+  --accent: #8a5a2b;
+  --chip: #efebe2;
+  --chip-on: #383e42;
+  --chip-on-ink: #f6f3ec;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1d2023; --panel: rgba(32, 35, 38, 0.93); --ink: #ece8df; --muted: #a29e95; --line: #3c4045; --accent: #d39a62; --chip: #2b2f33; --chip-on: #e6dccb; --chip-on-ink: #22262a; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #1d2023; --panel: rgba(32, 35, 38, 0.93); --ink: #ece8df; --muted: #a29e95; --line: #3c4045; --accent: #d39a62; --chip: #2b2f33; --chip-on: #e6dccb; --chip-on-ink: #22262a; color-scheme: dark; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; }
+#stage { position: fixed; inset: 0; }
+#scene { width: 100%; height: 100%; display: block; touch-action: none; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.room { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 7px; border-radius: 4px; background: rgba(250, 248, 243, 0.86); color: #23272a; font: 600 12px/1.15 var(--font-body); box-shadow: 0 1px 3px rgba(0,0,0,.18); white-space: nowrap; }
+.room span { font: 500 10.5px/1.1 var(--font-mono); color: #5f5c56; font-variant-numeric: tabular-nums; }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; font: 500 15px var(--font-body); color: var(--muted); }
+body.ready #loading { display: none; }
+
+#panel { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; width: min(330px, calc(100vw - 24px)); max-height: calc(100% - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.18); backdrop-filter: blur(6px); }
+.head { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
+.eyebrow { font: 600 10.5px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 3px 0 4px; font: 700 21px/1.1 var(--font-display); text-wrap: balance; }
+.meta { font: 12px/1.45 var(--font-body); color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+#collapse { align-self: start; border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 6px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; line-height: 1; }
+#panel.collapsed .body { display: none; }
+#panel.collapsed #collapse { transform: rotate(180deg); }
+.body { padding: 4px 14px 14px; display: grid; gap: 14px; }
+section h2 { margin: 10px 0 7px; font: 600 10.5px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 5px 10px; font: 500 12.5px var(--font-body); cursor: pointer; }
+.chips button:hover { border-color: var(--muted); }
+.chips button[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-ink); border-color: var(--chip-on); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12.5px; }
+select { width: 100%; min-width: 0; padding: 5px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); font: 12.5px var(--font-body); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.hourrow { display: flex; justify-content: space-between; font: 12px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12.5px; }
+.toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.toggles input { accent-color: var(--accent); }
+.toggles input:disabled + span { opacity: .45; }
+.note { font: 11.5px/1.5 var(--font-body); color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.note p { margin: 0 0 6px; }
+.actions { display: flex; gap: 8px; }
+.actions button { flex: 1; border: 1px solid var(--chip-on); background: var(--chip-on); color: var(--chip-on-ink); border-radius: 6px; padding: 7px 10px; font: 600 12.5px var(--font-body); cursor: pointer; }
+#hint { position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); padding: 6px 10px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font: 11.5px var(--font-body); color: var(--muted); max-width: calc(100vw - 24px); }
+#shot { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 16px; z-index: 10; }
+#shot .box { background: var(--panel); border-radius: 10px; padding: 12px; max-width: min(1100px, 100%); display: grid; gap: 10px; }
+#shot img { max-width: 100%; max-height: 70vh; border-radius: 6px; }
+#shot .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+#shot .bar a, #shot .bar button { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 6px; padding: 6px 10px; font: 600 12.5px var(--font-body); cursor: pointer; text-decoration: none; }
+@media (max-width: 700px) { #hint { display: none; } h1 { font-size: 18px; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap">
+
+<div id="stage"><canvas id="scene" aria-label="Maquette 3D de la maison"></canvas></div>
+<div id="loading">Construction de la maquette…</div>
+
+<aside id="panel">
+  <div class="head">
+    <div>
+      <div class="eyebrow">CCMI Castelord · contrat 5012/95</div>
+      <h1>Maison des Merlettes</h1>
+      <div class="meta">Deuil-la-Barre · parcelle AE 118 · <b>405 m²</b><br>R+1, toit 4 pans 35° · <b>143,19 m²</b> habitables<br>D'après les plans travaux v3 du 22/09/2026</div>
+    </div>
+    <button id="collapse" aria-expanded="true" aria-controls="panel" title="Replier le panneau">▴</button>
+  </div>
+  <div class="body">
+    <section>
+      <h2>Extérieur</h2>
+      <div class="chips">
+        <button data-view="sw">Angle des rues</button>
+        <button data-view="plonge">Vue plongeante</button>
+        <button data-view="ouest">Façade ouest</button>
+        <button data-view="entree">Porte d'entrée</button>
+        <button data-view="cloture">Clôture et portillon</button>
+        <button data-view="jardin">Jardin nord</button>
+        <button data-view="sud">Garage</button>
+        <button data-view="pluie">Jardin de pluie</button>
+        <button data-view="aerien">Vue aérienne</button>
+      </div>
+    </section>
+    <section>
+      <h2>Maison ouverte</h2>
+      <div class="chips">
+        <button data-view="rdc">Rez-de-chaussée</button>
+        <button data-view="r1">Étage</button>
+      </div>
+    </section>
+    <section>
+      <h2>Intérieur, à hauteur d'œil</h2>
+      <div class="chips">
+        <button data-view="i_sejour">Séjour</button>
+        <button data-view="i_cuisine">Cuisine</button>
+        <button data-view="i_entree">Entrée</button>
+        <button data-view="i_palier">Palier</button>
+        <button data-view="i_ch1">Chambre 1</button>
+        <button data-view="i_bains">Salle de bains</button>
+      </div>
+    </section>
+    <section>
+      <h2>Sols</h2>
+      <div class="row"><label for="tile-r">RDC</label><select id="tile-r"></select></div>
+      <div class="row"><label for="tile-w">SdB étage</label><select id="tile-w"></select></div>
+      <div class="row"><label for="tile-p">Étage</label><select id="tile-p"></select></div>
+    </section>
+    <section>
+      <h2>Soleil</h2>
+      <div class="row"><label for="month">Mois</label>
+        <select id="month"><option value="1">Janvier</option><option value="2">Février</option><option value="3">Mars</option><option value="4">Avril</option><option value="5">Mai</option><option value="6">Juin</option><option value="7">Juillet</option><option value="8">Août</option><option value="9">Septembre</option><option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option></select></div>
+      <label for="hour" class="hourrow"><span>Heure</span><span id="hour-label"></span></label>
+      <input id="hour" type="range" min="6" max="22" step="0.25">
+      <div class="hourrow"><span id="sun-info"></span></div>
+    </section>
+    <section>
+      <h2>Affichage</h2>
+      <div class="toggles">
+        <label><input id="t-roof" type="checkbox"><span>Toiture</span></label>
+        <label><input id="t-furn" type="checkbox"><span>Mobilier</span></label>
+        <label><input id="t-fence" type="checkbox"><span>Clôtures</span></label>
+        <label><input id="t-pergola" type="checkbox"><span>Pergola</span></label>
+        <label><input id="t-volets" type="checkbox"><span>Volets fermés</span></label>
+        <label><input id="t-ao" type="checkbox"><span>Ombres douces (intérieur)</span></label>
+      </div>
+    </section>
+    <div class="actions"><button id="snap">Capturer l'image</button></div>
+    <div class="note">
+      <p><b>Repris des documents :</b> cotes des plans travaux v3, enduit gratté ton pierre PRB 015 et modénatures lissées à l'éponge en 015 éclairci, menuiseries alu RAL 7016 et volets roulants BBI (12 baies), porte Bel'M Eurielle 7016 sablé (blanc à l'intérieur), portes intérieures Righini Graphik, emplacements de placards, porte de garage Novoferm ISO 45 lisse, tuiles plates ardoisées, implantation, allée, stationnement et jardin de pluie du plan de masse, clôture sur rue du PCMI 5 (muret 0,80 m et lames alu pleines jusqu'à 2,00 m), altimétrie du plan de bornage, terrain fini à NGF 55,53 et jardin de pluie à 55,20 (choix des clients), PAC Atlantic Alféa Extensa Duo A.I. 5 kW.</p>
+      <p><b>Indicatif :</b> teintes des façades de cuisine, colonne réfrigérateur, mobilier, parois de douche, choix de carrelage et de parquet (non compris au contrat), escalier à marches en chêne clair, garde-corps d'escalier proposé et garde-corps des fenêtres d'étage d'après les photos (à la charge des clients), portes de placards, voisinage d'après les photos.</p>
+    </div>
+  </div>
+</aside>
+<div id="hint">Glisser : tourner · Molette : zoomer · Clic droit : déplacer · Clic sur une porte ou une fenêtre : ouvrir, fermer</div>
+
+<div id="shot" hidden>
+  <div class="box">
+    <img id="shot-img" alt="Capture de la maquette">
+    <div class="bar"><span>Clic droit ou appui long sur l'image pour l'enregistrer.</span><span style="display:flex;gap:8px"><a id="shot-dl" download="maison-merlettes.png" href="#">Télécharger</a><button id="shot-close">Fermer</button></span></div>
+  </div>
+</div>
+<script>/*BUNDLE*/</script>

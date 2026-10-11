@@ -1,0 +1,10 @@
+import { build } from 'esbuild';
+import fs from 'fs';
+const r = await build({ entryPoints: ['main.js'], bundle: true, minify: true, format: 'iife', write: false, target: 'es2020' });
+const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+const tpl = fs.readFileSync('template.html', 'utf8');
+const frag = tpl.replace('/*BUNDLE*/', () => js);
+fs.writeFileSync('out/maquette.html', frag);
+const full = '<!doctype html>\n<html lang="fr">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<style>[hidden]{display:none!important} body{margin:0}</style>\n</head>\n<body>\n' + frag + '\n</body>\n</html>\n';
+fs.writeFileSync('out/maison-merlettes-3d.html', full);
+console.log('ok', (full.length/1024).toFixed(0)+'KB');
