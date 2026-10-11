@@ -1,4 +1,4 @@
-// Mobilier détaillé (cuisine, séjour, chambres, bureau, entrée, garage) : appelé avant A.build(groups)
+// Mobilier détaillé (cuisine, séjour, chambres, entrée, garage ; bureau de chambre 1 et pièce « Bureau » : chambre1.js) : appelé avant A.build(groups)
 // Boîtes plates via A.box (UV en mètres) ; le reste est fusionné en un mesh par couple calque × matériau (peu d'appels de dessin).
 // Formes douces (coussins, matelas, couettes) : boîtes arrondies subdivisées, déformées (bombé, drapé) puis lissées.
 import * as THREE from 'three';
@@ -423,34 +423,7 @@ function bedrooms() {
   bed(9.90, 11.50, 4.24, 6.24, { frame: '#8e99a2', duvet: '#e8eaeb', throw: '#536375', cush: '#c9a46a' }); // chambre 2
   bed(1.20, 2.80, 4.24, 6.24, { frame: '#a6ad93', duvet: '#eee8dc', throw: '#c4876a', cush: '#e2cfae' }); // chambre 3
 }
-// Bureau : plateau chêne sur piètement acier noir, caisson 3 tiroirs sur roulettes, portable, lampe d'architecte, pot à crayons ; fauteuil de bureau
-function bureau() {
-  const K = new Kit('furn1', mtx(0, C.E1, 0)), zW = C.D - C.T;
-  K.soft('mobOak', 5.60, 7.20, 0.725, 0.75, 6.90, zW, 0.005, { nI: [2, 1, 1] });
-  for (const x of [5.625, 7.145]) { for (const z of [6.93, 7.47]) K.box('blackMatte', x, x + 0.03, 0.02, 0.70, z, z + 0.04); K.box('blackMatte', x, x + 0.03, 0.70, 0.725, 6.93, 7.51); K.box('blackMatte', x - 0.005, x + 0.035, 0, 0.02, 6.92, 7.52); }
-  K.box('blackMatte', 5.655, 7.145, 0.66, 0.70, 7.47, 7.49);
-  const c0 = 6.72, c1 = 7.12, cm = (c0 + c1) / 2; K.soft('white', c0, c1, 0.045, 0.60, 6.97, 7.45, 0.004);
-  for (const [y0, y1] of [[0.05, 0.25], [0.253, 0.425], [0.428, 0.595]]) { K.soft('white', c0 + 0.003, c1 - 0.003, y0, y1, 6.952, 6.97, 0.002); K.box('blackMatte', cm - 0.045, cm + 0.045, y1 - 0.026, y1 - 0.019, 6.944, 6.952); }
-  for (const x of [c0 + 0.04, c1 - 0.04]) for (const z of [7.01, 7.41]) K.g('blackMatte', new THREE.CylinderGeometry(0.02, 0.02, 0.016, 12).rotateZ(Math.PI / 2), x, 0.022, z);
-  const lx = 6.40, ly = 0.75, lz = 7.12; K.soft('mobGrey', lx - 0.16, lx + 0.16, ly, ly + 0.014, lz - 0.11, lz + 0.11, 0.004); K.box('mobRubber', lx - 0.14, lx + 0.14, ly + 0.014, ly + 0.0145, lz - 0.085, lz + 0.03);
-  { const S = new Kit('furn1', K.m(lx, ly + 0.012, lz + 0.11, 0, 0.35)); S.soft('mobGrey', -0.16, 0.16, 0, 0.215, -0.007, 0, 0.003); S.box('mobLaptop', -0.148, 0.148, 0.012, 0.204, -0.0076, -0.007); }
-  const bx = 7.02, bz = 7.38; K.g('blackMatte', new THREE.CylinderGeometry(0.072, 0.078, 0.016, 28), bx, 0.758, bz);
-  const j1 = [bx - 0.03, 1.10, bz - 0.06], j2 = [bx - 0.15, 1.12, bz - 0.20], mo = [bx - 0.19, 1.02, bz - 0.24];
-  K.rod('blackMatte', [bx, 0.766, bz], j1, 0.0065, 8); K.rod('blackMatte', j1, j2, 0.0065, 8); K.rod('blackMatte', mo, j2, 0.058, 20, 0.02);
-  { const d = V3(...j2).sub(V3(...mo)).normalize().multiplyScalar(0.003); K.rod('mobLed', [mo[0] - d.x, mo[1] - d.y, mo[2] - d.z], mo, 0.05, 20); }
-  K.rod('mobPaint', [5.80, 0.75, 7.38], [5.80, 0.85, 7.38], 0.035, 20, 0.035, { c: '#3f5e6e' });
-  for (const [dx, dz, c] of [[-0.01, 0.0, '#d9a441'], [0.012, 0.008, '#1f2a36'], [0.0, -0.012, '#9b4a3c']]) K.rod('mobPaint', [5.80 + dx, 0.80, 7.38 + dz], [5.80 + dx * 2.5, 0.93, 7.38 + dz * 2.5], 0.004, 6, 0.004, { c });
-  K.box('mobPaint', 5.90, 6.10, 0.75, 0.762, 7.10, 7.38, { c: '#1f2a36' });
-  // fauteuil de bureau : piètement 5 branches à roulettes, vérin, assise et dossier rembourrés, accoudoirs
-  const F = new Kit('furn1', mtx(6.40, C.E1, 6.52, 0.15)), fab = { c: '#4a4d52' };
-  for (let i = 0; i < 5; i++) { const a = i * Math.PI * 2 / 5, s = Math.sin(a), c = Math.cos(a); F.rod('blackMatte', [0, 0.085, 0], [0.30 * s, 0.06, 0.30 * c], 0.016, 8, 0.012); F.g('blackMatte', new THREE.CylinderGeometry(0.025, 0.025, 0.03, 14).rotateZ(Math.PI / 2), 0.30 * s, 0.026, 0.30 * c, a); }
-  F.g('blackMatte', new THREE.CylinderGeometry(0.035, 0.045, 0.06, 20), 0, 0.075, 0); F.rod('blackMatte', [0, 0.10, 0], [0, 0.30, 0], 0.03, 16); F.rod('mobChrome', [0, 0.30, 0], [0, 0.43, 0], 0.016, 14);
-  F.box('blackMatte', -0.10, 0.10, 0.42, 0.46, -0.10, 0.10);
-  F.soft('mobFab', -0.25, 0.25, 0.455, 0.535, -0.24, 0.24, 0.035, { nI: [4, 1, 4], def: puff(0.15), c: fab.c });
-  F.rod('blackMatte', [0, 0.44, -0.16], [0, 0.47, -0.30], 0.02, 10); F.rod('blackMatte', [0, 0.47, -0.30], [0, 0.72, -0.33], 0.02, 10);
-  F.soft('mobFab', -0.23, 0.23, 0.62, 1.10, -0.35, -0.29, 0.03, { nI: [4, 4, 1], def: puff(0.12, 'z'), rx: -0.12, c: fab.c });
-  for (const sx of [-1, 1]) { F.rod('blackMatte', [sx * 0.20, 0.45, -0.06], [sx * 0.245, 0.65, -0.06], 0.012, 10); F.soft('blackMatte', sx * 0.245 - 0.035, sx * 0.245 + 0.035, 0.65, 0.68, -0.18, 0.06, 0.012); }
-}
+// Bureau de l'étage (bureau, fauteuil Aeron, canapé-lit) : voir chambre1.js
 
 // Table de jardin 180 × 90 pour 6 sous la pergola (calque pergola, affichée avec elle) : plateau céramique gris clair sur cadre alu 7016,
 // 6 fauteuils alu 7016 à accoudoirs, assise et dossier en toile textilène gris ; parallèle à la façade, passage libre devant la baie
@@ -479,6 +452,6 @@ function terrasse() {
 
 export function buildMobilier(ctx) {
   C = ctx; M = ctx.M; A = ctx.A; BK.clear();
-  materials(); kitchen(); dining(); sofa(); tvUnit(); radiators(); garage(); entree(); bedrooms(); bureau(); terrasse();
+  materials(); kitchen(); dining(); sofa(); tvUnit(); radiators(); garage(); entree(); bedrooms(); terrasse();
   flush();
 }

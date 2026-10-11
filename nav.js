@@ -26,7 +26,7 @@ const ROOMS = [
   { k: 'cuisine', n: 'Cuisine', s: '11,50 m²', lv: 0, b: [0.36, 3.86, 4.24, 7.54], p: [3.97, 5.00], t: [0.45, 7.20], a: -11, oa: 0, oe: 45 },
   { k: 'sam', n: 'Salle à manger', lv: 0, b: [3.86, 8.0, 3.30, 7.54], p: [4.05, 3.50], t: [7.90, 7.40], a: -10, oa: 20, oe: 45 },
   { k: 'sejour', n: 'Séjour', s: '36,24 m² avec la salle à manger', lv: 0, b: [8.0, 12.54, 3.30, 7.54], p: [12.28, 3.85], t: [8.0, 7.35], a: -9, oa: 165, oe: 45 },
-  { k: 'garage', n: 'Garage', s: '16,41 m²', lv: 0, f: -0.13, b: [7.08, 12.68, 0.22, 3.15], p: [7.30, 2.95], t: [12.55, 0.45], a: -9, oa: 0, oe: 45 },
+  { k: 'garage', n: 'Garage', s: '16,41 m²', lv: 0, f: -0.13, b: [7.08, 12.68, 0.22, 3.15], p: [12.45, 2.98], t: [7.20, 0.55], a: -9, oa: 0, oe: 45 },
   { k: 'technique', n: 'Local technique', s: '4,98 m²', lv: 0, f: -0.13, b: [5.31, 7.01, 0.22, 3.15], p: [6.85, 2.95], t: [5.40, 0.45], a: -12, oa: 0, oe: 45 },
   { k: 'palier', n: 'Palier', s: '6,05 m²', lv: 1, b: [3.91, 9.07, 3.17, 4.17], p: [8.92, 3.67], t: [3.0, 3.67], a: -7, oa: 0, oe: 50 },
   { k: 'bains', n: 'Bains', s: '9,54 m²', lv: 1, b: [0.36, 3.86, 0.36, 3.10], p: [0.60, 0.62], t: [3.80, 3.00], a: -12, oa: 180, oe: 52 },
@@ -184,7 +184,7 @@ export function initNav(ctx) {
     } const dt = Math.min(0.1, (now - (DOOR.t || now)) / 1000); DOOR.t = now;
     const goal = W.on && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4 ? 88 * DEG : 0; if (Math.abs(goal - DOOR.a) < 1e-4) return;
     DOOR.a += THREE.MathUtils.clamp(goal - DOOR.a, -120 * DEG * dt, 120 * DEG * dt); const a = DOOR.a, c = Math.cos(a), s = Math.sin(a);
-    DOOR.pivot.rotation.y = a;
+    DOOR.pivot.rotation.y = a; ctx.requestRender?.(); // [perf] rendu à la demande : le vantail bouge sans que la caméra bouge
     for (const v of DOOR.verts) {
       const pos = v.o.geometry.attributes.position, nor = v.o.geometry.attributes.normal;
       v.ids.forEach((i, k) => { const [x, y, z] = v.p0[k], dx = x - DOOR.hinge.x, dz = z - DOOR.hinge.z, [nx, ny, nz] = v.n0[k];
@@ -406,10 +406,10 @@ export function initNav(ctx) {
   }
   function restoreShared() { const cp = ctx.composer; if (PANO.sharedResized && cp) { const st = document.getElementById('stage'); cp.setSize(st.clientWidth, st.clientHeight); } PANO.sharedResized = false; }
   function panoRender() {
-    const cp = ctx.composer, useAO = state.ao && cp && (state.inside || state.mode !== 'ext');
+    const cp = ctx.composer, useAO = !ctx.fast && state.ao && cp && (state.inside || state.mode !== 'ext'); // [perf] images allégées en mouvement : sans occlusion
     if (!useAO && !pc) { pc = new EffectComposer(renderer, new THREE.WebGLRenderTarget(64, 64, { type: THREE.HalfFloatType, samples: 4 })); pc.setPixelRatio(renderer.getPixelRatio()); pc.addPass(new RenderPass(scene, camera)); pc.addPass(new OutputPass()); }
     const comp = useAO ? cp : pc, [w, h] = PANO.src;
-    if (!useAO) restoreShared(); else PANO.sharedResized = true;
+    if (!useAO) { if (!ctx.fast) restoreShared(); } else PANO.sharedResized = true; // [perf] pas de redimensionnement du composeur partagé à chaque image allégée
     if (comp._width !== w || comp._height !== h) comp.setSize(w, h);
     comp.renderToScreen = false; comp.render(); comp.renderToScreen = true;
     U.tSrc.value = comp.readBuffer.texture; renderer.setRenderTarget(null); quad.render(renderer);

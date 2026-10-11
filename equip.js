@@ -23,7 +23,10 @@ export function buildEquipment(ctx) {
   M.ral7016 = std({ color: '#4d5459', roughness: 0.55 }); // même teinte affichée que RAL7016 de main.js // acier thermolaqué gris anthracite RAL 7016
   M.spotTrim = std({ color: '#f5f5f2', roughness: 0.35, metalness: 0.1 });
   M.spotLed = std({ color: '#fffaf2', emissive: '#fff0dc', emissiveIntensity: 0, roughness: 0.3 });
+  const n0 = Object.fromEntries(Object.entries(ctx.groups).map(([k, g]) => [k, g.children.length])); // [perf] repères pour la fusion ci-dessous
   pacInterieure(ctx); nourrice(ctx); pacExterieure(ctx); spots(ctx); gardeCorps(ctx);
+  // [perf] petits maillages statiques (PAC, spots) fusionnés par calque et matériau : moins d'appels de dessin, rendu identique
+  if (ctx.mergeStatic) for (const [k, g] of Object.entries(ctx.groups)) { const added = g.children.slice(n0[k] ?? 0); if (added.length > 1) ctx.mergeStatic(added, g); }
 }
 
 // ---------------------------------------------------------------- outils
@@ -147,9 +150,9 @@ function pacExterieure(ctx) {
   // sur équerres murales en acier galvanisé (pas de dalle) : bras de 50 cm à 35 cm au-dessus du terrain fini, jambe de force, platine chevillée
   const yp = Math.max(hAt(xf - 0.05, z0), hAt(xf - 0.05, z1)) + 0.35, xa = xf - 0.06;
   for (const zc of [z0 + 0.075, z1 - 0.105]) {
-    A.box(LS, -0.008, 0, yp - 0.44, yp + 0.01, zc - 0.03, zc + 0.03, 'pacBracket'); // platine murale
+    A.box(LS, -0.008, 0, yp - 0.30, yp + 0.01, zc - 0.03, zc + 0.03, 'pacBracket'); // platine murale
     A.box(LS, xa, -0.008, yp - 0.04, yp, zc - 0.02, zc + 0.02, 'pacBracket'); // bras horizontal
-    prismX(A, LS, 'pacBracket', -0.36, -0.008, zc - 0.016, zc + 0.016, yp - 0.075, yp - 0.43, yp - 0.04, yp - 0.395); // jambe de force
+    prismX(A, LS, 'pacBracket', -0.34, -0.008, zc - 0.016, zc + 0.016, yp - 0.075, yp - 0.29, yp - 0.04, yp - 0.255); // jambe de force
     A.box(LS, xa - 0.004, xa, yp - 0.04, yp, zc - 0.02, zc + 0.02, 'blackMatte'); // embout
   }
   const yr = yp + 0.035, yb = yr + 0.03, yt = yb + Hh; // plots 35 mm, pieds 30 mm

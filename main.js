@@ -18,6 +18,8 @@ import { initNav } from './nav.js';
 import { buildBains } from './bains.js';
 import { buildMobilier } from './mobilier.js';
 import { buildSousEscalier } from './sousEscalier.js';
+import { buildChambre1 } from './chambre1.js';
+import { buildVoiture } from './voiture.js';
 import { buildOuvrants, initOuvrants } from './ouvrants.js';
 // RAL 7016 gris anthracite : valeur nominale #383E42, affichée un peu plus claire pour compenser la courbe de rendu et rendre la teinte
 // telle qu'on la voit en vrai (calée sur les photos de Sébastien) ; peinture thermolaquée satinée, non métallique
@@ -214,7 +216,7 @@ function buildMaterials() {
   M.alu = std({ color: RAL7016, roughness: 0.5 }); // RAL 7016 thermolaqué satiné (peinture : non métallique)
   M.sable = std({ map: TEX.sable, roughness: 0.78 });
   M.garage = std({ color: RAL7016, roughness: 0.5 });
-  M.bbi = std({ color: RAL7016, roughness: 0.6 });
+  M.bbi = std({ color: '#dcd3c2', roughness: 0.55 }); // alu laqué ton pierre : caches (sous-faces) des coffres de volets roulants encastrés (choix client du 11/10)
   M.appui = std({ color: '#efede6', roughness: 0.6 });
   M.galet = std({ color: '#9a948b', roughness: 0.8 });
   M.terrace = std({ map: TEX.terrace, roughness: 0.75 }); M.terraceEdge = std({ color: '#bdb9b1', roughness: 0.85 });
@@ -289,7 +291,7 @@ function setTile(level, key) {
   finish[level] = key;
   const m = level === 'R' ? M.tileR : M.tileW; const o = TILE_OPTIONS[key];
   if (m.map) m.map.dispose();
-  m.map = tileTexture(key); m.roughness = o.rough; m.needsUpdate = true;
+  m.map = tileTexture(key); m.roughness = o.rough; m.needsUpdate = true; if (renderer) requestRender(false);
   if (level === 'W' && finish.P === 'carrelage') setParquet('carrelage');
 }
 function setParquet(key) {
@@ -297,7 +299,7 @@ function setParquet(key) {
   if (m.map) m.map.dispose();
   if (key === 'carrelage') { m.map = tileTexture(finish.W); m.roughness = TILE_OPTIONS[finish.W].rough; }
   else { m.map = parquetTexture(key); m.roughness = 0.5; }
-  m.needsUpdate = true;
+  m.needsUpdate = true; if (renderer) requestRender(false);
 }
 
 // ---------------------------------------------------------------- accumulateur de géométrie
@@ -366,6 +368,44 @@ class Acc {
   }
 }
 const A = new Acc();
+
+// [perf] fusion de petits maillages statiques (touffes, quincaillerie, sanitaires…) : un seul maillage, donc un seul appel de dessin,
+// par matériau, réglage d'ombre et jeu d'attributs ; les transformations sont appliquées aux sommets (rendu identique).
+// roots : objets (maillages ou groupes) déjà enfants de dst ou détachés ; les sous-arbres contenant autre chose que des maillages
+// et des groupes (lumières, lignes…) ou masqués sont laissés tels quels ; les maillages transparents, instanciés, multi-matériaux
+// ou à renderOrder sont rattachés à dst sans fusion (tri par profondeur conservé). Renvoie les maillages fusionnés.
+function mergeStatic(roots, dst) {
+  dst.updateWorldMatrix(true, false);
+  const inv = dst.matrixWorld.clone().invert(), B = new Map(), loose = [], used = [], out = [];
+  for (const r of roots) {
+    let ok = r.visible; r.traverse(o => { if ((!o.isMesh && !o.isGroup && o.type !== 'Object3D') || o.userData.noMerge) ok = false; }); // userData.noMerge : sous-arbre laissé intact (objet animé ou retrouvé plus tard)
+    if (!ok) continue;
+    r.updateWorldMatrix(true, true); used.push(r);
+    r.traverse(o => {
+      if (!o.isMesh) return; const mt = o.material, g = o.geometry;
+      if (Array.isArray(mt) || o.isInstancedMesh || o.isSkinnedMesh || mt.transparent || o.renderOrder || !o.visible || g.morphAttributes.position) { loose.push(o); return; }
+      const key = [mt.uuid, o.castShadow, o.receiveShadow, Object.keys(g.attributes).sort().join()].join('|');
+      let b = B.get(key); if (!b) B.set(key, b = { mt, cast: o.castShadow, recv: o.receiveShadow, items: [] });
+      b.items.push({ g, m: inv.clone().multiply(o.matrixWorld) });
+    });
+  }
+  for (const o of loose) dst.attach(o);
+  for (const r of used) if (loose.indexOf(r) < 0) r.removeFromParent(); // un maillage racine non fusionné reste rattaché à dst
+  for (const b of B.values()) {
+    const allIdx = b.items.every(it => it.g.index);
+    const geos = b.items.map(({ g, m }) => {
+      const c = allIdx ? g.clone() : (g.index ? g.toNonIndexed() : g.clone()); c.applyMatrix4(m);
+      if (m.determinant() < 0) { // repère miroir : on retourne l'ordre des sommets pour garder les faces avant
+        if (c.index) { const a = c.index.array; for (let i = 0; i + 2 < a.length; i += 3) { const t = a[i + 1]; a[i + 1] = a[i + 2]; a[i + 2] = t; } }
+        else for (const at of Object.values(c.attributes)) { const s = at.itemSize, a = at.array; for (let i = 0; i + 2 < at.count; i += 3) for (let k = 0; k < s; k++) { const t = a[(i + 1) * s + k]; a[(i + 1) * s + k] = a[(i + 2) * s + k]; a[(i + 2) * s + k] = t; } }
+      }
+      return c;
+    });
+    const mg = geos.length > 1 ? mergeGeometries(geos, false) : geos[0]; if (!mg) continue;
+    const m = new THREE.Mesh(mg, b.mt); m.castShadow = b.cast; m.receiveShadow = b.recv; m.userData.merged = b.items.length; dst.add(m); out.push(m);
+  }
+  return out;
+}
 
 // prisme le long d'un segment p0→p1 (plan XZ), épaisseur t0..t1 côté droit du sens de parcours,
 // base yb0 (en p0) → yb1 (en p1), hauteur h : sert aux murets et lames qui suivent la pente
@@ -527,11 +567,11 @@ function menuiserie(face, o) {
   const w = 0.055, dd0 = 0.20, dd1 = 0.27;
   if (o.t === 'garage') return garageDoor(face, o, layer);
   if (o.t === 'entry') return entryDoor(face, o, layer);
-  // sous-face PVC du coffre BBI (teinte menuiseries) et coulisses du volet
+  // cache (sous-face) du coffre BBI encastré en alu ton pierre ; coulisses du volet en alu RAL 7016 collées au dormant (bloc-baie : aucun tableau ton pierre visible entre les deux)
   if (o.vr) {
     LB(face, layer, a0, a1, y1 - 0.025, y1, 0.02, dd0, 'bbi');
-    LB(face, layer, a0, a0 + 0.035, y0, y1 - 0.025, 0.07, 0.14, 'alu');
-    LB(face, layer, a1 - 0.035, a1, y0, y1 - 0.025, 0.07, 0.14, 'alu');
+    LB(face, layer, a0, a0 + 0.035, y0, y1 - 0.025, dd0 - 0.07, dd0, 'alu');
+    LB(face, layer, a1 - 0.035, a1, y0, y1 - 0.025, dd0 - 0.07, dd0, 'alu');
   }
   const yTop = y1 - (o.vr ? 0.025 : 0);
   // dormant
@@ -565,15 +605,15 @@ function menuiserie(face, o) {
     }
   }
   // tablier de volet roulant (affiché si « volets fermés »)
-  if (o.vr) LB(face, vol, a0 + 0.02, a1 - 0.02, y0 + (isDoor ? 0.005 : 0), yTop, 0.095, 0.11, 'slats');
+  if (o.vr) LB(face, vol, a0 + 0.02, a1 - 0.02, y0 + (isDoor ? 0.005 : 0), yTop, dd0 - 0.045, dd0 - 0.03, 'slats'); // dans les coulisses
   // garde-corps des fenêtres d'étage (allège 0,70 m), modèle des photos de Sébastien, acier RAL 7016 scellé dans les tableaux :
-  // lisses plates 35 × 10 en haut (à 1,00 m du sol fini) et en bas, 2 barreaux 14 × 14 de chaque côté, croix de Saint-André centrale avec rosace
+  // lisses plates 35 × 10 en haut (à 1,05 m du sol fini) et en bas (à 10 cm de l'appui), 2 barreaux 14 × 14 de chaque côté, croix de Saint-André centrale avec rosace
   if (o.gc) gardeCorps(face, o, layer);
 }
 
 function gardeCorps(face, o, layer) {
   const { a0, a1, y0 } = o, W = a1 - a0, f = FACE[face];
-  const yb0 = y0 + 0.050, yb1 = yb0 + 0.010, yt1 = E1 + 1.00, yt0 = yt1 - 0.010, d0 = 0.025, d1 = 0.060, dm = 0.043;
+  const yb0 = y0 + 0.100, yb1 = yb0 + 0.010, yt1 = E1 + 1.05, yt0 = yt1 - 0.010, d0 = 0.025, d1 = 0.060, dm = 0.043;
   LB(face, layer, a0 - 0.01, a1 + 0.01, yb0, yb1, d0, d1, 'alu'); LB(face, layer, a0 - 0.01, a1 + 0.01, yt0, yt1, d0, d1, 'alu');
   const fr = [0.100, 0.197, 0.295, 0.705, 0.803, 0.900];
   for (const t of fr) { const a = a0 + t * W; LB(face, layer, a - 0.007, a + 0.007, yb1, yt0, dm - 0.007, dm + 0.007, 'alu'); }
@@ -757,12 +797,16 @@ function buildDoors(list) {
       const l = mesh(g, levG, 'handle', hx - 0.056, hy, zf + s * 0.052); l.rotation.z = Math.PI / 2;
       meshes.push(r, n, l);
     }
+    // [perf] pièces du vantail fusionnées par matériau (22 maillages → 5) ; vantail, rainures et béquilles restent cliquables (charnières et entrées de clé non, comme avant)
+    meshes.length = 0; for (const m of mergeStatic([...g.children], g)) if (m.material !== M.inox && m.material !== M.blackMatte) meshes.push(m);
     const d = { g, meshes, open: 0, target: 0 }; for (const m of meshes) m.userData.door = d;
     g.rotation.y = 0; DOORS.push(d); // fermées par défaut
   }
 }
-function animateDoors(dt) {
-  for (const d of DOORS) if (d.open !== d.target) { d.open += Math.sign(d.target - d.open) * Math.min(Math.abs(d.target - d.open), dt * (d.speed ?? 1.6)); if (d.apply) d.apply(d.open); else d.g.rotation.y = -Math.PI / 2 * d.open; }
+function animateDoors(dt) { // [perf] renvoie true si un ouvrant a bougé
+  let mv = false;
+  for (const d of DOORS) if (d.open !== d.target) { mv = true; d.open += Math.sign(d.target - d.open) * Math.min(Math.abs(d.target - d.open), dt * (d.speed ?? 1.6)); if (d.apply) d.apply(d.open); else d.g.rotation.y = -Math.PI / 2 * d.open; }
+  return mv;
 }
 // Emplacements de placards des plans travaux v3 (p. 9 et 10), portes coulissantes gris clair pour les repérer :
 // [calque, axe de la façade, position de la façade, début, fin, sol, plafond]
@@ -938,12 +982,9 @@ function buildFurniture() {
   B(f1, 6.37, 6.99, e, e + 2.40, T, 1.44, 'white'); B(f1, 7.79, 8.38, e, e + 2.40, T, 1.44, 'white'); B(f1, 6.37, 8.22, e, e + 2.40, 2.45, 3.10, 'white'); // dressing
   B(f1, 8.45, 9.10, e, e + 2.40, T, 1.44, 'white'); // placard de la chambre 1
 
-  // --- Salle de bains commune (« Bains ») : douche 160×90 Geberit Olona dans l'angle, sèche-serviettes Adelys
-  B(f1, 1.20, 1.70, e + 0.40, e + 1.60, T, T + 0.06, 'radiator');
+  // --- Salle de bains commune (« Bains ») : douche 160×90 Geberit Olona dans l'angle ; sèche-serviettes Atlantic Adélis des deux salles d'eau : bains.js
   // faïence 12,25 m² (notice) : murs des deux douches sur 2,10 m
   B(f1, 2.26, 3.86, e, e + 2.10, T, T + 0.008, 'faience'); B(f1, 3.852, 3.86, e, e + 2.10, T, 1.26, 'faience');
-  // salle d'eau parentale (« Douche ») : sèche-serviettes
-  B(f1, 4.90, 4.96, e + 0.40, e + 1.60, 1.93, 2.42, 'radiator');
 }
 
 // ---------------------------------------------------------------- terrain et abords
@@ -1094,7 +1135,7 @@ function buildSite() {
   overlayQuad('site', 'gravel', [[L + 0.002, 0.03], [xSouth(0.03), 0.03], [xSouth(3.89), 3.89], [L + 0.002, 3.89]], 0.025, 26, 16);
   // jardin de pluie : fond paillé et plantations (vivaces, graminées), regard de surverse
   overlayPoly('site', 'mulch', RAIN, 0.03, 0.1);
-  TUFT = new THREE.ConeGeometry(0.025, 0.5, 4); BUSH = new THREE.IcosahedronGeometry(0.22, 1); const r = rng(7);
+  TUFT = new THREE.ConeGeometry(0.025, 0.5, 4); BUSH = new THREE.IcosahedronGeometry(0.22, 1); const r = rng(7); TUFT_G = new THREE.Group();
   let placed = 0;
   for (let i = 0; i < 3000 && placed < 130; i++) {
     const x = 14.1 + r() * 4.3, z = 4.8 + r() * 7.8; const pi = polyInfo(RAIN, x, z);
@@ -1102,6 +1143,7 @@ function buildSite() {
     if (Math.hypot(x - 17.45, z - 11.6) < 0.45) continue;
     grassTuft(x, z, 0.6 + r() * 0.8, r); placed++;
   }
+  mergeStatic([TUFT_G], groups.site); TUFT_G = null; // [perf] ~860 maillages → 4
   { const y = hAt(17.45, 11.6); A.box('site', 17.20, 17.70, y - 0.1, y + 0.02, 11.35, 11.85, 'concrete'); A.box('site', 17.24, 17.66, y + 0.02, y + 0.03, 11.39, 11.81, 'grille'); }
   // arbre à planter (jardin nord, plan de masse)
   tree(-7.4, 7.6, 1.0);
@@ -1136,7 +1178,9 @@ function buildSite() {
 function tree(x, z, s) {
   const y = hAt(x, z); const r = rng(Math.floor(x * 100 + z * 7 + 13));
   const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.15 * s, 2.6 * s, 10), M.trunk); tr.position.set(x, y + 1.3 * s, z); tr.castShadow = true; groups.site.add(tr);
-  for (let i = 0; i < 4; i++) { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * s, 0.06 * s, 1.3 * s, 6), M.trunk); const a = i * 1.7; br.position.set(x + Math.cos(a) * 0.3 * s, y + 2.7 * s, z + Math.sin(a) * 0.3 * s); br.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6); br.castShadow = true; groups.site.add(br); }
+  const wood = [tr]; // [perf] tronc et branches fusionnés
+  for (let i = 0; i < 4; i++) { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * s, 0.06 * s, 1.3 * s, 6), M.trunk); const a = i * 1.7; br.position.set(x + Math.cos(a) * 0.3 * s, y + 2.7 * s, z + Math.sin(a) * 0.3 * s); br.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6); br.castShadow = true; groups.site.add(br); wood.push(br); }
+  mergeStatic(wood, groups.site);
   const geos = [];
   for (let i = 0; i < 46; i++) {
     const geo = new THREE.IcosahedronGeometry((0.32 + r() * 0.28) * s, 2); const pp = geo.attributes.position;
@@ -1148,12 +1192,12 @@ function tree(x, z, s) {
   }
   const crown = new THREE.Mesh(mergeGeometries(geos), M.foliage); crown.castShadow = true; crown.receiveShadow = true; groups.site.add(crown);
 }
-let TUFT, BUSH;
+let TUFT, BUSH, TUFT_G; // [perf] TUFT_G : groupe provisoire des touffes, fusionné à la fin de la plantation
 function grassTuft(x, z, s, r) {
-  const y = hAt(x, z);
-  for (let i = 0; i < 6; i++) { const c = new THREE.Mesh(TUFT, r() < 0.5 ? M.leaf2 : M.leaf); c.scale.setScalar(s * (0.7 + r() * 0.5)); c.position.set(x + (r() - 0.5) * 0.15, y + 0.2 * s, z + (r() - 0.5) * 0.15); c.rotation.set((r() - 0.5) * 0.7, r() * 3, (r() - 0.5) * 0.7); c.castShadow = true; groups.site.add(c); }
-  if (r() < 0.35) { const b = new THREE.Mesh(BUSH, r() < 0.5 ? M.leaf : M.leaf2); const k = s * (0.6 + r() * 0.5); b.scale.set(k, k * 0.7, k); b.position.set(x + (r() - 0.5) * 0.2, y + 0.08 * k, z + (r() - 0.5) * 0.2); b.castShadow = true; groups.site.add(b); }
-  if (r() < 0.3) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), M.flower); f.position.set(x, y + 0.45 * s, z); groups.site.add(f); }
+  const y = hAt(x, z), G = TUFT_G || groups.site;
+  for (let i = 0; i < 6; i++) { const c = new THREE.Mesh(TUFT, r() < 0.5 ? M.leaf2 : M.leaf); c.scale.setScalar(s * (0.7 + r() * 0.5)); c.position.set(x + (r() - 0.5) * 0.15, y + 0.2 * s, z + (r() - 0.5) * 0.15); c.rotation.set((r() - 0.5) * 0.7, r() * 3, (r() - 0.5) * 0.7); c.castShadow = true; G.add(c); }
+  if (r() < 0.35) { const b = new THREE.Mesh(BUSH, r() < 0.5 ? M.leaf : M.leaf2); const k = s * (0.6 + r() * 0.5); b.scale.set(k, k * 0.7, k); b.position.set(x + (r() - 0.5) * 0.2, y + 0.08 * k, z + (r() - 0.5) * 0.2); b.castShadow = true; G.add(b); }
+  if (r() < 0.3) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), M.flower); f.position.set(x, y + 0.45 * s, z); G.add(f); }
 }
 // haie le long d'une rue, du côté opposé (X0 → X1 si horizontale, sinon le long de la rue sud)
 function hedge(a0, a1, off, h) {
@@ -1258,18 +1302,51 @@ const hooks = { pre: [], post: [], render: null };
 const DOORS = []; // éléments ouvrants cliquables : { g (groupe pivot), meshes, open, target, speed?, apply?(open) } ; sans apply : rotation d'une porte battante
 function ctx() {
   return { A, M, TEX, groups, scene, camera, controls, renderer, get composer() { return composer; }, get gtao() { return gtao; }, labelRenderer,
-    state, VIEWS, setView, applyVisibility, applyLighting, updateSun, hooks, DOORS, roomLights, labels,
+    state, VIEWS, setView, applyVisibility, applyLighting, updateSun, hooks, DOORS, roomLights, labels, requestRender, mergeStatic, get fast() { return fast; },
     hAt, zWest, xSouth, BND, L, D, T, SH, H, E1, std, makeTex, pixelNoise, rng, clamp, smooth, lerp2, sbox, hipRoof, tree, hedge, wall, LB, OPEN, FACE };
 }
 let renderer, scene, camera, controls, sun, hemi, sky, pmrem, envRT, composer, gtao, labelRenderer;
+// [perf] rendu à la demande : rien n'est dessiné tant que la caméra est immobile et que rien ne change. En mouvement (orbite, balade,
+// animation de vue, porte, curseur de l'heure…) : résolution réduite et sans occlusion ambiante ; puis une image pleine qualité à l'arrêt.
+// Les modules qui modifient la scène hors des fonctions de main.js appellent ctx.requestRender() (sinon toute action dans le panneau redessine).
+// Sous Playwright (navigator.webdriver), pas d'images allégées : les captures d'essai restent identiques.
+const PERF = { adaptive: !navigator.webdriver, fastDpr: 1, settle: 220, eps: 1e-6 };
+let labelScene, fast = false, dirty = true, shadowDirty = true, hqPending = false, lastActive = 0, activeRun = 0;
+const camSig = new Float64Array(32);
+function requestRender(shadows = true) { dirty = true; if (shadows) shadowDirty = true; }
+const hqDpr = () => Math.min(window.devicePixelRatio || 1, 2);
+function setDpr(v) { if (renderer.getPixelRatio() !== v) renderer.setPixelRatio(v); }
+function saveCam() { camera.updateMatrixWorld(); camSig.set(camera.matrixWorld.elements, 0); camSig.set(camera.projectionMatrix.elements, 16); }
+function cameraMoved() {
+  camera.updateMatrixWorld(); const a = camera.matrixWorld.elements, b = camera.projectionMatrix.elements;
+  for (let i = 0; i < 16; i++) if (Math.abs(a[i] - camSig[i]) > PERF.eps || Math.abs(b[i] - camSig[16 + i]) > PERF.eps) return true;
+  return false;
+}
+function draw(now, hq) {
+  fast = !hq;
+  setDpr(hq || hooks.render ? hqDpr() : Math.min(hqDpr(), PERF.fastDpr)); // l'optique panoramique gère sa propre résolution
+  if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; } // carte d'ombre du soleil recalculée seulement si la scène a changé
+  if (hooks.render) hooks.render(now);
+  else if (hq && state.ao && composer && (state.inside || state.mode !== 'ext')) composer.render(); else renderer.render(scene, camera);
+  labelRenderer.render(labelScene, camera);
+  saveCam(); dirty = false; hqPending = !hq;
+}
+// [perf] variante d'éclairage intérieur compilée en tâche de fond après le chargement (évite l'à-coup à la première entrée dans la maison) ;
+// seulement si le navigateur compile en parallèle, sinon la compilation bloquerait la page au hasard : elle se fera à la première entrée, comme avant
+function precompileInterior() {
+  if (!renderer.compileAsync || !renderer.extensions.has('KHR_parallel_shader_compile')) return; const vis = roomLights.map(l => l.visible);
+  let p; try { roomLights.forEach(l => { l.visible = true; }); p = renderer.compileAsync(scene, camera); } catch (e) { p = null; } finally { roomLights.forEach((l, i) => { l.visible = vis[i]; }); }
+  if (p) p.then(() => requestRender(false), () => {});
+}
 const state = { mode: 'ext', roof: true, furn: true, fence: true, pergola: true, volets: false, ao: true, month: 6, hour: 16.5, envI: 0.07, lampI: 7, inside: false };
 const labels = { rdc: [], r1: [] };
 
 function init() {
   const canvas = document.getElementById('scene');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(hqDpr());
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false; // [perf] ombre du soleil statique : recalculée quand la scène change (requestRender), pas quand la caméra bouge
   renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 0.75;
   MAX_ANISO.v = renderer.capabilities.getMaxAnisotropy();
   scene = new THREE.Scene();
@@ -1280,7 +1357,7 @@ function init() {
   buildTextures(); buildMaterials();
   for (const l of LAYERS) { groups[l] = new THREE.Group(); groups[l].name = l; scene.add(groups[l]); }
   buildShell(); buildInterior(); buildRoof(); buildFurniture(); buildSite();
-  buildEquipment(ctx()); buildEnvironment(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildSousEscalier(ctx()); buildOuvrants(ctx());
+  buildEquipment(ctx()); buildEnvironment(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildOuvrants(ctx());
   A.build(groups);
 
   sky = new Sky(); sky.scale.setScalar(4000); scene.add(sky);
@@ -1298,6 +1375,7 @@ function init() {
 
   // étiquettes des pièces (surfaces des plans travaux v3)
   labelRenderer = new CSS2DRenderer(); labelRenderer.domElement.className = 'labels'; document.getElementById('stage').appendChild(labelRenderer.domElement);
+  labelScene = new THREE.Scene(); // [perf] étiquettes dans une scène à part : le rendu CSS2D ne parcourt plus les ~1 800 objets de la maquette
   const e1 = H.r1Floor + 0.05;
   const rooms = [
     ['rdc', 'Entrée', '12,82 m²', 3.0, 0.05, 2.2], ['rdc', 'WC', '2,00 m²', 1.3, 0.05, 0.85], ['rdc', 'Cuisine', '11,50 m²', 2.0, 0.95, 5.6], ['rdc', 'Séjour', '36,24 m²', 8.2, 0.9, 4.6], ['rdc', 'Garage', '16,41 m²', 9.9, 0.0, 1.8], ['rdc', 'Local technique', '4,98 m²', 6.2, 0.0, 1.9],
@@ -1306,7 +1384,7 @@ function init() {
   ];
   for (const [lv, name, s, x, y, z] of rooms) {
     const el = document.createElement('div'); el.className = 'room'; el.innerHTML = `<b>${name}</b><span>${s}</span>`;
-    const o = new CSS2DObject(el); o.position.set(x, y + 0.02, z); o.visible = false; scene.add(o); labels[lv].push(o);
+    const o = new CSS2DObject(el); o.position.set(x, y + 0.02, z); o.visible = false; labelScene.add(o); labels[lv].push(o);
   }
 
   // post-traitement : occlusion ambiante
@@ -1326,13 +1404,21 @@ function init() {
   renderer.setAnimationLoop(tick);
   bindUI();
   initNav(ctx()); initOuvrants(ctx());
+  // [perf] filet de sécurité du rendu à la demande : toute action dans le panneau ou au clavier (hors flèches de la balade) redessine
+  for (const t of ['input', 'change', 'click']) document.addEventListener(t, e => requestRender(e.target !== renderer.domElement), true);
+  window.addEventListener('keydown', e => { if (!/^(Arrow|Shift)/.test(e.key)) requestRender(); }, true);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
+  canvas.addEventListener('webglcontextrestored', () => requestRender());
+  saveCam(); requestRender();
+  setTimeout(precompileInterior, 1500);
   document.body.classList.add('ready');
 }
 
 function resize() {
   const st = document.getElementById('stage'); const w = st.clientWidth, h = st.clientHeight;
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-  labelRenderer.setSize(w, h); if (composer) composer.setSize(w, h);
+  labelRenderer.setSize(w, h); if (composer) { composer.setPixelRatio(hqDpr()); composer.setSize(w, h); } // [perf] l'occlusion ambiante reste en pleine résolution
+  requestRender();
 }
 
 // position du soleil (lat. 48,97° N, long. 2,33° E), heure légale
@@ -1367,10 +1453,24 @@ function updateSun(deferEnv) {
 function applyLighting() {
   const m = state.mode, inside = state.inside;
   for (const pl of roomLights) pl.intensity = (inside || (m === 'rdc' && pl.userData.lv === 0) || (m === 'r1' && pl.userData.lv === 1)) ? state.lampI * (pl.userData.k ?? 1) : 0;
+  // [perf] vues extérieures : les lampes intérieures (toutes éteintes) sont retirées du rendu, sinon chaque pixel calcule 16 lumières nulles.
+  // Deux jeux de lumières seulement (extérieur / intérieur et plans), pour ne recompiler les shaders qu'une fois (cf. precompileInterior)
+  const lit = inside || m !== 'ext'; for (const pl of roomLights) pl.visible = lit;
   amb.intensity = inside ? 0.16 : (m === 'ext' ? 0 : 0.14);
   scene.environmentIntensity = envLevel();
+  if (gtao) gtao.blendIntensity = inside ? 0.9 : 0.6; // dehors : occlusion adoucie, sinon les menuiseries au fond des tableaux de 20 cm noircissent
+  syncRalEnv();
+  requestRender();
 }
 const envLevel = () => state.inside ? state.envI : 0.40;
+// RAL 7016 : sans lumière renvoyée par l'enduit clair (pas d'éclairage global), les menuiseries au fond des tableaux, à l'ombre, paraissaient presque noires
+// à côté des garde-corps au soleil ; ambiance renforcée sur toutes les pièces 7016 pour qu'elles se lisent de la même teinte, comme en vrai
+// (envMapIntensity n'agit que si la carte est posée sur le matériau : avec scene.environment seul, three.js impose environmentIntensity)
+const RAL_MATS = ['alu', 'garage', 'pergola', 'soffit', 'fenceAlu', 'handle', 'grille', 'sable', 'slats', 'ral7016', 'c1Steel'];
+function syncRalEnv() {
+  if (!envRT) return;
+  for (const k of RAL_MATS) { const m = M[k]; if (!m) continue; if (m.envMap !== envRT.texture) { m.envMap = envRT.texture; m.needsUpdate = true; } m.envMapIntensity = envLevel() * (state.inside ? 1.5 : 2.6); }
+}
 function cardinal(a) { return ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(((a % 360) + 360) % 360 / 45) % 8]; }
 function updateEnv() {
   // ambiance d'éclairage neutre (dégradé ciel gris-bleu clair / horizon / sol) plutôt que le ciel physique très bleu :
@@ -1381,8 +1481,8 @@ function updateEnv() {
     fragmentShader: 'uniform float k; varying vec3 vd; void main(){ float y = vd.y; vec3 top = vec3(0.50, 0.56, 0.64), hor = vec3(0.80, 0.80, 0.78), gnd = vec3(0.30, 0.29, 0.26);' +
       ' vec3 c = y > 0.0 ? mix(hor, top, pow(y, 0.6)) : mix(hor, gnd, pow(-y, 0.4)); gl_FragColor = vec4(c * k, 1.0); }' });
   s2.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), mat));
-  if (envRT) envRT.dispose(); envRT = pmrem.fromScene(s2, 0, 0.1, 2000); scene.environment = envRT.texture; scene.environmentIntensity = envLevel();
-  mat.dispose();
+  if (envRT) envRT.dispose(); envRT = pmrem.fromScene(s2, 0, 0.1, 2000); scene.environment = envRT.texture; scene.environmentIntensity = envLevel(); syncRalEnv();
+  mat.dispose(); requestRender(false);
 }
 
 // ---------------------------------------------------------------- vues
@@ -1425,21 +1525,28 @@ function applyVisibility() {
   groups.fence.visible = state.fence; groups.pergola.visible = state.pergola;
   labels.rdc.forEach(o => o.visible = m === 'rdc'); labels.r1.forEach(o => o.visible = m === 'r1');
   const tr = document.getElementById('t-roof'); if (tr) tr.disabled = m !== 'ext';
+  requestRender();
 }
 
 function tick(now) {
-  const dt = Math.min(0.05, (now - (tick.last ?? now)) / 1000); tick.last = now; animateDoors(dt);
+  const dt = Math.min(0.05, (now - (tick.last ?? now)) / 1000); tick.last = now;
+  let active = animateDoors(dt); if (active) shadowDirty = true; // un ouvrant qui bouge change les ombres
   if (anim) {
     const k = clamp((now - anim.t0) / 1200, 0, 1); const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     camera.position.lerpVectors(anim.p0, anim.p1, e); controls.target.lerpVectors(anim.q0, anim.q1, e);
-    if (k >= 1) anim = null;
+    if (k >= 1) anim = null; active = true;
   }
   for (const f of hooks.pre) f(now);
   controls.update();
+  // [perf] fin de l'inertie de l'orbite : quand ce qu'il reste à parcourir devient invisible (< 0,5 px), on l'arrête net pour passer plus tôt à l'image pleine qualité
+  const sd = controls._sphericalDelta, po = controls._panOffset;
+  if (sd && po && controls.state === -1 && Math.abs(sd.theta) < 2e-4 && Math.abs(sd.phi) < 2e-4 && po.lengthSq() < (2e-4 * camera.position.distanceTo(controls.target)) ** 2) { sd.set(0, 0, 0); po.set(0, 0, 0); }
   for (const f of hooks.post) f(now);
-  if (hooks.render) hooks.render(now);
-  else if (state.ao && composer && (state.inside || state.mode !== 'ext')) composer.render(); else renderer.render(scene, camera);
-  labelRenderer.render(scene, camera);
+  // [perf] rendu à la demande (voir PERF) : changement ponctuel → pleine qualité tout de suite ; mouvement continu → images allégées,
+  // puis une image pleine qualité après PERF.settle ms d'immobilité ; rien du tout au repos
+  const moved = cameraMoved();
+  if (moved || active || dirty) { const hq = !PERF.adaptive || (!moved && !active && activeRun === 0); activeRun++; lastActive = now; draw(now, hq); }
+  else { activeRun = 0; if (hqPending && now - lastActive > (controls.state === -1 ? PERF.settle : 1000)) draw(now, true); } // bouton encore enfoncé : on attend un peu plus
 }
 
 // ---------------------------------------------------------------- interface
@@ -1465,11 +1572,17 @@ function bindUI() {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), cvs = renderer.domElement; let down = null, lastHover = 0;
   const doorAt = ev => { const r = cvs.getBoundingClientRect(); ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
     const objs = ['rdc', 'r1', 'slab1', 'ceil1', 'skinU', 'skinR', 'furn0', 'furn1', 'roof'].map(k => groups[k]).filter(g => g.visible);
-    const hit = ray.intersectObjects(objs, true)[0]; return hit && hit.object.userData.door; };
+    // [perf] d'abord les seuls ouvrants (quelques milliers de triangles) : au survol, presque toujours rien, et on s'arrête là ;
+    // sinon lancer complet limité à la distance de l'ouvrant touché, pour vérifier qu'aucun mur ne le masque (même résultat qu'avant)
+    const dm = []; for (const d of DOORS) for (const m of d.meshes) { let t = m; while (t.parent && t.parent !== scene) t = t.parent; if (objs.includes(t)) dm.push(m); }
+    const dh = ray.intersectObjects(dm, false)[0]; if (!dh) return undefined;
+    ray.far = dh.distance + 1e-6; const hit = ray.intersectObjects(objs, true)[0]; ray.far = Infinity; return hit && hit.object.userData.door; };
   cvs.addEventListener('pointerdown', ev => { down = { x: ev.clientX, y: ev.clientY, t: performance.now() }; });
   cvs.addEventListener('pointerup', ev => { if (!down) return; const moved = Math.hypot(ev.clientX - down.x, ev.clientY - down.y), quick = performance.now() - down.t < 500; down = null;
     if (moved < 6 && quick) { const d = doorAt(ev); if (d) d.target = d.target > 0.5 ? 0 : 1; } });
   cvs.addEventListener('pointermove', ev => { if (ev.buttons || performance.now() - lastHover < 90) return; lastHover = performance.now(); cvs.style.cursor = doorAt(ev) ? 'pointer' : ''; });
+  // [perf] capture en pleine qualité, y compris si elle est demandée pendant un mouvement (écouteur de capture : passe avant celui de nav.js)
+  document.getElementById('snap').addEventListener('click', () => { fast = false; setDpr(hqDpr()); requestRender(false); }, true);
   document.getElementById('snap').addEventListener('click', () => {
     if (state.ao && composer && (state.inside || state.mode !== 'ext')) composer.render(); else renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
@@ -1489,7 +1602,8 @@ function bindUI() {
   document.getElementById('shot-close').addEventListener('click', () => { document.getElementById('shot').hidden = true; });
   const panel = document.getElementById('panel'); document.getElementById('collapse').addEventListener('click', () => { const c = panel.classList.toggle('collapsed'); document.getElementById('collapse').setAttribute('aria-expanded', c ? 'false' : 'true'); });
   if (matchMedia('(max-width: 700px)').matches) { panel.classList.add('collapsed'); document.getElementById('collapse').setAttribute('aria-expanded', 'false'); }
-  window.__maquette = { M, groups, DOORS, setView, state, applyVisibility, updateSun, setTile, setParquet, hAt, get composer() { return composer; }, get gtao() { return gtao; }, scene: () => scene, renderer: () => renderer, sun: () => sun, camera: () => camera, controls: () => controls };
+  window.__maquette = { M, groups, DOORS, setView, state, applyVisibility, updateSun, setTile, setParquet, hAt, get composer() { return composer; }, get gtao() { return gtao; }, scene: () => scene, renderer: () => renderer, sun: () => sun, camera: () => camera, controls: () => controls,
+    requestRender, perf: PERF, get fast() { return fast; } };
 }
 
 init();

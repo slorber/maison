@@ -1,6 +1,6 @@
-// Salles de bains et WC : meubles Balmani Moon (chêne naturel à tasseaux, plan Solid Surface, grand miroir rétroéclairé en salle de bains, miroir rond en salle d'eau), colonne assortie,
+// Salles de bains et WC : meubles Balmani Moon (chêne naturel à tasseaux, plan Solid Surface, grands miroirs rectangulaires rétroéclairés), colonne assortie,
 // douches (Bains 160×90 du plan, cabine 140×100 de la salle d'eau parentale), faïence toute hauteur et sol terrazzo de la salle d'eau,
-// WC suspendus Roca Gap Round sur bâti-support habillé, lave-mains du WC du RDC. Appelé avant A.build(groups).
+// packs WC au sol Roca The Gap Round à réservoir attenant, sèche-serviettes Atlantic Adélis en sortie de douche, lave-mains du WC du RDC. Appelé avant A.build(groups).
 // Repère local des meubles muraux : x le long du mur (vers la droite face au meuble), z sortant du mur, y depuis le sol fini.
 import * as THREE from 'three';
 
@@ -19,6 +19,12 @@ class MB {
     if (d < 0) this.ix.push(a, c, b); else this.ix.push(a, b, c);
   }
   quad(a, b, c, d) { this.tri(a, b, c); this.tri(a, c, d); }
+  add(geo, m, c = 1) { // ajoute une géométrie three (primitives, tubes) transformée par la matrice m : un seul maillage par matériau
+    const g = m ? geo.clone().applyMatrix4(m) : geo, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, i0 = this.p.length / 3;
+    for (let i = 0; i < P.count; i++) this.v(P.getX(i), P.getY(i), P.getZ(i), N.getX(i), N.getY(i), N.getZ(i), U ? U.getX(i) : 0, U ? U.getY(i) : 0, c);
+    if (g.index) for (let i = 0; i < g.index.count; i++) this.ix.push(i0 + g.index.getX(i)); else for (let i = 0; i < P.count; i++) this.ix.push(i0 + i);
+    return this;
+  }
   mesh(mat, parent, shadow = true) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
@@ -92,6 +98,39 @@ function cap(mb, outer, holes, y, up, c = 1) {
 }
 // contour ouvert refermé le long du mur (z = 0)
 function closeBack(pts) { const f = pts[0], l = pts[pts.length - 1], r = [...pts]; if (Math.abs(f[1]) > 1e-4) r.unshift([f[0], 0]); if (Math.abs(l[1]) > 1e-4) r.push([l[0], 0]); return r; }
+// matrice de placement (position, rotations d'Euler) pour MB.add
+const TM = (x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
+// profil fermé de rectangle arrondi dans un plan (u, v) : points [u, v, nu, nv]
+function rrProf(u0, u1, v0, v1, r, k = 3) {
+  const p = [];
+  for (const [cu, cv, a0] of [[u1 - r, v1 - r, 0], [u0 + r, v1 - r, HP], [u0 + r, v0 + r, PI], [u1 - r, v0 + r, 3 * HP]])
+    for (let i = 0; i <= k; i++) { const a = a0 + HP * i / k, c = Math.cos(a), s = Math.sin(a); p.push([cu + r * c, cv + r * s, c, s]); }
+  return p;
+}
+// extrusion droite d'un profil fermé le long de l'axe ax de a0 à a1 ; plan du profil : 'x' → (z, y), 'y' → (x, z), 'z' → (x, y) ; bouchons en éventail (profil convexe)
+function ext(mb, ax, a0, a1, prof, caps = true, c = 1) {
+  const P = (a, u, v) => ax === 'x' ? [a, v, u] : ax === 'y' ? [u, a, v] : [u, v, a];
+  const I = [a0, a1].map(a => prof.map(([u, v, nu, nv]) => mb.v(...P(a, u, v), ...P(0, nu, nv), a, v, c)));
+  for (let i = 0; i < prof.length; i++) { const j = (i + 1) % prof.length; mb.quad(I[0][i], I[1][i], I[1][j], I[0][j]); }
+  if (!caps) return;
+  const cu = prof.reduce((s, q) => s + q[0], 0) / prof.length, cv = prof.reduce((s, q) => s + q[1], 0) / prof.length;
+  for (const [a, sg] of [[a0, -1], [a1, 1]]) {
+    const n = P(sg, 0, 0), o = mb.v(...P(a, cu, cv), ...n, cu, cv, c), ids = prof.map(([u, v]) => mb.v(...P(a, u, v), ...n, u, v, c));
+    for (let i = 0; i < ids.length; i++) mb.tri(o, ids[i], ids[(i + 1) % ids.length]);
+  }
+}
+// surface réglée entre sections horizontales de même nombre de points (contours [x, z]) : normale = tangente du contour × tangente verticale
+function loft(mb, secs, c = 1) {
+  const C = secs.map(s => polyC(s.pts)), n = C[0].length, last = C.length - 1;
+  const ids = C.map((cs, k) => cs.map((q, i) => {
+    const a = C[Math.max(k - 1, 0)][i], b = C[Math.min(k + 1, last)][i], vx = b.x - a.x, vy = secs[Math.min(k + 1, last)].y - secs[Math.max(k - 1, 0)].y, vz = b.z - a.z;
+    let nx = vy * q.tz, ny = vz * q.tx - vx * q.tz, nz = -vy * q.tx; if (nx * q.nx + nz * q.nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    const l = Math.hypot(nx, ny, nz) || 1;
+    return mb.v(q.x, secs[k].y, q.z, nx / l, ny / l, nz / l, q.s, secs[k].y, c);
+  }));
+  for (let k = 0; k < last; k++) for (let i = 0; i < n; i++) { const j = (i + 1) % n; mb.quad(ids[k][i], ids[k][j], ids[k + 1][j], ids[k + 1][i]); }
+  return C;
+}
 
 // ---------------------------------------------------------------- façade à tasseaux : joncs demi-ronds au pas de 16 mm, rainures sombres, joints de portes plus marqués
 function fluted(mb, segs, joints, y0, y1, o = {}) {
@@ -158,15 +197,16 @@ function roundMirror(parent, M, x, y, z, r) {
 }
 
 // grand miroir rectangulaire rétroéclairé (demande de Sébastien pour la salle de bains commune) : angles arrondis 3 cm, glace face +z local,
-// chant sombre, entretoise murale, bandeau LED sablé en périphérie, halo sur le mur (plan additif, pas de source lumineuse)
+// chant sombre, entretoise murale, bandeau LED sablé en périphérie, halo sur le mur (plan additif, pas de source lumineuse).
+// Le chant est reculé de 1 mm derrière la glace : sa face avant coïncidait avec elle (scintillement en triangles et tirets sur toute la glace).
+// Glace non métallique et satinée (bnMirrorRect) : reflet clair et doux, sans horizon sombre sur une grande surface plane.
 function rectMirror(parent, M, x, y, z, w, h) {
   const shape = (ww, hh, rr) => { const s = new THREE.Shape(), a = ww / 2, b = hh / 2; s.moveTo(-a + rr, -b); s.lineTo(a - rr, -b); s.absarc(a - rr, -b + rr, rr, -HP, 0); s.lineTo(a, b - rr);
     s.absarc(a - rr, b - rr, rr, 0, HP); s.lineTo(-a + rr, b); s.absarc(-a + rr, b - rr, rr, HP, PI); s.lineTo(-a, -b + rr); s.absarc(-a + rr, -b + rr, rr, PI, PI + HP); return s; };
   const r = 0.03, glass = new THREE.ShapeGeometry(shape(w, h, r), 8), uv = glass.attributes.uv;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) + w / 2) / w, (uv.getY(i) + h / 2) / h); // texture de reflet étalée sur toute la glace
-  if (!M.bnMirrorFlat) M.bnMirrorFlat = M.bnMirror.clone(); Object.assign(M.bnMirrorFlat, { metalness: 0, roughness: 0.35, emissiveIntensity: 0.42 }); // grande glace : pas d'horizon sombre du fond d'environnement
-  const face = new THREE.Mesh(glass, M.bnMirrorFlat); face.position.set(x, y, z + 0.0345); parent.add(face);
-  const edge = new THREE.Mesh(new THREE.ExtrudeGeometry(shape(w, h, r), { depth: 0.006, bevelEnabled: false, curveSegments: 8 }), M.bnMirrorEdge); edge.position.set(x, y, z + 0.0275); edge.castShadow = true; parent.add(edge);
+  const face = new THREE.Mesh(glass, M.bnMirrorRect); face.position.set(x, y, z + 0.0335); parent.add(face);
+  const edge = new THREE.Mesh(new THREE.ExtrudeGeometry(shape(w, h, r), { depth: 0.006, bevelEnabled: false, curveSegments: 8 }), M.bnMirrorEdge); edge.position.set(x, y, z + 0.0265); edge.castShadow = true; parent.add(edge);
   box(parent, M.bnMirrorEdge, w - 0.10, h - 0.10, 0.024, x, y, z + 0.0155);
   const band = shape(w - 0.04, h - 0.04, r - 0.02 > 0.005 ? r - 0.02 : 0.005); band.holes.push(shape(w - 0.068, h - 0.068, 0.005));
   const led = new THREE.Mesh(new THREE.ShapeGeometry(band, 8), M.bnLed); led.position.set(x, y, z + 0.0345); parent.add(led);
@@ -200,9 +240,9 @@ function moonColumn(ctx, parent, xc, zw) {
   return g;
 }
 
-// ---------------------------------------------------------------- colonne de douche thermostatique murale, pomme ronde Ø 25 (mur z = zw, sortie vers +z)
-function showerColumn(parent, mat, matDark, x, e, zw) {
-  const g = new THREE.Group(); g.position.set(x, e, zw); parent.add(g);
+// ---------------------------------------------------------------- colonne de douche thermostatique murale, pomme ronde Ø 25 (repère local : mur z = 0, sortie vers +z ; ry tourne la colonne autour de son point d'accroche)
+function showerColumn(parent, mat, matDark, x, e, zw, ry = 0) {
+  const g = new THREE.Group(); g.position.set(x, e, zw); g.rotation.y = ry; parent.add(g);
   const yT = 1.12, zc = 0.065, yH = 2.13, arm = 0.32;
   cyl(g, mat, 0.03, 0.29, 0, yT, zc, 0, HP, 32); // corps du mitigeur thermostatique
   for (const sx of [-1, 1]) { cyl(g, mat, 0.033, 0.05, sx * 0.168, yT, zc, 0, HP, 32); for (let i = 0; i < 10; i++) { const a = i / 10 * 2 * PI; box(g, matDark, 0.046, 0.003, 0.003, sx * 0.168, yT + 0.0335 * Math.cos(a), zc + 0.0335 * Math.sin(a), a); } } // manettes striées
@@ -220,32 +260,74 @@ function showerColumn(parent, mat, matDark, x, e, zw) {
   return g;
 }
 
-// ---------------------------------------------------------------- WC suspendu Roca Gap Round (54 × 35,5) : cuvette arrondie, abattant fin à frein de chute
-function wcRoca(parent, M, px, py, pz, ry) {
-  const g = new THREE.Group(); g.position.set(px, py, pz); g.rotation.y = ry; parent.add(g); // repère local : x sortant du mur, z latéral
-  const Lb = 0.54, Wb = 0.355, ne = 2.5, N = 48;
-  const SE = (t, su, sw) => { const c = Math.cos(t), s = Math.sin(t); return [Lb * su * Math.pow(Math.max(c, 0), 2 / ne), Wb / 2 * sw * Math.sign(s) * Math.pow(Math.abs(s), 2 / ne)]; };
-  // sections de la cuvette (hauteur, échelle longueur, échelle largeur) : flancs galbés qui se resserrent vers la fixation murale
-  const R = [[0.400, 1, 1], [0.394, 1.006, 1.005], [0.378, 1.004, 0.998], [0.345, 0.982, 0.972], [0.305, 0.94, 0.925], [0.265, 0.872, 0.86], [0.23, 0.775, 0.79], [0.20, 0.645, 0.725], [0.177, 0.5, 0.668], [0.162, 0.35, 0.625], [0.155, 0.19, 0.6]];
-  const pos = []; for (const [y, su, sw] of R) for (let i = 0; i <= N; i++) { const [u, w] = SE(-HP + PI * i / N, su, sw); pos.push(u, y, w); }
-  pos.push(0.03, 0.152, 0); const ci = pos.length / 3 - 1, idx = [];
-  for (let k = 0; k < R.length - 1; k++) for (let i = 0; i < N; i++) { const a = k * (N + 1) + i, b = a + 1, c = a + N + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
-  const lk = (R.length - 1) * (N + 1); for (let i = 0; i < N; i++) idx.push(lk + i, ci, lk + i + 1);
-  const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setIndex(idx); bg.computeVertexNormals();
-  if (bg.attributes.normal.getX(4 * (N + 1) + N / 2) < 0) { for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]]; bg.setIndex(idx); bg.computeVertexNormals(); }
-  const bowl = new THREE.Mesh(bg, M.bnPorc); bowl.castShadow = bowl.receiveShadow = true; g.add(bowl);
-  const cont = (su, sw, u0) => { const pts = []; for (let i = 0; i <= N; i++) { const [u, w] = SE(-HP + PI * i / N, su, sw); pts.push([Math.max(u, u0), w]); } return polyC(pts); };
-  const top = new MB(); const c0 = cont(1, 1, 0); cap(top, c0.map(q => [q.x, q.z]), [], 0.4, 1); top.mesh(M.bnPorc, g);
-  const seat = new MB(), cs = cont(0.992, 0.99, 0); sweep(seat, cs, edgeProf(0.4015, 0.416, 0.006, 0.003), true); cap(seat, cs.map(q => [q.x - q.nx * 0.006, q.z - q.nz * 0.006]), [], 0.416, 1); seat.mesh(M.bnPorc, g);
-  const lid = new MB(), cl = cont(0.988, 0.985, 0.048); sweep(lid, cl, edgeProf(0.4185, 0.446, 0.011, 0.004), true); cap(lid, cl.map(q => [q.x - q.nx * 0.011, q.z - q.nz * 0.011]), [], 0.446, 1); lid.mesh(M.bnPorc, g);
-  for (const sz of [-0.072, 0.072]) cyl(g, M.bnChrome, 0.011, 0.03, 0.026, 0.43, sz, HP, 0, 20); // charnières
+// ---------------------------------------------------------------- pack WC au sol Roca The Gap Round (A34D0N2000, demande client : pas de WC suspendu ni de tablette)
+// cuvette Rimless sur pied à sortie duale A3420N8000, réservoir attenant à alimentation latérale A3410N1000, abattant Silencio slim A801D12003.
+// Cotes Roca : 655 × 370 × 790 (longueur × largeur × hauteur), réservoir 365 × 150 × 390 posé sur la plage arrière de la cuvette (400 de haut).
+// Repère local : x sortant du mur (dos du réservoir à 1 cm du mur), z latéral, y depuis le sol fini. Abattant fermé : pas d'intérieur de cuvette à dessiner.
+// Porcelaine et chromes regroupés en un maillage chacun ; raccord d'évacuation horizontal au mur, robinet d'arrêt équerre et flexible côté +z.
+// contour en plan d'une section : arrière à congés rr, flancs droits, avant arrondi en super-ellipse sur la longueur fl (nombre de points constant pour le lissage entre sections)
+function wcOutline(xa, xb, b, fl, rr, n = 2.3) {
+  const h = [];
+  for (let i = 0; i <= 12; i++) { const t = HP * i / 12; h.push([xb - fl + fl * Math.pow(Math.cos(t), 2 / n), b * Math.pow(Math.sin(t), 2 / n)]); }
+  for (let i = 1; i <= 3; i++) h.push([xb - fl + (xa + rr - xb + fl) * i / 3, b]);
+  for (let i = 1; i <= 5; i++) { const t = HP * i / 5; h.push([xa + rr - rr * Math.sin(t), b - rr + rr * Math.cos(t)]); }
+  h.push([xa, 0]);
+  return h.concat(h.slice(1, -1).reverse().map(([x, z]) => [x, -z]));
+}
+function wcRound(parent, M, px, py, pz, ry) {
+  const g = new THREE.Group(); g.position.set(px, py, pz); g.rotation.y = ry; parent.add(g);
+  const P = new MB(), C = new MB(), X0 = 0.01, X1 = X0 + 0.655, yR = 0.40;
+  // gabarit de la cuvette et de son pied selon la hauteur : [y, arrière, avant, demi-largeur, avant arrondi, congé arrière] ; col concave sous la plage du réservoir, avant rentrant vers le pied
+  const K = [[0, 0.214, 0.550, 0.127, 0.17, 0.08], [0.03, 0.211, 0.545, 0.122, 0.17, 0.08], [0.10, 0.200, 0.547, 0.124, 0.18, 0.075], [0.15, 0.188, 0.556, 0.131, 0.20, 0.07],
+    [0.20, 0.170, 0.572, 0.141, 0.22, 0.06], [0.25, 0.146, 0.595, 0.154, 0.25, 0.05], [0.30, 0.113, 0.625, 0.168, 0.28, 0.04], [0.33, 0.080, 0.645, 0.177, 0.30, 0.03],
+    [0.355, 0.036, 0.659, 0.183, 0.31, 0.022], [0.375, X0 + 0.002, 0.664, 0.185, 0.32, 0.02], [0.392, X0, X1, 0.185, 0.32, 0.02], [0.397, X0 + 0.003, X1 - 0.003, 0.182, 0.317, 0.017], [yR, X0 + 0.009, X1 - 0.009, 0.176, 0.311, 0.011]];
+  loft(P, K.map(([y, xa, xb, b, fl, rr]) => ({ y, pts: wcOutline(xa, xb, b, fl, rr) })));
+  cap(P, wcOutline(X0 + 0.009, X1 - 0.009, 0.176, 0.311, 0.011), [], yR, 1);
+  // abattant double slim (453 × 350, 40 d'épaisseur avec le couvercle), fermé
+  const so = d => polyC(wcOutline(0.208 + d, 0.660 - d, 0.175 - d, 0.30 - d, 0.075 - d));
+  const seat = so(0); sweep(P, seat, edgeProf(yR + 0.001, yR + 0.015, 0.006, 0.003, 2), true); cap(P, seat.map(q => [q.x - q.nx * 0.006, q.z - q.nz * 0.006]), [], yR + 0.015, 1);
+  const lid = so(0.003); sweep(P, lid, edgeProf(yR + 0.017, yR + 0.041, 0.012, 0.004, 3), true); cap(P, lid.map(q => [q.x - q.nx * 0.012, q.z - q.nz * 0.012]), [], yR + 0.041, 1);
+  // réservoir 365 × 150 × 390 aux angles avant arrondis, couvercle marqué par une gorge
+  const cs = d => sample(rrect(-0.1825 + d, 0.1825 - d, X0 + d, X0 + 0.15 - d, [0.045 - d, 0.045 - d, 0.015 - d, 0.015 - d]), true).map(q => [q.z, q.x]);
+  const yT = yR + 0.39;
+  loft(P, [[yR, 0.004], [yR + 0.004, 0], [yT - 0.03, 0], [yT - 0.0275, 0.0025], [yT - 0.0235, 0.0025], [yT - 0.021, 0], [yT - 0.007, 0], [yT - 0.003, 0.003], [yT, 0.009]].map(([y, d]) => ({ y, pts: cs(d) })));
+  cap(P, cs(0.009), [], yT, 1);
+  P.add(new THREE.CylinderGeometry(0.055, 0.055, 0.20, 24, 1, true), TM(0.10, 0.18, 0, 0, 0, HP)); // raccord d'évacuation Ø 110 vers la chute (sortie horizontale)
+  P.mesh(M.bnPorc, g);
+  // chromes : bouton double touche, charnières, cache-vis du pied, robinet d'arrêt équerre et flexible d'alimentation latérale
+  C.add(new THREE.CylinderGeometry(0.025, 0.025, 0.006, 32), TM(X0 + 0.075, yT + 0.002, 0)); C.add(new THREE.CylinderGeometry(0.0115, 0.0115, 0.008, 24), TM(X0 + 0.075, yT + 0.003, -0.008));
+  for (const s of [-1, 1]) {
+    C.add(new THREE.CylinderGeometry(0.009, 0.009, 0.03, 16), TM(0.222, yR + 0.009, s * 0.075, HP));
+    C.add(new THREE.CylinderGeometry(0.009, 0.009, 0.006, 16), TM(0.31, 0.04, s * 0.1235, HP));
+  }
+  const vz = 0.26, vy = 0.25;
+  C.add(new THREE.CylinderGeometry(0.024, 0.024, 0.008, 24), TM(0.004, vy, vz, 0, 0, HP)); C.add(new THREE.CylinderGeometry(0.012, 0.012, 0.055, 16), TM(0.0335, vy, vz, 0, 0, HP));
+  C.add(new THREE.CylinderGeometry(0.014, 0.014, 0.014, 16), TM(0.035, vy, vz + 0.017, HP)); C.add(new THREE.CylinderGeometry(0.008, 0.008, 0.03, 12), TM(0.052, vy + 0.012, vz));
+  const flex = new THREE.CatmullRomCurve3([[0.052, vy + 0.025, vz], [0.056, 0.33, vz - 0.006], [0.064, 0.41, vz - 0.03], [0.07, 0.45, 0.205], [0.07, 0.452, 0.19]].map(p => new THREE.Vector3(...p)));
+  C.add(new THREE.TubeGeometry(flex, 24, 0.0055, 8)); C.add(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 16), TM(0.07, 0.452, 0.1885, HP));
+  C.mesh(M.bnChrome, g);
   return g;
 }
-// plaque de commande double touche ronde sur l'habillage du bâti-support (face locale +z)
-function flushPlate(parent, M, x, y, z, ry) {
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
-  box(g, M.bnPlate, 0.245, 0.165, 0.006, 0, 0, 0.003);
-  for (const [bx, r] of [[-0.045, 0.043], [0.066, 0.028]]) { cyl(g, M.bnBlack, r + 0.003, 0.002, bx, 0, 0.0065, HP, 0, 40); cyl(g, M.bnPlate, r, 0.005, bx, 0, 0.0085, HP, 0, 40); }
+
+// ---------------------------------------------------------------- sèche-serviettes électrique Atlantic Adélis blanc brillant, sans soufflerie : largeur 55 cm, épaisseur 4,6 cm, saillie 10 cm,
+// hauteur H = 102,7 cm (500 W, réf. 861911), 140,2 cm (750 W, réf. 861912) ou 177,7 cm (1000 W).
+// Cadre à deux montants plats, larges lames plates horizontales groupées en 3 blocs séparés par des espaces pour glisser les serviettes,
+// boîtier de commande digital en bas à droite, patère latérale en haut à gauche, 4 pattes murales. Un seul maillage (afficheur assombri par la couleur de sommet).
+// Repère local : x le long du mur (vers la droite face à l'appareil), z sortant du mur, y depuis le sol fini.
+// Hauteur de pose (notice Atlantic) : barreau chauffant le plus bas à 600 mm au moins du sol ; la lame du bas, factice, ne chauffe pas → bas de l'appareil à 51 cm.
+function adelis(parent, M, px, py, pz, ry, H = 1.402) {
+  const g = new THREE.Group(); g.position.set(px, py, pz); g.rotation.y = ry; parent.add(g);
+  const mb = new MB(), W = 0.55, y0 = 0.51, y1 = y0 + H, zb = 0.054, zf = 0.10, cw = 0.03, hb = 0.068, gp = 0.014, en = 0.016;
+  const grp = H > 1.6 ? [5, 5, 7] : H > 1.2 ? [4, 4, 6] : [2, 3, 5], nb = grp.reduce((a, b) => a + b, 0), G = (H - 2 * en - nb * hb - (nb - grp.length) * gp) / (grp.length - 1);
+  for (const s of [-1, 1]) ext(mb, 'y', y0, y1, rrProf(s < 0 ? -W / 2 : W / 2 - cw, s < 0 ? -W / 2 + cw : W / 2, zb, zf - 0.004, 0.008)); // montants
+  let y = y1 - en;
+  for (const n of grp) { for (let i = 0; i < n; i++) { ext(mb, 'x', -W / 2 + cw - 0.003, W / 2 - cw + 0.003, rrProf(zb + 0.012, zf, y - hb, y, 0.011), false); y -= hb + gp; } y += gp - G; } // lames
+  ext(mb, 'y', y0 - 0.012, y0 + 0.17, rrProf(W / 2 - 0.082, W / 2 + 0.004, zb - 0.004, zf + 0.008, 0.012)); // boîtier de commande
+  ext(mb, 'z', zf + 0.008, zf + 0.0095, rrProf(W / 2 - 0.066, W / 2 - 0.012, y0 + 0.10, y0 + 0.135, 0.004), true, 0.12); // afficheur
+  mb.add(new THREE.CylinderGeometry(0.007, 0.007, 0.002, 16), TM(W / 2 - 0.039, y0 + 0.07, zf + 0.009, HP), 0.62); // touche
+  ext(mb, 'x', -W / 2 - 0.045, -W / 2 + 0.004, rrProf(0.068, 0.088, y1 - 0.135, y1 - 0.115, 0.006)); ext(mb, 'y', y1 - 0.135, y1 - 0.09, rrProf(-W / 2 - 0.047, -W / 2 - 0.031, 0.069, 0.087, 0.006)); // patère
+  for (const sx of [-1, 1]) for (const yy of [y0 + 0.14, y1 - 0.14]) { const x = sx * (W / 2 - cw / 2); mb.add(new THREE.CylinderGeometry(0.011, 0.011, zb, 8, 1, true), TM(x, yy, zb / 2, HP)); mb.add(new THREE.CylinderGeometry(0.021, 0.021, 0.006, 12), TM(x, yy, 0.003, HP)); } // pattes murales
+  mb.mesh(M.bnRad, g);
   return g;
 }
 // dérouleur de papier (face locale +z)
@@ -279,12 +361,13 @@ function materials(ctx) {
   M.bnChrome = std({ color: '#e1e4e7', metalness: 0.5, roughness: 0.2 }); // chromé (métallicité modérée : l'éclairage intérieur a peu d'environnement à refléter)
   M.bnTrim = std({ color: '#c3c6c8', metalness: 0.55, roughness: 0.35 }); // profilés de finition alu
   M.bnPaper = std({ color: '#f4f2ee', roughness: 0.95 });
-  M.bnPlate = std({ color: '#d3d5d7', metalness: 0.35, roughness: 0.32 }); // inox brossé clair (plaques de commande)
+  M.bnRad = std({ color: '#f7f7f4', roughness: 0.28, vertexColors: true }); // laqué blanc brillant (sèche-serviettes), afficheur assombri par la couleur de sommet
   // glace : reflet flou dessiné (plafond clair en haut, mur plus sombre en bas), légèrement émissive pour ne pas virer au gris
   const mir = makeTex(256, 1, (g, s) => { const gr = g.createLinearGradient(0, 0, s * 0.3, s); gr.addColorStop(0, '#eef1f2'); gr.addColorStop(0.45, '#d5dbde'); gr.addColorStop(1, '#a9b1b5'); g.fillStyle = gr; g.fillRect(0, 0, s, s);
     const sh = g.createLinearGradient(0, 0, s, s); sh.addColorStop(0.3, 'rgba(255,255,255,0)'); sh.addColorStop(0.42, 'rgba(255,255,255,0.35)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(0, 0, s, s); });
   mir.repeat.set(1, 1);
   M.bnMirror = std({ map: mir, emissive: '#ffffff', emissiveMap: mir, emissiveIntensity: 0.16, roughness: 0.08, metalness: 0.25 });
+  M.bnMirrorRect = std({ map: mir, emissive: '#ffffff', emissiveMap: mir, emissiveIntensity: 0.34, roughness: 0.42, metalness: 0, envMapIntensity: 0.5 }); // grands miroirs : reflet clair et doux, sans horizon
   M.bnMirrorEdge = std({ color: '#3b3e41', roughness: 0.4, metalness: 0.4 });
   M.bnLed = std({ color: '#fbf7f0', emissive: '#fff1dc', emissiveIntensity: 1.6, roughness: 0.6 });
   const glow = makeTex(256, 1, (g, s) => { g.clearRect(0, 0, s, s); const c = s / 2, gr = g.createRadialGradient(c, c, 0, c, c, c);
@@ -331,21 +414,31 @@ export function buildBains(ctx) {
   materials(ctx);
   const { A, M, groups, E1: e, H, T } = ctx, c = H.r1Ceil, f1 = groups.furn1, f0 = groups.furn0;
   const B = (l, x0, x1, y0, y1, z0, z1, m) => A.box(l, x0, x1, y0, y1, z0, z1, m);
+  const n0 = f0.children.length, n1 = f1.children.length; // [perf] repères pour fusionner à la fin les maillages ajoutés ici
 
   // --- Bains (x 0,36 → 3,86, z 0,36 → 3,10) : Balmani Moon 160 double vasque sur la cloison de l'escalier (z 3,10), colonne haute dans l'angle nord à sa droite
   moon(ctx, f1, 1.66, 3.10, 1.60, [-0.40, 0.40], [1.40, 0.80]); // un grand miroir 140 × 80 au lieu de deux ronds
   moonColumn(ctx, f1, T + 0.175, 3.10);
-  // douche 160 × 90 du plan (angle sud-est), receveur extra-plat, paroi fixe 1,00 + retour, profilés noirs fins, barre de stabilisation
-  const zf = 1.255, xr = 2.262, ef = 0.368, xs = 3.852;
+  // douche 160 × 90 du plan (angle sud-est), receveur extra-plat ; cage fermée sur les 160 cm (demande client) : retour fixe de 90, panneau fixe et porte coulissante
+  // de 80 à l'intérieur du fixe, au bout côté cloison du WC (l'ouverture se fait près du sèche-serviettes) ; profilés noirs fins, rail haut sur toute la façade
+  const zf = 1.255, xr = 2.262, ef = 0.368, xs = 3.852, zg = zf - 0.022, xf = 3.12, xd = 3.04; // zg : plan de la porte, xf : chant du fixe, xd : bord de la porte fermée
   B('furn1', 2.26, xs, e, e + 0.025, ef, 1.262, 'bnTray');
   B('furn1', 2.48, 2.60, e + 0.025, e + 0.0265, 0.73, 0.85, 'bnBlack'); // bonde carrée
-  B('furn1', xr - 0.004, xr + 0.004, e + 0.03, e + 1.99, ef + 0.02, zf - 0.01, 'glassShower'); B('furn1', xr + 0.01, 3.255, e + 0.03, e + 1.99, zf - 0.004, zf + 0.004, 'glassShower');
-  B('furn1', xr - 0.01, xr + 0.01, e + 0.025, e + 2.0, ef, ef + 0.02, 'bnBlack'); // profilé mural
+  B('furn1', xr - 0.004, xr + 0.004, e + 0.03, e + 1.99, ef + 0.02, zf - 0.01, 'glassShower'); B('furn1', xr + 0.01, xf, e + 0.03, e + 1.99, zf - 0.004, zf + 0.004, 'glassShower'); // retour et fixe
+  B('furn1', xd + 0.012, xs - 0.037, e + 0.035, e + 1.985, zg - 0.004, zg + 0.004, 'glassShower'); // porte coulissante (fermée ; elle glisse derrière le fixe)
+  B('furn1', xr - 0.01, xr + 0.01, e + 0.025, e + 2.0, ef, ef + 0.02, 'bnBlack'); // profilé mural du retour
   B('furn1', xr - 0.01, xr + 0.01, e + 0.025, e + 2.0, zf - 0.01, zf + 0.01, 'bnBlack'); // profilé d'angle
-  B('furn1', xr - 0.01, xr + 0.01, e + 1.985, e + 2.005, ef, zf, 'bnBlack'); B('furn1', xr, 3.265, e + 1.985, e + 2.005, zf - 0.01, zf + 0.01, 'bnBlack'); // profilés hauts
-  B('furn1', 3.252, 3.265, e + 0.03, e + 1.985, zf - 0.007, zf + 0.007, 'bnBlack'); // chant libre
-  B('furn1', 3.265, xs, e + 1.94, e + 1.955, zf - 0.006, zf + 0.006, 'bnBlack'); B('furn1', xs - 0.006, xs, e + 1.925, e + 1.97, zf - 0.02, zf + 0.02, 'bnBlack'); // barre de stabilisation
-  showerColumn(f1, M.bnBlack, M.bnBlackDark, 3.42, e, ef);
+  B('furn1', xr - 0.01, xr + 0.01, e + 1.985, e + 2.005, ef, zf - 0.01, 'bnBlack'); // profilé haut du retour
+  B('furn1', xr + 0.01, xf, e + 0.025, e + 0.03, zf - 0.007, zf + 0.007, 'bnBlack'); B('furn1', xf - 0.012, xf, e + 0.03, e + 2.0, zf - 0.007, zf + 0.007, 'bnBlack'); // profilé bas et chant du fixe
+  for (const x of [xd, xs - 0.037]) B('furn1', x, x + 0.012, e + 0.035, e + 1.985, zg - 0.007, zg + 0.007, 'bnBlack'); // montants de porte
+  B('furn1', xs - 0.02, xs, e + 0.025, e + 2.0, zg - 0.012, zg + 0.012, 'bnBlack'); // profilé mural de fermeture
+  B('furn1', xr - 0.01, xs, e + 2.0, e + 2.04, zg - 0.016, zf + 0.012, 'bnBlack'); // rail haut
+  for (const x of [xd + 0.09, xs - 0.12]) B('furn1', x - 0.03, x + 0.03, e + 1.975, e + 2.0, zg - 0.016, zg - 0.004, 'bnBlack'); // chariots
+  for (const s of [1, -1]) { B('furn1', xs - 0.10, xs - 0.086, e + 0.78, e + 1.32, zg + s * 0.042, zg + s * 0.056, 'bnBlack'); for (const y of [0.84, 1.26]) B('furn1', xs - 0.098, xs - 0.088, e + y - 0.006, e + y + 0.006, zg + s * 0.004, zg + s * 0.042, 'bnBlack'); } // poignées bâton (butée sur le chant du fixe : passage libre ≈ 63 cm)
+  showerColumn(f1, M.bnBlack, M.bnBlackDark, xs, e, (ef + 1.262) / 2, -HP); // colonne sur la cloison du WC (demande client), au milieu de la profondeur du receveur
+  // sèche-serviettes Atlantic Adélis 750 W blanc (140,2 × 55, seul chauffage de la pièce d'environ 9,6 m²) en sortie de douche, sur la cloison du WC
+  // entre la douche et la porte (z 1,405 → 1,955 ; débattement de la porte à partir de z 2,28), de 0,51 à 1,91 m du sol
+  adelis(f1, M, 3.86, e, 1.68, -HP);
 
   // --- Salle d'eau parentale (x 4,90 → 6,29, z 0,36 → 3,10, sans fenêtre ; passage sans porte vers le dressing dans la cloison x 6,29 à z 1,55 → 2,42)
   const t = 0.01, X0 = 4.90 + t, X1 = 6.29 - t, Z0 = T + t, Z1 = 3.10 - t, fl = e + 0.003, yo = e + 2.04;
@@ -359,8 +452,8 @@ export function buildBains(ctx) {
   B('r1', X1 - 0.002, 6.292, e, yo + 0.006, 1.545, 1.553, 'bnTrim'); B('r1', X1 - 0.002, 6.292, e, yo + 0.006, 2.417, 2.425, 'bnTrim'); B('r1', X1 - 0.002, 6.292, yo - 0.002, yo + 0.006, 1.545, 2.425, 'bnTrim'); // profilés d'arrêt
   const tf = new MB(); tileFloor(tf, X0, X1, Z0, Z1, fl, 5.295, 1.36); tileFloor(tf, X1, 6.37, 1.552, 2.418, fl, 5.295, 1.36); tf.mesh(M.bnTerrazzo, groups.slab1, false); // dalles centrées sur la pièce
   B('slab1', 6.362, 6.372, e - 0.006, fl + 0.002, 1.552, 2.418, 'bnTrim'); // barre de seuil vers le parquet du dressing
-  // Balmani Moon 120 simple vasque contre la cloison du palier, miroir rond Ø 70
-  moon(ctx, f1, 5.595, Z1, 1.20, [0], 0.35);
+  // Balmani Moon 120 simple vasque contre la cloison du palier, grand miroir rectangulaire rétroéclairé 100 × 80 (au lieu du miroir rond Ø 70)
+  moon(ctx, f1, 5.595, Z1, 1.20, [0], [1.00, 0.80]);
   // cabine de douche 140 × 100 : receveur extra-plat, panneau fixe + porte coulissante en verre clair, rail haut et profilés noirs mats
   const zt = 1.36, zp = 1.304, zd = 1.326;
   B('furn1', X0, X1, e, e + 0.025, Z0, zt, 'bnTray'); B('furn1', 5.06, 5.18, e + 0.025, e + 0.0265, 0.62, 0.74, 'bnBlack');
@@ -373,10 +466,12 @@ export function buildBains(ctx) {
   for (const x of [5.70, 6.16]) B('furn1', x - 0.03, x + 0.03, e + 1.975, e + 2.0, zd + 0.004, zd + 0.016, 'bnBlack'); // chariots
   B('furn1', 6.135, 6.149, e + 0.78, e + 1.32, zd + 0.042, zd + 0.056, 'bnBlack'); for (const y of [0.84, 1.26]) B('furn1', 6.137, 6.147, e + y - 0.006, e + y + 0.006, zd + 0.004, zd + 0.042, 'bnBlack'); // poignée bâton
   showerColumn(f1, M.bnBlack, M.bnBlackDark, 5.595, e, Z0);
+  // sèche-serviettes Atlantic Adélis 500 W blanc (102,7 × 55, pièce d'environ 3,8 m²) sur la cloison du WC, au plus près de la cabine (z 1,445 → 1,995),
+  // de 0,51 à 1,54 m du sol ; la cloison du dressing, côté porte de la cabine, n'offre que 19 cm avant le passage
+  adelis(f1, M, X0, e, 1.72, HP, 1.027);
 
-  // --- WC du RDC (x 0,36 → 2,36, z 0,36 → 1,36) : bâti-support habillé sur toute la largeur sous la fenêtre, tablette chêne, cuvette Roca Gap Round
-  B('furn0', T, 0.56, 0, 1.12, T, 1.36, 'paint'); B('furn0', T, 0.585, 1.12, 1.145, T, 1.36, 'oak');
-  flushPlate(f0, M, 0.56, 1.0, 0.86, HP); wcRoca(f0, M, 0.56, 0, 0.86, 0); rollHolder(f0, M, 0.80, 0.72, T, 0);
+  // --- WC du RDC (x 0,36 → 2,36, z 0,36 → 1,36) : pack WC au sol Roca The Gap Round dos au mur nord, sous la fenêtre (axe z 0,86), dérouleur
+  wcRound(f0, M, T, 0, 0.86, 0); rollHolder(f0, M, 0.80, 0.72, T, 0);
   // lave-mains suspendu 40 × 24 en céramique, cuve décalée, robinet sur plage latérale, siphon chromé (cloison x 2,36)
   { const g = new THREE.Group(); g.position.set(2.36, 0, 0.86); g.rotation.y = -HP; f0.add(g);
     const mb = new MB(), yb = solidTop(mb, rrect(-0.20, 0.20, 0, 0.24, [0.05, 0.05, 0.004, 0.004]), 0.73, 0.85, 0.012, 0.022, [{ x: -0.035, z: 0.125, w: 0.27, d: 0.15, r: 0.06, rim: 0.008, dw: 0.012, rb: 0.035, depth: 0.085 }], true)[0];
@@ -384,7 +479,8 @@ export function buildBains(ctx) {
     mixer(g, M.bnChrome, 0.15, 0.85, 0.105, -HP, 0.82);
     cyl(g, M.bnChrome, 0.014, 0.14, -0.035, 0.70, 0.125); cyl(g, M.bnChrome, 0.028, 0.10, -0.035, 0.60, 0.125, 0, 0, 28); cyl(g, M.bnChrome, 0.014, 0.125, -0.035, 0.58, 0.0625, HP); cyl(g, M.bnChrome, 0.03, 0.008, -0.035, 0.58, 0.004, HP); } // siphon
 
-  // --- WC de l'étage (x 3,93 → 4,83, z 0,36 → 2,11) : habillage contre le coffre de décompression, cuvette sur le mur est
-  B('furn1', 4.08, 4.83, e, e + 1.12, T, 0.57, 'paint'); B('furn1', 4.08, 4.83, e + 1.12, e + 1.145, T, 0.595, 'oak');
-  flushPlate(f1, M, 4.43, e + 1.0, 0.57, 0); wcRoca(f1, M, 4.43, e, 0.57, -HP); rollHolder(f1, M, 4.83, e + 0.72, 0.86, -HP);
+  // --- WC de l'étage (x 3,93 → 4,83, z 0,36 → 2,11) : pack WC au sol Roca The Gap Round dos au mur est (axe x 4,43), à côté du coffre de décompression
+  wcRound(f1, M, 4.43, e, T, -HP); rollHolder(f1, M, 4.83, e + 0.72, 0.86, -HP);
+  // [perf] sanitaires statiques : petits maillages fusionnés par matériau (un appel de dessin chacun) ; verres et halos restent à part
+  if (ctx.mergeStatic) { ctx.mergeStatic(f0.children.slice(n0), f0); ctx.mergeStatic(f1.children.slice(n1), f1); }
 }
