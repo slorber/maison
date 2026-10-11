@@ -208,7 +208,7 @@ export function initNav(ctx) {
           const a = idx ? idx.getX(i) : i, b = idx ? idx.getX(i + 1) : i + 1, c = idx ? idx.getX(i + 2) : i + 2;
           if (skip && skip.has(a) && skip.has(b) && skip.has(c)) continue;
           for (const j of [a, b, c]) { _v.fromBufferAttribute(pos, j).applyMatrix4(m); tris.push(_v.x, _v.y, _v.z); }
-          kinds.push(LAYER_KIND[name]); grps.push(gi);
+          kinds.push(o.userData.navKind ?? LAYER_KIND[name]); grps.push(gi); // userData.navKind : nature imposée à un maillage (ex. marche du jardin dans le calque des clôtures)
         }
       });
     });

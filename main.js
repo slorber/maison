@@ -409,21 +409,21 @@ function mergeStatic(roots, dst) {
 }
 
 // prisme le long d'un segment p0→p1 (plan XZ), épaisseur t0..t1 côté droit du sens de parcours,
-// base yb0 (en p0) → yb1 (en p1), hauteur h : sert aux murets et lames qui suivent la pente
-function sbox(layer, mat, p0, p1, t0, t1, yb0, yb1, h) {
+// base yb0 (en p0) → yb1 (en p1), hauteur h : sert aux murets et lames qui suivent la pente ; acc : accumulateur (par défaut A, sinon celui d'un élément mobile)
+function sbox(layer, mat, p0, p1, t0, t1, yb0, yb1, h, acc = A) {
   const dx = p1[0] - p0[0], dz = p1[1] - p0[1], len = Math.hypot(dx, dz); if (len < 1e-4) return;
   const ux = dx / len, uz = dz / len, nx = uz, nz = -ux;
   const P = (s, t, y) => [(s ? p1[0] : p0[0]) + nx * t, y, (s ? p1[1] : p0[1]) + nz * t];
   const a = P(0, t0, yb0), b = P(1, t0, yb1), c = P(1, t0, yb1 + h), d = P(0, t0, yb0 + h);
   const e = P(0, t1, yb0), f = P(1, t1, yb1), g = P(1, t1, yb1 + h), k = P(0, t1, yb0 + h);
   const sg = Math.sign(t1 - t0) || 1;
-  A.quadN(layer, mat, [a, b, c, d], [-nx * sg, 0, -nz * sg]);
-  A.quadN(layer, mat, [e, f, g, k], [nx * sg, 0, nz * sg]);
+  acc.quadN(layer, mat, [a, b, c, d], [-nx * sg, 0, -nz * sg]);
+  acc.quadN(layer, mat, [e, f, g, k], [nx * sg, 0, nz * sg]);
   const sl = (yb1 - yb0) / len; const tn = new THREE.Vector3(-ux * sl, 1, -uz * sl).normalize();
-  A.quadN(layer, mat, [d, c, g, k], [tn.x, tn.y, tn.z]);
-  A.quadN(layer, mat, [a, b, f, e], [-tn.x, -tn.y, -tn.z]);
-  A.quadN(layer, mat, [a, d, k, e], [-ux, 0, -uz]);
-  A.quadN(layer, mat, [b, c, g, f], [ux, 0, uz]);
+  acc.quadN(layer, mat, [d, c, g, k], [tn.x, tn.y, tn.z]);
+  acc.quadN(layer, mat, [a, b, f, e], [-tn.x, -tn.y, -tn.z]);
+  acc.quadN(layer, mat, [a, d, k, e], [-ux, 0, -uz]);
+  acc.quadN(layer, mat, [b, c, g, f], [ux, 0, uz]);
 }
 
 // mur droit avec ouvertures. axis 'x' : court selon X, épaisseur selon Z (c0..c1)
@@ -1071,6 +1071,19 @@ function baseH(x, z) {
 // descente de garage du seuil du garage (−0,13) au seuil du portail coulissant (−0,80, niveau de la rue)
 const TF = -0.17, TF_RAIN = -0.50;
 const driveH = x => -0.13 + (-0.80 + 0.13) * clamp((x - L) / (19.25 - L), 0, 1);
+const surfAllee = x => driveH(x) + 0.025; // dessus fini de l'allée : le gravillon est posé 2,5 cm au-dessus du terrain
+// Allée du garage, jardin et portail coulissant (demandes de Sébastien du 11/10/2026) :
+// - muret allée / jardin déplacé de 20 cm vers l'allée : nu côté allée à z 3,77, épaisseur 15 cm (porte de garage, z 0,43 → 2,93, dégagée) ;
+// - seuil du portail coulissant en béton enduit ton pierre, de la limite + 0,20 à + 0,62 (+ 0,80 dans la niche du moteur), sur toute la course du vantail ;
+//   muret de soutènement le long du seuil (t 0,62 → 0,80), décroché en niche derrière le moteur (t 0,80 → 0,98, s 9,25 → angle des murets)
+//   et retourné jusqu'à la clôture au bout de la course (retour z 7,80 → 8,00) ;
+// - marche de l'allée au jardin centrée à 2,00 m de la façade sud, dans une interruption de 1,00 m du muret.
+const MUR = { z: 3.77, e: 0.15 };
+const SEUIL = { t0: 0.20, t1: 0.62, tn: 0.80, tm: 0.98, zRet: 8.00, zNiche: 4.45 }; // profondeurs t depuis la limite sud ; zNiche : bout de la niche (s 9,25)
+const MARCHE = { x0: L + 1.50, x1: L + 2.50, zN: 3.62, zR: 3.645, zB: 3.97, zP: 4.475, pente: 0.02 };
+MARCHE.xc = (MARCHE.x0 + MARCHE.x1) / 2;
+// dessus du giron et de la dalle d'arrivée : pente d'écoulement de 2 % dans le sens de l'allée, contremarche de 16 cm au point le plus bas de l'allée (7,5 cm au plus haut)
+const marcheY = x => surfAllee(MARCHE.x1) + 0.16 + MARCHE.pente * (MARCHE.x1 - x);
 function gardenH(x, z) {
   const ri = polyInfo(RAIN, x, z);
   if (ri.inside) return TF_RAIN - 0.18 * smooth(0, 0.6, ri.d);
@@ -1085,11 +1098,20 @@ function hAt0(x, z) {
   h = envGround(x, z, h); // fosse de son allée de garage en sous-sol, le long de la limite (env.js)
   const dS = Math.min(zWest(x) - z, xSouth(z) - x), dN = x - BND.A[0];
   if (dS > 0 && z > -0.05 && dN > 0) {
-    const slide = z < 7.85 && x > xSouth(z) - 0.64;
-    let tf = x > L - 0.01 && (z < 3.97 || slide) ? driveH(x) : gardenH(x, z);
+    // seuil du portail coulissant et zone de refoulement, jusqu'au nu côté jardin du muret de soutènement (niche du moteur comprise) ;
+    // allée jusqu'au nu côté jardin du muret allée / jardin : les ressauts du maillage du terrain restent dans l'épaisseur des murets
+    const slide = z < SEUIL.zRet && x > xSouth(z) - (z < SEUIL.zNiche ? SEUIL.tm : SEUIL.tn);
+    let tf;
+    if (x > L - 0.01 && (z < MUR.z + MUR.e || slide)) tf = driveH(x);
+    else { // jardin ; pelouse arasée au niveau de la dalle d'arrivée de la marche, raccordée sur 60 cm
+      tf = gardenH(x, z);
+      const dm = Math.hypot(Math.max(0, Math.abs(x - MARCHE.xc) - 0.60), Math.max(0, z - MARCHE.zP - 0.10));
+      tf += (marcheY(x) - tf) * (1 - smooth(0, 0.6, dm));
+    }
     tf += (h - tf) * smooth(-2.5, -7.5, x); // jardin nord : raccord au terrain naturel
     if (x > -2.6 && x < -0.4) tf += (h - tf) * (1 - smooth(0.2, 2.2, dS)); // abords de l'allée : rampe douce vers le portillon
-    h += (tf - h) * smooth(0, 0.22, dS) * smooth(-0.05, 0.05, z) * smooth(0, 0.3, dN);
+    const pocket = slide && dS > 0.01; // seuil du portail et poche de refoulement : terrain au niveau du seuil jusqu'à la limite (le raccord au trottoir se fait au nu de la limite)
+    h += (tf - h) * (pocket ? 1 : smooth(0, 0.22, dS)) * smooth(-0.05, 0.05, z) * smooth(0, 0.3, dN);
   }
   return h;
 }
@@ -1142,7 +1164,8 @@ function buildSite() {
   for (const [size, seg, drop] of [[600, 150, 0.08], [72, 360, 0.01]]) {
     const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2); g.translate(4, 0, 5);
     const p = g.attributes.position; const uv = g.attributes.uv;
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, (seg === 150 ? envGround(x, z, hAt(x, z), 4.5) : hAt(x, z)) - drop); uv.setXY(i, x, -z); } // maillage grossier abaissé autour de la fosse du voisin est
+    // maillage du lointain (mailles de 4 m) abaissé autour de la fosse du voisin est, et de 60 cm sous l'emprise du maillage fin : sinon, dans les creux (poche du portail, jardin de pluie), il le traverse
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), sous = size > 100 && Math.abs(x - 4) < 35 && Math.abs(z - 5) < 35; p.setY(i, (seg === 150 ? envGround(x, z, hAt(x, z), 4.5) : hAt(x, z)) - drop - (sous ? 0.6 : 0)); uv.setXY(i, x, -z); }
     g.computeVertexNormals(); const ground = new THREE.Mesh(g, M.grass); ground.receiveShadow = true; groups.site.add(ground);
   }
   // rue des Merlettes, branche ouest le long de la limite A–D (profil, bordures, trottoir, carrefour, mobilier) : rue.js ; rue des Fauvettes, branche sud le long de C–D
@@ -1184,7 +1207,7 @@ function buildSite() {
   A.box('rdc', -0.90, 0, 2.42, 2.52, 1.67, 2.87, 'alu'); A.box('rdc', -0.90, -0.88, 2.39, 2.42, 1.67, 2.87, 'alu'); // aligné sur les modénatures (90 + 2 × 15)
   { const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.006, 24), M.spotLed); sp.position.set(-0.45, 2.418, 2.27); groups.rdc.add(sp);
     const rg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.004, 24), M.inox); rg.position.set(-0.45, 2.419, 2.27); groups.rdc.add(rg); }
-  overlayQuad('site', 'gravel', [[L + 0.002, 0.03], [xSouth(0.03), 0.03], [xSouth(3.89), 3.89], [L + 0.002, 3.89]], 0.025, 26, 16);
+  overlayQuad('site', 'gravel', [[L + 0.002, 0.03], [xSouth(0.03) - SEUIL.t1, 0.03], [xSouth(MUR.z) - SEUIL.t1, MUR.z], [L + 0.002, MUR.z]], 0.025, 26, 16); // jusqu'au muret et au seuil du portail
   // jardin de pluie : fond paillé et plantations (vivaces, graminées), regard de surverse
   overlayPoly('site', 'mulch', RAIN, 0.03, 0.1);
   TUFT = new THREE.ConeGeometry(0.025, 0.5, 4); BUSH = new THREE.IcosahedronGeometry(0.22, 1); const r = rng(7); TUFT_G = new THREE.Group();
@@ -1298,51 +1321,136 @@ function buildFences() {
     const n = Math.ceil((s1 - s0) / 1.70);
     for (let i = 1; i < n; i++) { const t = i / n, s = s0 + (s1 - s0) * t, gg = ga + (gb - ga) * t; sbox('fence', 'fenceAlu', at(run, s - 0.025), at(run, s + 0.025), 0.065, 0.13, gg + 0.835, gg + 0.835, 1.17); }
   };
-  const gate = (run, s0, s1, slide, dt = 0, yb0 = null) => { // vantail rectangulaire de 2,00 m, lames horizontales pleines
+  // vantail rectangulaire de 2,00 m, lames horizontales pleines ; ly / acc : calque et accumulateur (vantail mobile : accumulateur propre) ; renvoie le niveau bas du vantail
+  const gate = (run, s0, s1, slide, dt = 0, yb0 = null, ly = 'fence', acc = A) => {
     const gm = Math.max(g(at(run, s0)), g(at(run, s1))); const yb = yb0 ?? gm + 0.04, ht = 1.96;
     const p0 = at(run, s0 + 0.01), p1 = at(run, s1 - 0.01), t0 = 0.07 + dt, t1 = 0.13 + dt;
-    sbox('fence', 'fenceAlu', p0, at(run, s0 + 0.06), t0, t1, yb, yb, ht);
-    sbox('fence', 'fenceAlu', at(run, s1 - 0.06), p1, t0, t1, yb, yb, ht);
-    sbox('fence', 'fenceAlu', p0, p1, t0, t1, yb, yb, 0.06); sbox('fence', 'fenceAlu', p0, p1, t0, t1, yb + ht - 0.06, yb + ht - 0.06, 0.06);
+    const sb = (m, a, b, ta, tb, y, h) => sbox(ly, m, a, b, ta, tb, y, y, h, acc);
+    sb('fenceAlu', p0, at(run, s0 + 0.06), t0, t1, yb, ht);
+    sb('fenceAlu', at(run, s1 - 0.06), p1, t0, t1, yb, ht);
+    sb('fenceAlu', p0, p1, t0, t1, yb, 0.06); sb('fenceAlu', p0, p1, t0, t1, yb + ht - 0.06, 0.06);
     const nb = 9; const sh = (ht - 0.12) / nb;
-    for (let k = 0; k < nb; k++) sbox('fence', 'fenceAlu', p0, p1, t0 + 0.013, t1 - 0.013, yb + 0.06 + k * sh + 0.002, yb + 0.06 + k * sh + 0.002, sh - 0.004);
-    if (slide) { sbox('fence', 'fenceAlu', at(run, (s0 + s1) / 2 - 0.03), at(run, (s0 + s1) / 2 + 0.03), t0, t1, yb, yb, ht); }
-    else { const hp = at(run, s1 - 0.12); sbox('fence', 'blackMatte', hp, at(run, s1 - 0.06), 0.13, 0.16, yb + 1.0, yb + 1.0, 0.14); sbox('fence', 'blackMatte', hp, at(run, s1 - 0.06), 0.04, 0.07, yb + 1.0, yb + 1.0, 0.14); }
+    for (let k = 0; k < nb; k++) sb('fenceAlu', p0, p1, t0 + 0.013, t1 - 0.013, yb + 0.06 + k * sh + 0.002, sh - 0.004);
+    if (slide) sb('fenceAlu', at(run, (s0 + s1) / 2 - 0.03), at(run, (s0 + s1) / 2 + 0.03), t0, t1, yb, ht);
+    else { const hp = at(run, s1 - 0.12); sb('blackMatte', hp, at(run, s1 - 0.06), t1, t1 + 0.03, yb + 1.0, 0.14); sb('blackMatte', hp, at(run, s1 - 0.06), t0 - 0.03, t0, yb + 1.0, 0.14); }
+    return yb;
   };
+  // point à la profondeur t de la limite (t > 0 vers l'intérieur de la parcelle, comme les épaisseurs de sbox)
+  const atT = (run, s, t) => { const p = at(run, s), [a, b] = run, l = dist2(a, b); return [p[0] + (b[1] - a[1]) / l * t, p[1] - (b[0] - a[0]) / l * t]; };
+  // vantail mobile : géométrie en coordonnées monde dans un groupe propre (hors fusion), pivot en (x, z) ; déclaré dans DOORS (clic : ouvrir / fermer).
+  // kind renseigné : la balade ne l'ouvre pas d'elle-même (nav.js), le vantail y reste un obstacle dynamique
+  const leaf = (name, pivot, fill) => {
+    const acc = new Acc(), g0 = new THREE.Group(), inner = new THREE.Group(); g0.name = name; g0.userData.noMerge = true;
+    g0.position.set(pivot[0], 0, pivot[1]); inner.position.set(-pivot[0], 0, -pivot[1]); g0.add(inner); groups.fence.add(g0);
+    fill(acc); acc.build({ leaf: inner });
+    const meshes = []; inner.traverse(o => { if (o.isMesh) meshes.push(o); }); return { g: g0, meshes };
+  };
+  const door = (lf, kind, speed, apply) => { const d = { g: lf.g, meshes: lf.meshes, open: 0, target: 0, speed, apply, kind }; for (const m of lf.meshes) m.userData.door = d; apply(0); DOORS.push(d); return d; };
   // côté ouest, du nord (A) au sud (D) : pilier, 8,73, pilier, portillon 1,00, pilier, 9,67, pilier, 9,67, pilier (31,07 m)
   const LW = dist2(BND.A, BND.D);
   const sp = [0.20, 9.33, 10.73, 20.80, LW - 0.20];
   const gp = sp.map(s => pillar(runW, s));
   const gAt = (s) => { for (let i = 0; i < sp.length - 1; i++) if (s <= sp[i + 1]) return gp[i] + (gp[i + 1] - gp[i]) * (s - sp[i]) / (sp[i + 1] - sp[i]); return gp[gp.length - 1]; };
   for (const [s0, s1] of [[0.40, 9.13], [10.93, 20.60], [21.00, LW - 0.40]]) panel(runW, s0, s1, gAt(s0), gAt(s1));
-  gate(runW, 9.53, 10.53, false);
+  // portillon : vantail sur gonds côté pilier nord (s 9,53), ouverture de 90° vers l'intérieur de la parcelle ; serrure côté pilier sud (s 10,53)
+  { const s0 = 9.53, s1 = 10.53; let yb = 0;
+    const lf = leaf('portillon', atT(runW, s0 + 0.01, 0.13), acc => { yb = gate(runW, s0, s1, false, 0, null, 'leaf', acc); });
+    door(lf, 'portillon', 0.7, v => { lf.g.rotation.y = Math.PI / 2 * smooth(0, 1, v); });
+    for (const y of [yb + 0.22, yb + 1.62]) sbox('fence', 'fenceAlu', at(runW, s0 - 0.004), at(runW, s0 + 0.014), 0.125, 0.15, y, y, 0.12); // gonds
+    // gâche électrique encastrée dans le pilier, face à la serrure (portillon commandé à distance, sans moteur)
+    sbox('fence', 'inox', at(runW, s1 - 0.003), at(runW, s1 + 0.003), 0.08, 0.12, yb + 0.96, yb + 0.96, 0.20); }
   // côté sud, de D à C : (pilier d'angle commun), 9,00, pilier, portail coulissant 3,50, pilier (13,70 m)
   const LS = dist2(BND.D, BND.C);
-  const ss = [0.20, 9.60, LS - 0.20];
+  const ss = [0.20, 9.60, LS - 0.20]; void ss;
   const gs = [gp[gp.length - 1], pillar(runS, 9.60), pillar(runS, LS - 0.20)];
   panel(runS, 0.40, 9.40, gs[0] + (gs[1] - gs[0]) * 0.2 / 9.4, gs[0] + (gs[1] - gs[0]) * 9.2 / 9.4);
-  gate(runS, 9.66, 13.44, true, 0.175, driveH(19.1) + 0.035); // coulisse côté intérieur, sur le seuil, vers le jardin
-  // seuil béton du portail coulissant (ouverture et zone de refoulement) avec son rail, muret de soutènement côté jardin
-  { const ys = driveH(19.1); void ss;
-    sbox('fence', 'concrete', at(runS, 5.9), at(runS, 13.5), 0.20, 0.62, ys - 0.15, ys - 0.15, 0.15);
-    sbox('fence', 'grille', at(runS, 6.0), at(runS, 13.45), 0.255, 0.285, ys, ys, 0.025);
-    const yt = TF_RAIN + 0.10;
-    sbox('fence', 'enduit', at(runS, 5.9), at(runS, 9.75), 0.62, 0.80, ys - 0.15, ys - 0.15, yt - ys + 0.15);
-    sbox('fence', 'coping', at(runS, 5.86), at(runS, 9.75), 0.60, 0.82, yt, yt, 0.03); }
-  // marche pour passer de l'allée du garage au jardin par-dessus le muret, à 1,50 m de la façade sud (demande de Sébastien) :
-  // bloc 80 × 30 en pierre reconstituée côté allée, dessus à mi-hauteur entre l'allée et le chaperon, dalle d'arrivée posée côté jardin
-  { const xc = L + 1.5, xa = xc - 0.40, xb = xc + 0.40, mur = Math.max(driveH(xc), gardenH(xc, 4.2)) + 0.15, yt = (driveH(xc) + mur) / 2, yg = gardenH(xc, 4.25);
-    A.box('fence', xa, xb, driveH(xb) - 0.05, yt, 3.52, 3.82, 'coping');
-    A.box('fence', xa, xb, yg - 0.06, yg + 0.015, 3.99, 4.39, 'coping'); }
-  // petit muret entre la descente de garage et le jardin (dessus à 12 cm au-dessus du terrain le plus haut)
-  { const n = 8, x0 = L + 0.25, x1 = xSouth(4.05) - 0.80;
+
+  // ---- portail coulissant 3,50 m entre piliers (vantail de 3,78 m, 14 cm de recouvrement derrière chaque pilier) : il roule sur un rail posé sur le seuil,
+  // derrière les piliers de 40 cm et sous le débord de leurs chaperons (vantail t 0,45 → 0,51), et se range vers le jardin le long de la clôture :
+  // course 3,66 m (ouvert : s 6,00 → 9,78, 2 cm derrière le nu du pilier), rail de s 5,92 à 13,45
+  const S0G = 9.66, S1G = 13.44, TRAV = 3.66, DTG = 0.38, TR = 0.48; // DTG : décalage du vantail dans gate() ; TR : axe du rail
+  const seuilY = (s, t) => surfAllee(atT(runS, s, t)[0]); // dessus du seuil : au nu du gravillon, il suit la pente de la descente dans sa profondeur
+  const yR = Math.max(seuilY(5.92, TR), seuilY(13.45, TR)), ybG = yR + 0.025 + 0.01; // rail de niveau calé au point haut ; galets : vantail 1 cm au-dessus du rail
+  // seuil en béton enduit ton pierre, comme le muret (sous l'ouverture et toute la zone de refoulement, du retour du muret à la limite est)
+  const slab = (s0, s1, t0, t1) => {
+    const q = [[s0, t0], [s1, t0], [s1, t1], [s0, t1]].map(([s, t]) => { const p = atT(runS, s, t); return [p[0], surfAllee(p[0]), p[1]]; });
+    const u = q[1].map((v, k) => v - q[0][k]), w = q[3].map((v, k) => v - q[0][k]);
+    let n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]; const nl = Math.hypot(...n) * Math.sign(n[1]); n = n.map(v => v / nl);
+    A.quadN('fence', 'enduit', q, n);
+    const cx = (q[0][0] + q[2][0]) / 2, cz = (q[0][2] + q[2][2]) / 2;
+    for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4]; let ex = b[2] - a[2], ez = a[0] - b[0]; const el = Math.hypot(ex, ez) * (ex * ((a[0] + b[0]) / 2 - cx) + ez * ((a[2] + b[2]) / 2 - cz) < 0 ? -1 : 1);
+      A.quadN('fence', 'enduit', [[a[0], -1.0, a[2]], [b[0], -1.0, b[2]], [b[0], b[1], b[2]], [a[0], a[1], a[2]]], [ex / el, 0, ez / el]); }
+  };
+  const sC = (BND.D[1] - MUR.z) / BND.D[1] * LS; // abscisse de l'angle des murets (nu côté allée du muret allée / jardin)
+  slab(5.70, LS - 0.03, SEUIL.t0, SEUIL.t1); slab(9.80, 13.30, -0.05, SEUIL.t0); slab(9.43, sC, SEUIL.t1, SEUIL.tn); // bande principale, entre les piliers (glissé sous le bord du trottoir), fond de la niche
+  // bordure du trottoir au droit de l'ouverture : le trottoir (terrain naturel de la rue) est 2 à 11 cm au-dessus du seuil, sa rive est fermée par la bordure
+  for (let i = 0; i < 7; i++) { const sa = 9.80 + 0.5 * i, sb = sa + 0.5, ya = g(at(runS, sa)) + 0.052, yb = g(at(runS, sb)) + 0.052;
+    sbox('fence', 'curb', at(runS, sa), at(runS, sb), -0.08, 0, ya - 0.30, yb - 0.30, 0.30); }
+  sbox('fence', 'grille', at(runS, 5.92), at(runS, 13.45), TR - 0.015, TR + 0.015, yR - 0.012, yR - 0.012, 0.037); // rail
+  // motorisation du portail (interprétation de la demande : le moteur au sol à côté du muret est celui du portail coulissant) : moteur à crémaillère
+  // 30 × 20 × 30 cm gris anthracite sur socle enduit, dans la niche du muret derrière le pilier côté rangement ; pignon engrené sur la crémaillère du vantail
+  // en s 9,72 (dans la crémaillère portail fermé comme ouvert)
+  const ySoc = seuilY(9.72, 0.78) + 0.05, yMot = ySoc + 0.30;
+  sbox('fence', 'enduit', at(runS, 9.53), at(runS, 9.91), 0.54, 0.78, ySoc - 0.12, ySoc - 0.12, 0.12); // socle
+  sbox('fence', 'blackMatte', at(runS, 9.56), at(runS, 9.88), 0.542, 0.755, ySoc, ySoc, 0.015); // embase
+  sbox('fence', 'fenceAlu', at(runS, 9.57), at(runS, 9.87), 0.547, 0.745, ySoc + 0.015, ySoc + 0.015, yMot - ySoc - 0.015); // capot
+  sbox('fence', 'blackMatte', at(runS, 9.60), at(runS, 9.66), 0.744, 0.748, ySoc + 0.06, ySoc + 0.06, 0.05); // trappe de déverrouillage
+  { const p = atT(runS, 9.72, 0.571), pg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.026, 18), M.closetRail); pg.position.set(p[0], yMot + 0.015, p[1]); pg.castShadow = pg.receiveShadow = true; groups.fence.add(pg); } // pignon
+  // vantail coulissant et sa crémaillère (acier galvanisé, sur toute la longueur, face intérieure, à hauteur du pignon)
+  const ux = (BND.D[0] - BND.C[0]) / LS, uz = (BND.D[1] - BND.C[1]) / LS; // sens d'ouverture : vers les s décroissants (vers le jardin)
+  const lfG = leaf('portail coulissant', [0, 0], acc => {
+    gate(runS, S0G, S1G, true, DTG, ybG, 'leaf', acc);
+    sbox('leaf', 'closetRail', at(runS, S0G + 0.01), at(runS, S1G - 0.01), 0.13 + DTG, 0.155 + DTG, yMot + 0.002, yMot + 0.002, 0.03, acc);
+  });
+  const dG = door(lfG, 'portail', 1 / 3, v => { const k = TRAV * smooth(0, 1, v); lfG.g.position.set(ux * k, 0, uz * k); }); // ~3 s
+  { const c = atT(runS, (S0G - TRAV + S1G) / 2, TR); dG._navC = { x: c[0], y: ybG + 1.0, z: c[1], r: (S1G - S0G + TRAV) / 2 + 0.1 }; } // emprise de toute la course (obstacle dynamique de la balade, nav.js)
+
+  // ---- murets : 12 cm au-dessus du terrain le plus haut, dessus et chaperon rampants (sans gradins)
+  const murTop = x => Math.max(driveH(x), gardenH(x, MUR.z + MUR.e + 0.10)) + 0.12, murBot = x => driveH(x) - 0.12;
+  const xEnd = xSouth(MUR.z + MUR.e / 2) - SEUIL.tm; // le muret allée / jardin bute contre la niche du moteur (nu côté jardin)
+  const gT = s => { const p = atT(runS, s, SEUIL.tm + 0.12); return gardenH(p[0], p[1]); };
+  const dC = murTop(xEnd) - gT(sC) - 0.12, soutTop = s => gT(s) + 0.12 + dC * clamp((s - sC + 1.2) / 1.2, 0, 1); // raccord dans l'angle des murets
+  // muret de soutènement le long du seuil (s croissants : du bout de course vers l'angle), par tronçons de 50 cm au plus
+  const soutRun = (sa0, sb0, ta, tb, mat, h, ext0 = 0, ext1 = 0) => {
+    const n = Math.max(1, Math.ceil((sb0 - sa0) / 0.5));
     for (let i = 0; i < n; i++) {
-      const xa = x0 + (x1 - x0) * i / n, xb = x0 + (x1 - x0) * (i + 1) / n;
-      const top = x => Math.max(driveH(x), gardenH(x, 4.2)) + 0.12, bot = x => driveH(x) - 0.12;
-      const pa = [xa, 3.97], pb = [xb, 3.97];
-      sbox('fence', 'enduit', pa, pb, -0.15, 0, bot(xa), bot(xb), top((xa + xb) / 2) - bot((xa + xb) / 2));
-      sbox('fence', 'coping', [xa - 0.002, 3.97], [xb + 0.002, 3.97], -0.17, 0.02, top((xa + xb) / 2), top((xa + xb) / 2), 0.03);
-    } }
+      const sa = sa0 + (sb0 - sa0) * i / n - (i ? 0 : ext0), sb = sa0 + (sb0 - sa0) * (i + 1) / n + (i < n - 1 ? 0 : ext1), ya = soutTop(sa), yb = soutTop(sb);
+      if (h) sbox('fence', mat, at(runS, sa), at(runS, sb), ta, tb, ya, yb, h); else { const hh = Math.max(ya, yb) + 1.05; sbox('fence', mat, at(runS, sa), at(runS, sb), ta, tb, ya - hh, yb - hh, hh); }
+    }
+  };
+  { const yRet = soutTop(5.80), hh = yRet + 1.05;
+    sbox('fence', 'enduit', at(runS, 5.70), at(runS, 5.90), 0.15, SEUIL.tn, yRet - hh, yRet - hh, hh); // retour jusqu'à la clôture au bout de la course
+    sbox('fence', 'coping', at(runS, 5.68), at(runS, 5.92), SEUIL.t0, SEUIL.tn + 0.02, yRet, yRet, 0.03);
+    soutRun(5.90, 9.43, SEUIL.t1, SEUIL.tn, 'enduit', 0); soutRun(9.25, sC, SEUIL.tn, SEUIL.tm, 'enduit', 0); // le long du seuil, puis niche du moteur
+    soutRun(5.92, 9.25, SEUIL.t1 - 0.02, SEUIL.tn + 0.02, 'coping', 0.03); soutRun(9.25, 9.45, SEUIL.t1 - 0.02, SEUIL.tn - 0.02, 'coping', 0.03);
+    soutRun(9.25, sC, SEUIL.tn - 0.02, SEUIL.tm + 0.02, 'coping', 0.03, 0.02, 0.02); }
+  // muret entre l'allée du garage et le jardin, interrompu au droit de la marche (chaperons retournés sur les abouts)
+  const murRun = (xa0, xb0, ca0, cb0) => {
+    const n = Math.max(1, Math.ceil((xb0 - xa0) / 0.5));
+    for (let i = 0; i < n; i++) {
+      const xa = xa0 + (xb0 - xa0) * i / n, xb = xa0 + (xb0 - xa0) * (i + 1) / n, ya = murTop(xa), yb = murTop(xb), k = (yb - ya) / (xb - xa);
+      const hs = Math.max(ya - murBot(xa), yb - murBot(xb)), ca = i ? 0.002 : ca0, cb = i < n - 1 ? 0.002 : cb0;
+      sbox('fence', 'enduit', [xa, MUR.z], [xb, MUR.z], -MUR.e, 0, ya - hs, yb - hs, hs);
+      sbox('fence', 'coping', [xa - ca, MUR.z], [xb + cb, MUR.z], -MUR.e - 0.02, 0.02, ya - k * ca, yb + k * cb, 0.03);
+    }
+  };
+  murRun(L + 0.25, MARCHE.x0, 0.02, 0.02); murRun(MARCHE.x1, xEnd, 0.02, -0.02);
+  // marche de l'allée au jardin, dans l'interruption de 1,00 m du muret (centrée à 2,00 m de la façade sud) : bloc-marche en pierre reconstituée
+  // (giron 35 cm dont 15 cm en avancée sur l'allée, nez débordant de 2,5 cm, contremarche de 7,5 à 16 cm selon la pente de l'allée), dalle d'arrivée 100 × 50
+  // au niveau de la pelouse ; sol de la balade au clavier (userData.navKind = 0 : marche franchissable, nav.js)
+  { const { x0, x1, zN, zR, zB, zP } = MARCHE, acc = new Acc(), grp = new THREE.Group(); grp.name = 'marche allée / jardin'; groups.fence.add(grp);
+    const y0 = marcheY(x0), y1 = marcheY(x1), hb = y1 - 0.05 - (surfAllee(x1) - 0.14); // bloc enterré de 14 cm sous l'allée au point bas
+    sbox('st', 'coping', [x0, zR], [x1, zR], -(zB - zR), 0, y0 - 0.05 - hb, y1 - 0.05 - hb, hb, acc); // corps du bloc (contremarche)
+    sbox('st', 'coping', [x0, zN], [x1, zN], -(zB - zN), 0, y0 - 0.05, y1 - 0.05, 0.05, acc); // giron et nez
+    sbox('st', 'galet', [x0 + 0.002, zB], [x1 - 0.002, zB], -0.008, 0, y0 - 0.06, y1 - 0.06, 0.052, acc); // joint
+    sbox('st', 'coping', [x0, zB + 0.008], [x1, zB + 0.008], -(zP - zB - 0.008), 0, y0 - 0.06, y1 - 0.06, 0.06, acc); // dalle d'arrivée
+    acc.build({ st: grp }); grp.traverse(o => { if (o.isMesh) o.userData.navKind = 0; }); }
+  // pelouse le long des murets côté jardin (le maillage du terrain, au pas de 20 cm, y creuserait une rigole)
+  const grassStrip = c => overlayQuad('site', 'grass', c, -0.006, Math.max(2, Math.ceil(dist2(c[0], c[1]) / 0.25)), 2);
+  const gq = (s0, s1, t0, t1) => [atT(runS, s0, t0), atT(runS, s1, t0), atT(runS, s1, t1), atT(runS, s0, t1)];
+  const zg = MUR.z + MUR.e + 0.003; // 3 mm du nu : le bord de la bande est évalué côté jardin
+  grassStrip([[L + 0.25, zg], [xEnd, zg], [xEnd, zg + 0.25], [L + 0.25, zg + 0.25]]);
+  grassStrip(gq(9.25, sC, SEUIL.tm + 0.003, SEUIL.tm + 0.25)); grassStrip(gq(5.70, 9.25, SEUIL.tn + 0.003, SEUIL.tn + 0.25)); grassStrip(gq(5.45, 5.697, SEUIL.t0, SEUIL.tn + 0.25));
 }
 
 // ---------------------------------------------------------------- scène
@@ -1621,10 +1729,10 @@ function bindUI() {
   hl.textContent = fmt(state.hour);
   mo.addEventListener('change', () => { state.month = +mo.value; updateSun(true); });
   hr.addEventListener('input', () => { state.hour = +hr.value; hl.textContent = fmt(state.hour); updateSun(true); });
-  // clic sur une porte intérieure : ouverture / fermeture (les murs visibles masquent les portes situées derrière)
+  // clic sur une porte intérieure, le portail ou le portillon : ouverture / fermeture (les murs et clôtures visibles masquent les ouvrants situés derrière)
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), cvs = renderer.domElement; let down = null, lastHover = 0;
   const doorAt = ev => { const r = cvs.getBoundingClientRect(); ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
-    const objs = ['rdc', 'r1', 'slab1', 'ceil1', 'skinU', 'skinR', 'furn0', 'furn1', 'roof'].map(k => groups[k]).filter(g => g.visible);
+    const objs = ['rdc', 'r1', 'slab1', 'ceil1', 'skinU', 'skinR', 'furn0', 'furn1', 'roof', 'fence'].map(k => groups[k]).filter(g => g.visible);
     // [perf] d'abord les seuls ouvrants (quelques milliers de triangles) : au survol, presque toujours rien, et on s'arrête là ;
     // sinon lancer complet limité à la distance de l'ouvrant touché, pour vérifier qu'aucun mur ne le masque (même résultat qu'avant)
     const dm = []; for (const d of DOORS) for (const m of d.meshes) { let t = m; while (t.parent && t.parent !== scene) t = t.parent; if (objs.includes(t)) dm.push(m); }
