@@ -1,8 +1,9 @@
 // Chambre 1 et bureau de l'étage : mobilier demandé par les clients, calque 'furn1'. Appelé juste après buildMobilier(ctx), avant A.build(groups).
 // - Chambre 1 : petit bureau 120 × 60 dans l'angle sud-ouest, dos à la cloison de la chambre 2 ; TV murale façon Samsung The Frame 55"
 //   en cadre noir, en hauteur sur la même cloison, face au lit (axe du lit x = 10,65) ; fauteuil Herman Miller Aeron.
-// - Bureau : bureau 160 × 64 dos à la cloison de la chambre 2 (radiateur juste à sa droite), même fauteuil Aeron, canapé-lit
-//   (matelas 140 × 190) le long de la cloison du palier, dépliable au clic (ouvrant déclaré dans ctx.DOORS, comme les portes).
+// - Bureau : bureau 120 × 64 dos à la cloison de la chambre 2 (bout à 10 cm du radiateur) avec MacBook Pro 16", écran 32" et écran 24"
+//   en portrait, même fauteuil Aeron, canapé-lit (matelas 140 × 190, 83 cm de profondeur fermé) le long de la cloison du palier, dépliable
+//   au clic (ouvrant déclaré dans ctx.DOORS, comme les portes), étagère à casiers façon Kallax 2 × 4 en chêne clair dans l'angle libre.
 // Le mobilier fixe est fusionné en un mesh par matériau (peu d'appels de dessin) ; seules les pièces mobiles du canapé restent séparées.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -108,6 +109,32 @@ function materials() {
   M.c1Steel = std({ color: '#4d5459', roughness: 0.45, metalness: 0.2 }); // acier thermolaqué RAL 7016 (même teinte affichée que RAL7016 de main.js)
   const art = artTex(); art.repeat.set(1, 1);
   M.c1Art = std({ map: art, emissive: '#ffffff', emissiveMap: art, emissiveIntensity: 0.28, roughness: 0.6 }); // dalle mate en mode Art
+  // poste du bureau : aluminium anodisé gris sidéral du MacBook Pro, pavé tactile en verre, clavier noir, dalles allumées sur un fond sombre discret
+  M.c1SpaceGrey = std({ color: '#7b7d81', roughness: 0.4, metalness: 0.45 });
+  M.c1Track = std({ color: '#5f6266', roughness: 0.22, metalness: 0.3 });
+  M.c1Keys = std({ map: keysTex(), roughness: 0.65 });
+  const scr = screenTex(); M.c1Screen = std({ map: scr, emissive: '#ffffff', emissiveMap: scr, emissiveIntensity: 0.3, roughness: 0.45 }); // traitement antireflet mat
+}
+// clavier du MacBook Pro (zone 28,2 × 10,8 cm) : rangée de fonctions en demi-hauteur, cinq rangées, flèches en T inversé ; touches noires sur fond noir
+function keysTex() {
+  return C.makeTex(512, 1, (g, s, w, h) => {
+    g.fillStyle = '#0b0c0d'; g.fillRect(0, 0, w, h);
+    const u = w / 14.5, gp = u * 0.13, rows = [[0.55, Array(14).fill(14.5 / 14)], [1, [...Array(13).fill(1), 1.5]], [1, [1.5, ...Array(13).fill(1)]],
+      [1, [1.75, ...Array(11).fill(1), 1.75]], [1, [2.25, ...Array(10).fill(1), 2.25]], [1, [1, 1, 1, 1.25, 5, 1.25, 1, 1, 1, 1]]];
+    const key = (x, y, kw, kh) => { g.fillStyle = '#1f2023'; g.fillRect(x * u + gp / 2, y * u + gp / 2, kw * u - gp, kh * u - gp); g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x * u + gp / 2, y * u + gp / 2, kw * u - gp, 1); };
+    let y = 0;
+    rows.forEach(([rh, ks], r) => { let x = 0; ks.forEach((k, i) => {
+      if (r === 5 && i >= 7) { if (i === 8) { key(x, y, k, 0.5); key(x, y + 0.5, k, 0.5); } else key(x, y + 0.5, k, 0.5); } else key(x, y, k, rh); // flèches
+      x += k; }); y += rh; });
+  }, { w: 512, h: 196 });
+}
+// fond d'écran sombre et discret (bleu nuit, halo doux plus clair en bas à gauche), commun aux trois dalles
+function screenTex() {
+  return C.makeTex(256, 1, (g, s, w, h) => {
+    let gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#18222e'); gr.addColorStop(1, '#0a0f15'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    gr = g.createRadialGradient(w * 0.28, h * 1.05, 8, w * 0.28, h * 1.05, w * 0.75); gr.addColorStop(0, 'rgba(78,104,132,0.55)'); gr.addColorStop(1, 'rgba(78,104,132,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  }, { w: 256, h: 160 });
 }
 // œuvre affichée en mode Art (dalle éteinte) : marine à la dune, passe-partout numérique blanc cassé à biseau
 function artTex() {
@@ -258,45 +285,66 @@ function tvFrame() {
 }
 
 // ---------------------------------------------------------------- bureau de l'étage
-// Bureau 160 × 64 dos à la cloison de la chambre 2 (nu x 8,07) : x 7,43 → 8,07, z 5,65 → 7,25 ; assis face à +x, le radiateur
-// (mur ouest, x 7,20 → 7,90) est juste à droite du bout du bureau. Accessoires de l'ancien bureau conservés : portable ouvert,
-// lampe d'architecte, pot à crayons, carnet, caisson 3 tiroirs sur roulettes (côté gauche).
+// Bureau 120 × 64 dos à la cloison de la chambre 2 (nu x 8,07) : x 7,43 → 8,07, z 6,14 → 7,34 ; assis face à +x, son bout ouest à 10 cm
+// de la façade du radiateur (mur ouest, x 7,20 → 7,90, saillie jusqu'à z 7,44). Poste centré sur le siège (z 6,65, décalé de 9 cm vers
+// la gauche pour loger l'écran vertical) : MacBook Pro 16" ouvert, écran 32" juste au-dessus, écran 24" en portrait à droite (côté
+// radiateur), tourné de 30° vers le siège, hauts des deux écrans alignés à 1,41 m du sol. Carnet et pot à crayons à gauche ;
+// plus de caisson sous le plateau, ni de lampe d'architecte (sa place est prise par les écrans).
 function bureau() {
-  const e = C.E1, h = 0.74, K = new Kit('furn1', mtx(7.75, e, 6.45, Math.PI / 2));
-  desk(K, 1.60, 0.64, h);
-  const c0 = 0.32, c1 = 0.72, cm = (c0 + c1) / 2; K.soft('white', c0, c1, 0.045, 0.60, -0.25, 0.23, 0.004, { nA: 2 });
-  for (const [y0, y1] of [[0.05, 0.25], [0.253, 0.425], [0.428, 0.595]]) { K.soft('white', c0 + 0.003, c1 - 0.003, y0, y1, -0.268, -0.25, 0.002, { nA: 2 }); K.box('blackMatte', cm - 0.045, cm + 0.045, y1 - 0.026, y1 - 0.019, -0.276, -0.268); }
-  for (const x of [c0 + 0.04, c1 - 0.04]) for (const z of [-0.21, 0.19]) K.g('blackMatte', new THREE.CylinderGeometry(0.02, 0.02, 0.016, 12).rotateZ(Math.PI / 2), x, 0.022, z);
-  const lx = -0.15, lz = -0.10; K.soft('mobGrey', lx - 0.16, lx + 0.16, h, h + 0.014, lz - 0.11, lz + 0.11, 0.004, { nA: 2 }); K.box('mobRubber', lx - 0.14, lx + 0.14, h + 0.014, h + 0.0145, lz - 0.085, lz + 0.03);
-  { const S = new Kit('furn1', K.m(lx, h + 0.012, lz + 0.11, 0, 0.35)); S.soft('mobGrey', -0.16, 0.16, 0, 0.215, -0.007, 0, 0.003, { nA: 2 }); S.box('mobLaptop', -0.148, 0.148, 0.012, 0.204, -0.0076, -0.007); }
-  const bx = 0.62, bz = 0.16; K.g('blackMatte', new THREE.CylinderGeometry(0.072, 0.078, 0.016, 24), bx, h + 0.008, bz);
-  const j1 = [bx - 0.03, h + 0.35, bz - 0.06], j2 = [bx - 0.15, h + 0.37, bz - 0.20], mo = [bx - 0.19, h + 0.27, bz - 0.24];
-  K.rod('blackMatte', [bx, h + 0.016, bz], j1, 0.0065, 8); K.rod('blackMatte', j1, j2, 0.0065, 8); K.rod('blackMatte', mo, j2, 0.058, 18, 0.02);
-  { const d = V3(...j2).sub(V3(...mo)).normalize().multiplyScalar(0.003); K.rod('mobLed', [mo[0] - d.x, mo[1] - d.y, mo[2] - d.z], mo, 0.05, 18); }
-  const px = -0.70, pz = 0.17; K.rod('mobPaint', [px, h, pz], [px, h + 0.10, pz], 0.035, 18, 0.035, { c: '#3f5e6e' });
+  const e = C.E1, h = 0.74, zc = 6.74, zs = 6.65, K = new Kit('furn1', mtx(7.75, e, zc, Math.PI / 2)), sx = zc - zs; // x local = zc − z monde
+  desk(K, 1.20, 0.64, h);
+  macbook(new Kit('furn1', K.m(sx, h, -0.111))); // base à 8,5 cm du chant avant (z local −0,235 → 0,013)
+  monitor(new Kit('furn1', K.m(sx, h, 0.17)), 0.708, 0.398, 0.25, 0.006, 0.016, 0.26, 0.20); // 32" : bas du cadre 6 mm au-dessus du haut de l'écran du MacBook
+  monitor(new Kit('furn1', K.m(-0.425, h, 0.04, -Math.PI / 6)), 0.297, 0.527, 0.125, 0.007, 0.011, 0.20, 0.18); // 24" en portrait, z monde 7,03 → 7,30
+  const px = 0.535, pz = 0.17; K.rod('mobPaint', [px, h, pz], [px, h + 0.10, pz], 0.035, 18, 0.035, { c: '#3f5e6e' });
   for (const [dx, dz, c] of [[-0.01, 0.0, '#d9a441'], [0.012, 0.008, '#1f2a36'], [0.0, -0.012, '#9b4a3c']]) K.rod('mobPaint', [px + dx, h + 0.05, pz + dz], [px + dx * 2.5, h + 0.18, pz + dz * 2.5], 0.004, 6, 0.004, { c });
-  K.box('mobPaint', -0.62, -0.42, h, h + 0.012, -0.12, 0.16, { c: '#1f2a36' });
-  aeron(7.32, 6.60, Math.PI / 2); // rangé sous le bureau face au portable, assise engagée de 13 cm, accoudoirs contre la ceinture du plateau
+  K.box('mobPaint', 0.31, 0.51, h, h + 0.012, -0.25, 0.03, { c: '#1f2a36' });
+  aeron(7.32, zs, Math.PI / 2); // rangé sous le bureau face au MacBook, assise engagée de 13 cm, accoudoirs contre la ceinture du plateau
+}
+// MacBook Pro 16" gris sidéral (cotes Apple : 35,57 × 24,81 × 1,68 cm ; base 10,8 mm, écran 6 mm), ouvert à 110° ; dalle 34,5 × 22,3 cm à bordures
+// fines et encoche, clavier noir, pavé tactile 16 × 9,9 cm. Repère : origine sur le plateau au centre de la base, écran tourné vers −z.
+function macbook(K) {
+  const w = 0.3557, d = 0.2481, tb = 0.0108, tl = 0.006, hw = w / 2, hd = d / 2;
+  K.soft('c1SpaceGrey', -hw, hw, 0.0008, tb, -hd, hd, 0.004, { nA: 2 }); // base sur patins de 0,8 mm
+  K.g('c1Keys', new THREE.PlaneGeometry(0.282, 0.108).rotateX(-Math.PI / 2).rotateY(Math.PI), 0, tb + 0.0002, hd - 0.015 - 0.054, 0, 0, 0, { keepUV: true });
+  K.box('c1Track', -0.08, 0.08, tb, tb + 0.0003, -hd + 0.012, -hd + 0.111);
+  const L = new Kit('furn1', K.m(0, tb - 0.002, hd - 0.003, 0, 0.35)); // écran incliné de 20° vers l'arrière, charnière au bord arrière de la base
+  L.soft('c1SpaceGrey', -hw, hw, 0, d, 0, tl, 0.003, { nA: 2 });
+  L.box('blackMatte', -hw + 0.002, hw - 0.002, 0.003, d - 0.002, -0.0004, 0.0001); // verre noir et bordures
+  L.g('c1Screen', new THREE.PlaneGeometry(0.3446, 0.2234).rotateY(Math.PI), 0, 0.0185 + 0.1117, -0.0006, 0, 0, 0, { keepUV: true });
+  L.box('blackMatte', -0.016, 0.016, d - 0.0105, d - 0.003, -0.0009, -0.0004); // encoche de la caméra
+}
+// Écran plat noir sur pied central. Repère : origine sur le plateau à l'aplomb de la face avant, dalle tournée vers −z.
+// Dalle dw × dh à bords fins (s : côtés et haut, bb : bas), bas du cadre à yb du plateau ; coque arrière bombée, platine, colonne, embase bw × bd.
+function monitor(K, dw, dh, yb, s, bb, bw, bd) {
+  const W = dw + 2 * s, H = dh + s + bb, ym = yb + H / 2;
+  K.soft('blackMatte', -W / 2, W / 2, yb, yb + H, 0, 0.012, 0.003, { nA: 1 }); // cadre et dos plat
+  K.g('c1Screen', new THREE.PlaneGeometry(dw, dh).rotateY(Math.PI), 0, yb + bb + dh / 2, -0.0006, 0, 0, 0, { keepUV: true });
+  K.soft('blackMatte', -W * 0.34, W * 0.34, ym - H * 0.33, ym + H * 0.33, 0.011, 0.04, 0.015, { nA: 2 }); // coque arrière
+  K.box('blackMatte', -0.045, 0.045, ym - 0.05, ym + 0.04, 0.038, 0.054); // platine de fixation
+  K.box('blackMatte', -0.03, 0.03, 0.012, ym + 0.04, 0.054, 0.076); // colonne
+  K.soft('blackMatte', -bw / 2, bw / 2, 0, 0.012, 0.10 - bd, 0.10, 0.006, { nA: 1 }); // embase plate, débordant sous la dalle
 }
 
 // ---------------------------------------------------------------- canapé-lit (ouverture « rapido », matelas 140 × 190 en trois panneaux de 13 cm)
-// Le long de la cloison du palier (nu z 4,24), x 5,11 → 6,95 (hors débattement de la porte, x 7,25 → 7,98). Repère local : x le long du mur
-// (centre du canapé), z depuis le mur vers la pièce, y depuis le sol. Fermé : P1 (tête) en bas, P2 retourné dessus (charnière avant),
-// P3 au-dessus (charnière arrière) dont la face haute est l'assise. Au clic : le pliage remonte de 26 cm (P1 à hauteur d'assise),
-// P2 bascule vers l'avant de 180° autour de la charnière avant en portant P3 qui reste à plat, puis les pieds se déplient.
-// Ouvert : couchage 140 × 190 à 47 cm du sol, x 5,33 → 6,73, z 4,52 → 6,42 (le fauteuil du bureau reste à côté, x ≥ 6,78).
+// Le long de la cloison du palier (nu z 4,24), x 5,11 → 6,95 (hors débattement de la porte, x 7,25 → 7,98), profondeur fermé 83 cm
+// (z 4,24 → 5,07) : dossier mince de 6,5 cm, coussins de dos de 9 cm, assise d'un panneau (63 cm), traverse avant de 3,5 cm.
+// Repère local : x le long du mur (centre du canapé), z depuis le mur vers la pièce, y depuis le sol. Fermé : P1 (tête) en bas, P2 retourné
+// dessus (charnière avant), P3 au-dessus (charnière arrière) dont la face haute est l'assise. Au clic : le pliage remonte de 26 cm
+// (P1 à hauteur d'assise), P2 bascule vers l'avant de 180° autour de la charnière avant en portant P3 qui reste à plat, puis les pieds se déplient.
+// Ouvert : couchage 140 × 190 à 47 cm du sol, x 5,33 → 6,73, z 4,40 → 6,30 (le fauteuil du bureau reste à côté, x ≥ 6,97).
 function canape() {
-  const e = C.E1, xc = 6.03, zw = 4.24, fab = { c: '#c4c2bd' }, t = 0.13, Lp = 1.90 / 3, za = 0.28, zb = za + Lp, yb = 0.08, lift = 0.26, hl = yb + lift - 0.015;
+  const e = C.E1, xc = 6.03, zw = 4.24, fab = { c: '#c4c2bd' }, t = 0.13, Lp = 1.90 / 3, za = 0.16, zb = za + Lp, zf = 0.83, yb = 0.08, lift = 0.26, hl = yb + lift - 0.015;
   const root = new THREE.Group(); root.name = 'canapé-lit'; root.position.set(xc, e, zw); C.groups.furn1.add(root);
   const item = { g: root, meshes: [], open: 0, target: 0, speed: 0.35, kind: 'canape' };
-  // structure fixe : accoudoirs, dossier et coussins de dos, traverse avant, fonds, pieds
+  // structure fixe : accoudoirs, dossier et coussins de dos (en arrière du panneau P1 : z < za), traverse avant, fonds, pieds
   const s0 = sinkTo(), K = new Kit('furn1', null, s0);
-  for (const sx of [-1, 1]) K.soft('mobFab', sx > 0 ? 0.72 : -0.92, sx > 0 ? 0.92 : -0.72, 0.05, 0.62, 0, 0.965, 0.05, { nA: 2, nI: [1, 3, 3], c: fab.c });
-  K.soft('mobFab', -0.72, 0.72, 0.05, 0.70, 0, 0.13, 0.03, { nA: 2, nI: [4, 2, 1], c: fab.c });
-  K.box('mobFab', -0.72, 0.72, 0.05, 0.46, 0.12, 0.275, fab); K.box('mobFab', -0.72, 0.72, 0.05, 0.07, 0.275, 0.915, fab);
-  for (const [a, b] of [[-0.715, -0.005], [0.005, 0.715]]) K.soft('mobFab', a, b, 0.47, 0.88, 0.10, 0.25, 0.06, { nA: 2, nI: [4, 3, 1], def: puff(0.15, 'z'), rx: -0.10, c: fab.c });
-  K.soft('mobFab', -0.72, 0.72, 0.05, 0.335, 0.915, 0.965, 0.012, { nA: 2, nI: [4, 1, 1], c: fab.c });
-  for (const x of [-0.86, 0.86]) for (const z of [0.07, 0.89]) K.rod('blackMatte', [x, 0, z], [x, 0.05, z], 0.016, 10, 0.02);
+  for (const sx of [-1, 1]) K.soft('mobFab', sx > 0 ? 0.72 : -0.92, sx > 0 ? 0.92 : -0.72, 0.05, 0.62, 0, zf, 0.05, { nA: 2, nI: [1, 3, 3], c: fab.c });
+  K.soft('mobFab', -0.72, 0.72, 0.05, 0.70, 0, 0.065, 0.025, { nA: 2, nI: [4, 2, 1], c: fab.c });
+  K.box('mobFab', -0.72, 0.72, 0.05, 0.46, 0.06, za - 0.005, fab); K.box('mobFab', -0.72, 0.72, 0.05, 0.07, za - 0.005, zb + 0.002, fab);
+  for (const [a, b] of [[-0.715, -0.005], [0.005, 0.715]]) K.soft('mobFab', a, b, 0.47, 0.85, 0.055, 0.145, 0.04, { nA: 2, nI: [4, 3, 1], def: puff(0.12, 'z'), rx: -0.06, c: fab.c });
+  K.soft('mobFab', -0.72, 0.72, 0.05, 0.335, zb + 0.002, zf, 0.012, { nA: 2, nI: [4, 1, 1], c: fab.c });
+  for (const x of [-0.86, 0.86]) for (const z of [0.07, zf - 0.075]) K.rod('blackMatte', [x, 0, z], [x, 0.05, z], 0.016, 10, 0.02);
   meshesOf(s0, root, item.meshes);
   // pièces mobiles : G1 (relevage) ⊃ P1, G2 (charnière avant P1/P2) ⊃ P2, L2 (pieds), G3 (charnière arrière P2/P3) ⊃ P3, L3 (pieds)
   const G1 = new THREE.Group(), G2 = new THREE.Group(), G3 = new THREE.Group(), L2 = new THREE.Group(), L3 = new THREE.Group();
@@ -319,8 +367,39 @@ function canape() {
   C.DOORS.push(item);
 }
 
+// ---------------------------------------------------------------- rangement du bureau
+// Étagère à casiers façon Ikea Kallax 2 × 4 debout (77 × 147,6, profondeur 39) en chêne clair, contre la façade ouest (nu z 7,54) dans l'angle
+// libre avec la cloison de la chambre 3 (nu x 5,09) : x 5,10 → 5,87, z 7,14 → 7,53. Elle s'arrête à 8 cm du tableau de la fenêtre (x 5,95,
+// vantail ouvert à 85° dégagé) et reste loin du canapé ouvert (z ≤ 6,30). Cadre de 40 mm, montant et tablettes de 16 mm, casiers de 33,7 cm,
+// dos ouvert ; quatre boîtes en toile et quelques livres. Repère : origine au sol à l'angle avant gauche (x 5,10, z 7,14), z vers le mur.
+function rangement() {
+  const K = new Kit('furn1', mtx(5.10, C.E1, 7.14)), W = 0.77, D = 0.39, o = 0.04, t = 0.016, c = 0.337, H = 2 * o + 4 * c + 3 * t;
+  // joues et montant central : fil du bois vertical (UV en mètres, u suivant la hauteur sur les faces verticales ; repère sans rotation)
+  const vert = (x0, x1, y0, y1) => { const g = boxG(x1 - x0, y1 - y0, D).translate((x0 + x1) / 2, (y0 + y1) / 2, D / 2), p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
+    for (let i = 0; i < p.count; i++) if (Math.abs(n.getY(i)) > 0.5) uv.setXY(i, p.getX(i), -p.getZ(i)); else uv.setXY(i, p.getY(i), Math.abs(n.getX(i)) > 0.5 ? p.getZ(i) : p.getX(i));
+    K.p('mobOak', g, K.F, { keepUV: true }); };
+  vert(0, o, 0, H); vert(W - o, W, 0, H); // joues
+  K.box('mobOak', o, W - o, H - o, H, 0, D); K.box('mobOak', o, W - o, 0, o, 0, D); // dessus et socle
+  vert(o + c, o + c + t, o, H - o); // montant central
+  for (let i = 1; i < 4; i++) { const y = o + i * c + (i - 1) * t; K.box('mobOak', o, W - o, y, y + t, 0, D); } // tablettes
+  const cell = (i, j) => [o + i * (c + t), o + j * (c + t)]; // coin bas gauche du casier (colonne i, rangée j depuis le bas)
+  // boîte en toile 33 × 33 × 37 à poignée découpée, affleurant la face avant
+  const boite = (i, j, col) => { const [x, y] = cell(i, j); K.soft('mobFab', x + 0.004, x + c - 0.004, y, y + c - 0.006, 0.006, D - 0.012, 0.008, { nA: 1, c: col });
+    K.box('mobPaint', x + c / 2 - 0.045, x + c / 2 + 0.045, y + c - 0.08, y + c - 0.055, 0.003, 0.0065, { c: '#34332f' }); };
+  // livres debout, dos vers la pièce : [épaisseur, hauteur, profondeur, couleur] ; lean : dernier livre penché contre les autres
+  const livres = (i, j, L, lean) => { let [x, y] = cell(i, j); x += 0.012;
+    L.forEach(([e, h, p, col], k) => { const a = lean && k === L.length - 1 ? 0.32 : 0, sa = Math.sin(a), ca = Math.cos(a); // penché : coin haut gauche contre le livre précédent
+      K.g('mobPaint', boxG(e, h, p), x + h / 2 * sa + e / 2 * ca, y + h / 2 * ca + e / 2 * sa, 0.02 + p / 2, 0, 0, a, { c: col }); x += e + 0.001; }); };
+  boite(0, 0, '#8e8b85'); boite(1, 0, '#8e8b85'); boite(1, 1, '#cfc5b2'); boite(0, 2, '#cfc5b2');
+  livres(0, 1, [[0.032, 0.285, 0.21, '#2f3e46'], [0.024, 0.27, 0.20, '#c9b88f'], [0.04, 0.29, 0.22, '#e3ddd0'], [0.02, 0.24, 0.17, '#4f5d4a'], [0.028, 0.26, 0.19, '#a8573f'],
+    [0.035, 0.25, 0.18, '#1f2a36'], [0.022, 0.235, 0.16, '#b9a27a'], [0.03, 0.28, 0.21, '#6b4f3a']]);
+  { const [x, y] = cell(1, 2); let yy = y; for (const [w, h, p, col] of [[0.27, 0.035, 0.21, '#e3ddd0'], [0.25, 0.028, 0.19, '#2f3e46'], [0.235, 0.03, 0.17, '#a8573f']]) {
+    K.box('mobPaint', x + 0.04, x + 0.04 + w, yy, yy + h, 0.03, 0.03 + p, { c: col }); yy += h; } } // pile couchée
+  livres(0, 3, [[0.03, 0.25, 0.18, '#4f5d4a'], [0.026, 0.27, 0.20, '#e3ddd0'], [0.034, 0.24, 0.17, '#1f2a36'], [0.022, 0.26, 0.19, '#c9b88f'], [0.03, 0.235, 0.17, '#8a8f94']], true);
+}
+
 export function buildChambre1(ctx) {
   C = ctx; M = ctx.M; BK.clear();
-  materials(); chambre1(); valet(); bureau(); canape();
+  materials(); chambre1(); valet(); bureau(); canape(); rangement();
   flush();
 }

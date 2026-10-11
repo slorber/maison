@@ -172,10 +172,12 @@ export function initNav(ctx) {
     return (d._navC = bb.isEmpty() ? { x: 0, y: 0, z: 0, r: 1e9 } : { x: (bb.min.x + bb.max.x) / 2, y: (bb.min.y + bb.max.y) / 2, z: (bb.min.z + bb.max.z) / 2, r: Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2 });
   }
   function updateDoor(now) {
-    // portes intérieures (fermées par défaut) : le promeneur ouvre celle qu'il approche, sans jamais la refermer
+    // portes intérieures (fermées par défaut) : le promeneur ouvre celle qu'il approche, une seule fois à l'entrée dans la zone (1,25 m, sortie à 1,60 m),
+    // sans jamais la refermer ; refermée au clic tout près, elle ne se rouvre plus d'elle-même (avant : rouverte à l'image suivante, le vantail tressautait)
+    // tant que le promeneur n'est pas ressorti de la zone. Placards et ouvrants (kind) : au clic seulement.
     if (W.on) for (const d of DOORS || []) {
-      if (d.kind || d.target > 0.5) continue; const c = navC(d);
-      if (Math.hypot(c.x - W.x, c.z - W.z) < 1.25 && Math.abs(c.y - (W.feet + 1.0)) < 1.0) d.target = 1;
+      if (d.kind) continue; const c = navC(d), r = Math.hypot(c.x - W.x, c.z - W.z), lv = Math.abs(c.y - (W.feet + 1.0)) < 1.0;
+      if (d._navIn) { if (r > 1.6 || !lv) d._navIn = false; } else if (r < 1.25 && lv) { d._navIn = true; d.target = 1; }
     }
     if (!DOOR) { // porte d'entrée ouvrable au clic (ouvrants.js) : on l'ouvre une fois à l'approche du promeneur
       const near = W.on && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4;

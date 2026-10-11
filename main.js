@@ -750,7 +750,7 @@ function buildInterior() {
   wall('r1', 'z', 5.02, 5.09, 4.24, D - T, e, c, [], P); // chambre 3 / bureau
   wall('r1', 'z', 8.07, 8.14, 4.24, D - T, e, c, [], P); // bureau / chambre 2
   A.box('r1', 3.93, 4.08, e, c, T, 0.57, 'paint'); // décompression WC
-  A.box('r1', 8.31, 8.45, e, c, 2.45, 3.10, 'paint'); // coffre vide garage → combles
+  A.box('r1', 8.21, 8.38, e, c, 2.50, 3.10, 'paint'); // coffre vide garage → combles (plan p. 10 : x 8,21 → cloison, z 2,50 → 3,10), joue contre le placard du dressing côté palier
 
   // portes intérieures Righini Graphik (choix client) : [calque, axe du mur, milieu du mur, charnière, autre montant, sol, sens d'ouverture, épaisseur du mur]
   buildDoors([
@@ -787,8 +787,13 @@ function buildDoors(list) {
     mtx.setPosition(ax === 'x' ? new THREE.Vector3(pu, y, pw) : new THREE.Vector3(pw, y, pu)); mtx.decompose(outer.position, outer.quaternion, outer.scale);
     const g = new THREE.Group(); outer.add(g); groups[fl].add(outer);
     const wd = Math.abs(o - h) - 2 * (jb + gap), lh = hd - jb - 0.012, meshes = [];
-    meshes.push(mesh(g, new THREE.BoxGeometry(wd, lh, t), 'doorLeaf', wd / 2, 0.008 + lh / 2, -t / 2));
-    for (const gy of grooves) for (const zf of [0, -t]) meshes.push(mesh(g, new THREE.BoxGeometry(wd - 0.002, 0.005, 0.0016), 'doorGroove', wd / 2, gy, zf));
+    // rainures dessinées dans une texture mipmappée des deux faces du vantail : les filets en relief (5 mm de haut, métalliques, 0,8 mm devant la laque)
+    // tombaient sous le pixel et scintillaient au moindre mouvement de la vue ; chants du vantail renvoyés sur une zone unie de la texture
+    if (!M.doorLeaf.map) { const cv = document.createElement('canvas'); cv.width = 4; cv.height = 2048; const cx = cv.getContext('2d'); cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, 4, 2048);
+      for (const gy of grooves) { const py = Math.round((1 - (gy - 0.008) / lh) * 2048); cx.fillStyle = '#a3a6aa'; cx.fillRect(0, py - 2, 4, 1); cx.fillStyle = '#c4c7ca'; cx.fillRect(0, py - 1, 4, 3); cx.fillStyle = '#e9ebec'; cx.fillRect(0, py + 2, 4, 1); }
+      const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = MAX_ANISO.v; M.doorLeaf.map = tx; M.doorLeaf.needsUpdate = true; }
+    const lg = new THREE.BoxGeometry(wd, lh, t); for (let i = 0; i < 16; i++) lg.attributes.uv.setXY(i, 0.5, 0.01);
+    meshes.push(mesh(g, lg, 'doorLeaf', wd / 2, 0.008 + lh / 2, -t / 2));
     for (const hy of [0.35, 1.08, 1.80]) mesh(g, new THREE.CylinderGeometry(0.0075, 0.0075, 0.10, 12), 'inox', 0, hy, 0.004);
     // béquilles sur rosaces rondes et rosaces de clé, gris anthracite, des deux côtés ; la béquille pointe vers la charnière
     const hx = wd - 0.065, hy = 1.02, rosG = new THREE.CylinderGeometry(0.026, 0.026, 0.009, 28), keyG = new THREE.CylinderGeometry(0.019, 0.019, 0.007, 24);
@@ -813,7 +818,11 @@ function animateDoors(dt) { // [perf] renvoie true si un ouvrant a bougé
   return mv;
 }
 // Emplacements de placards des plans travaux v3 (p. 9 et 10), portes coulissantes gris clair pour les repérer :
-// [calque, axe de la façade, position de la façade, début, fin, sol, plafond]
+// [calque, axe de la façade, nu de la façade (nez des retours), début, fin, sol, plafond, sens vers la pièce, profondeur jusqu'au fond, aménagement, début de l'intérieur]
+// Façade logée dans l'emplacement, derrière le nu des retours (rails et vantaux ne débordent plus devant les retours ni dans les murs, 3 mm de jeu) ;
+// chaque vantail (panneau pris dans deux montants alu, sans face coplanaire) est un groupe qui coulisse au clic devant ou derrière son voisin pour dégager
+// sa travée (DOORS, kind 'placard' : pas d'ouverture automatique en balade), un seul vantail ouvert par placard. Intérieur ouvert en mélaminé blanc
+// (murs en fond et en joues) : E étagères, P penderie (tablette à 1,80 m, tringle chromée dessous), M colonne d'étagères dans la première travée et penderie à côté.
 function buildClosets() {
   const e = E1, c = H.r1Ceil, P = { neg: 'paint', pos: 'paint', end: 'paint', top: 'cut' };
   // retours de 65 cm dessinés aux plans pour les placards des chambres 2 et 3
@@ -823,25 +832,53 @@ function buildClosets() {
   // dans l'angle nord-est, chacun fermé côté ouest par un retour de 7 cm à 1,44 m du mur est
   wall('r1', 'x', 1.44, 1.51, 6.37, 6.99, e, c, [], P); wall('r1', 'x', 1.44, 1.51, 7.79, 8.38, e, c, [], P); wall('r1', 'x', 1.44, 1.51, 8.45, 9.10, e, c, [], P);
   const list = [
-    ['rdc', 'z', 1.01, 2.65, 5.16, 0, H.rdcCeil, 1], // entrée : 2,73 × 0,65 derrière le coffrage des colonnes WC / bains, façade en retrait de la cloison du WC
-    ['r1', 'x', 9.10, 0.36, 1.44, e, c, 1], // chambre 1, dans l'angle contre le dressing
-    ['r1', 'x', 7.79, 0.36, 1.44, e, c, -1], // dressing, placard côté chambre 1
-    ['r1', 'x', 6.99, 0.36, 1.44, e, c, 1], // dressing, placard côté salle d'eau
-    ['r1', 'z', 2.45, 6.37, 8.21, e, c, -1], // dressing, côté palier
-    ['r1', 'x', 8.79, 5.29, D - T, e, c, 1], // chambre 2
-    ['r1', 'x', 4.37, 5.29, D - T, e, c, -1], // chambre 3
+    ['rdc', 'z', 1.09, 2.65, 5.16, 0, H.rdcCeil, 1, 0.73, 'E', 2.43], // entrée : 2,73 × 0,65 (z 0,36 → 1,01) derrière le coffrage des colonnes WC / bains, façade de 8 cm devant, entre le coffrage et la cloison du garage
+    ['r1', 'x', 9.10, 0.36, 1.44, e, c, 1, 0.65, 'P'], // chambre 1, dans l'angle contre le dressing
+    ['r1', 'x', 7.79, 0.36, 1.44, e, c, -1, 0.59, 'P'], // dressing, placard côté chambre 1
+    ['r1', 'x', 6.99, 0.36, 1.44, e, c, 1, 0.62, 'P'], // dressing, placard côté salle d'eau
+    ['r1', 'z', 2.50, 6.37, 8.21, e, c, -1, 0.60, 'M'], // dressing, côté palier : 1,84 × 0,60 jusqu'au coffre du garage (plan : nu à z 2,50)
+    ['r1', 'x', 8.79, 5.29, D - T, e, c, 1, 0.65, 'M'], // chambre 2
+    ['r1', 'x', 4.37, 5.29, D - T, e, c, -1, 0.65, 'M'], // chambre 3
   ];
-  for (const [ly, ax, f, a0, a1, y0, y1, s] of list) {
-    const fl = ly === 'rdc' ? 'furn0' : 'furn1';
-    const B = (u0, u1, yy0, yy1, w0, w1, m) => ax === 'z' ? A.box(fl, u0, u1, yy0, yy1, Math.min(w0, w1), Math.max(w0, w1), m) : A.box(fl, Math.min(w0, w1), Math.max(w0, w1), yy0, yy1, u0, u1, m);
-    // rail haut et bas, puis vantaux coulissants sur deux rails (≈ 0,90 m maxi chacun)
-    B(a0, a1, y1 - 0.06, y1, f - s * 0.005, f + s * 0.075, 'closetRail');
-    B(a0, a1, y0, y0 + 0.012, f - s * 0.005, f + s * 0.075, 'closetRail');
-    const n = Math.max(2, Math.ceil((a1 - a0) / 0.92)), w = (a1 - a0) / n;
+  const ov = 0.02, cl = 0.003, th = 0.019, dF = 0.102, sm = v => smooth(0, 1, v);
+  M.closetChrome = std({ color: '#e1e4e7', metalness: 0.5, roughness: 0.2 }); // tringles chromées (métallicité modérée : peu d'environnement à refléter dans un placard)
+  for (const [ly, ax, f, a0, a1, y0, y1, s, dp, kind, i0 = a0] of list) {
+    const fl = ly === 'rdc' ? 'furn0' : 'furn1', U = ax === 'z' ? 'x' : 'z', yF = ly === 'rdc' ? y0 : y0 - 0.004; // dessus du parquet à l'étage
+    // boîte en (u le long de la façade, y, d profondeur comptée depuis le nu vers le fond)
+    const box = (acc, k, u0, u1, yy0, yy1, d0, d1, m) => ax === 'z' ? acc.box(k, u0, u1, yy0, yy1, f - s * d0, f - s * d1, m) : acc.box(k, f - s * d0, f - s * d1, yy0, yy1, u0, u1, m);
+    const B = (...a) => box(A, fl, ...a);
+    // rails haut et bas de 75 mm, de 3 à 78 mm derrière le nu, entre les retours
+    B(a0 + cl, a1 - cl, y1 - 0.06, y1, 0.003, 0.078, 'closetRail');
+    B(a0 + cl, a1 - cl, yF, y0 + 0.012, 0.003, 0.078, 'closetRail');
+    // vantaux (≈ 0,90 m maxi) recouvrement 2 cm, course = travée − 2 recouvrements (jamais dans un retour ni dans le vantail voisin du même rail)
+    const n = Math.max(2, Math.ceil((a1 - a0) / 0.92 - 1e-6)), A0 = a0 + cl, w = (a1 - a0 - 2 * cl) / n, tr = w - 2 * ov, yb = y0 + 0.016, yt = y1 - 0.064, sib = [];
     for (let i = 0; i < n; i++) {
-      const u0 = a0 + i * w - (i > 0 ? 0.02 : 0), u1 = a0 + (i + 1) * w + (i < n - 1 ? 0.02 : 0), off = i % 2 ? 0.045 : 0.012;
-      B(u0, u1, y0 + 0.02, y1 - 0.065, f + s * off, f + s * (off + 0.022), 'closetDoor');
-      for (const uu of [u0, u1 - 0.016]) B(uu, uu + 0.016, y0 + 0.02, y1 - 0.065, f + s * (off - 0.001), f + s * (off + 0.023), 'closetRail'); // montants alu
+      const u0 = A0 + i * w - (i > 0 ? ov : 0), u1 = A0 + (i + 1) * w + (i < n - 1 ? ov : 0), d0 = i % 2 ? 0.006 : 0.036; // vantaux impairs sur le rail avant
+      const acc = new Acc(), g = new THREE.Group(); g.name = 'vantail de placard';
+      box(acc, 'v', u0 + 0.010, u1 - 0.010, yb + 0.002, yt - 0.002, d0 + 0.004, d0 + 0.016, 'closetDoor'); // panneau 12 mm engagé dans les montants
+      for (const uu of [u0, u1 - 0.016]) box(acc, 'v', uu, uu + 0.016, yb, yt, d0, d0 + 0.020, 'closetRail'); // montants alu 16 × 20
+      acc.build({ v: g }); groups[fl].add(g);
+      const dir = i < (n - 1) / 2 ? 1 : -1, meshes = g.children.slice();
+      const d = { g, meshes, open: 0, speed: 1.1, kind: 'placard', apply: v => { g.position[U] = dir * tr * sm(v); } };
+      let tg = 0; Object.defineProperty(d, 'target', { enumerable: true, get: () => tg, set: v => { tg = v; if (v > 0.5) for (const q of sib) if (q !== d) q.target = 0; } });
+      for (const m of meshes) m.userData.door = d; sib.push(d); DOORS.push(d);
+    }
+    // intérieur : tablettes de 19 mm entre murs et séparations (1 mm de jeu), de 10 cm derrière le nu jusqu'à 2 mm du fond
+    const I0 = i0 + 0.002, I1 = a1 - 0.002, dB = dp - 0.002, dm = (dF + dB) / 2, bk = k => A0 + k * w;
+    const shelf = (u0, u1, h) => B(u0 + 0.001, u1 - 0.001, y0 + h - th, y0 + h, dF, dB, 'white');
+    const sep = (u, h) => B(u - th / 2, u + th / 2, yF, y0 + h - th, dF, dB, 'white');
+    const tube = (u0, u1, yc) => { const r = 0.0125; for (let k = 0; k < 8; k++) { const a = (k + 0.5) * Math.PI / 4, b = a + Math.PI / 4, am = a + Math.PI / 8; // tringle Ø 25 octogonale
+      const Q = (u, an) => { const yy = yc + r * Math.sin(an), wv = f - s * (dm + r * Math.cos(an)); return ax === 'z' ? [u, yy, wv] : [wv, yy, u]; }, nw = -s * Math.cos(am), ny = Math.sin(am);
+      A.quadN(fl, 'closetChrome', [Q(u0, a), Q(u1, a), Q(u1, b), Q(u0, b)], ax === 'z' ? [0, ny, nw] : [nw, ny, 0]); } };
+    if (kind === 'E') { // entrée : une colonne d'étagères par vantail, tablette haute filante à 2,00 m
+      for (let k = 1; k < n; k++) sep(bk(k), 2.00);
+      for (let k = 0; k < n; k++) for (const h of [0.40, 0.80, 1.20, 1.60]) shelf(k ? bk(k) + th / 2 : I0, k < n - 1 ? bk(k + 1) - th / 2 : I1, h);
+      shelf(I0, I1, 2.00);
+    } else {
+      shelf(I0, I1, 1.80); // tablette chapelière filante
+      let r0 = I0;
+      if (kind === 'M') { sep(bk(1), 1.80); for (const h of [0.36, 0.72, 1.08, 1.44]) shelf(I0, bk(1) - th / 2, h); r0 = bk(1) + th / 2; }
+      tube(r0, I1, y0 + 1.80 - th - 0.055); // tringle 5,5 cm sous la tablette, au milieu de la profondeur utile
     }
   }
 }
@@ -982,9 +1019,7 @@ function buildFurniture() {
   B(f0, 5.31, 5.43, 0.95, 1.85, 2.42, 2.88, 'white'); // tableau électrique, entre la porte ISO 83 et le poteau BA (nourrice : equip.js)
   B(f0, 10.60, 11.20, -0.13, -0.122, 1.50, 2.10, 'inox');
 
-  B(f1, 4.37, 5.02, e, e + 2.40, 5.05, D - T, 'white'); B(f1, 8.14, 8.79, e, e + 2.40, 5.05, D - T, 'white'); // placards 65 cm
-  B(f1, 6.37, 6.99, e, e + 2.40, T, 1.44, 'white'); B(f1, 7.79, 8.38, e, e + 2.40, T, 1.44, 'white'); B(f1, 6.37, 8.22, e, e + 2.40, 2.45, 3.10, 'white'); // dressing
-  B(f1, 8.45, 9.10, e, e + 2.40, T, 1.44, 'white'); // placard de la chambre 1
+  // placards : intérieurs (tablettes, séparations, tringles) et façades coulissantes dans buildClosets (les blocs blancs pleins d'avant débordaient de 17 cm devant les retours des chambres 2 et 3)
 
   // --- Salle de bains commune (« Bains ») : douche 160×90 Geberit Olona dans l'angle ; sèche-serviettes Atlantic Adélis des deux salles d'eau : bains.js
   // faïence 12,25 m² (notice) : murs des deux douches sur 2,10 m
@@ -1406,7 +1441,8 @@ function init() {
 
   // post-traitement : occlusion ambiante
   try {
-    composer = new EffectComposer(renderer);
+    // cible lissée MSAA 4× (comme le composeur panoramique de nav.js) : sans elle, les vues intérieures avec occlusion ambiante n'étaient pas lissées et les filets fins (jeux de 3 mm des portes, chants, montants) scintillaient au moindre mouvement
+    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
     composer.addPass(new RenderPass(scene, camera));
     gtao = new GTAOPass(scene, camera, 2, 2);
     gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.5, thickness: 1, scale: 1.2, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
