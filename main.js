@@ -742,7 +742,7 @@ function buildInterior() {
   wall('r1', 'z', 3.86, 3.93, T, 3.17, e, c, [{ a0: 2.28, a1: 3.03, y0: e, y1: d1 }], P); // bains / WC
   wall('r1', 'z', 4.83, 4.90, T, 3.17, e, c, [], P); // WC / douche
   wall('r1', 'x', 2.11, 2.18, 3.93, 4.83, e, c, [{ a0: 4.03, a1: 4.75, y0: e, y1: d1 }], P);
-  wall('r1', 'z', 6.29, 6.37, T, 3.10, e, c, [{ a0: 1.55, a1: 2.42, y0: e, y1: d1 }], P); // douche / dressing (passage)
+  wall('r1', 'z', 6.29, 6.37, T, 3.10, e, c, [{ a0: 1.62, a1: 2.42, y0: e, y1: d1 }], P); // douche / dressing (passage, plan p. 10 : z 1,62 → 2,42)
   wall('r1', 'x', 3.10, 3.17, 4.90, 9.14, e, c, [], P);
   wall('r1', 'z', 8.38, 8.45, T, 3.10, e, c, [{ a0: 1.65, a1: 2.38, y0: e, y1: d1 }], P); // dressing / chambre 1
   wall('r1', 'z', 9.07, 9.14, 3.17, 4.17, e, c, [{ a0: 3.35, a1: 4.10, y0: e, y1: d1 }], P); // palier / chambre 1
@@ -829,13 +829,13 @@ function buildClosets() {
   wall('r1', 'x', 5.22, 5.29, 8.14, 8.79, e, c, [], P);
   wall('r1', 'x', 5.22, 5.29, 4.37, 5.02, e, c, [], P);
   // dressing et chambre 1 (plan p. 10) : deux placards de 62 cm face à face de part et d'autre d'une allée de 80 cm, placard de la chambre 1
-  // dans l'angle nord-est, chacun fermé côté ouest par un retour de 7 cm à 1,44 m du mur est
-  wall('r1', 'x', 1.44, 1.51, 6.37, 6.99, e, c, [], P); wall('r1', 'x', 1.44, 1.51, 7.79, 8.38, e, c, [], P); wall('r1', 'x', 1.44, 1.51, 8.45, 9.10, e, c, [], P);
+  // dans l'angle nord-est, chacun fermé côté ouest par un retour de 7 cm (plan p. 10 : z 1,50 → 1,57)
+  wall('r1', 'x', 1.50, 1.57, 6.37, 6.99, e, c, [], P); wall('r1', 'x', 1.50, 1.57, 7.79, 8.38, e, c, [], P); wall('r1', 'x', 1.50, 1.57, 8.45, 9.10, e, c, [], P);
   const list = [
     ['rdc', 'z', 1.09, 2.65, 5.16, 0, H.rdcCeil, 1, 0.73, 'E', 2.43], // entrée : 2,73 × 0,65 (z 0,36 → 1,01) derrière le coffrage des colonnes WC / bains, façade de 8 cm devant, entre le coffrage et la cloison du garage
-    ['r1', 'x', 9.10, 0.36, 1.44, e, c, 1, 0.65, 'P'], // chambre 1, dans l'angle contre le dressing
-    ['r1', 'x', 7.79, 0.36, 1.44, e, c, -1, 0.59, 'P'], // dressing, placard côté chambre 1
-    ['r1', 'x', 6.99, 0.36, 1.44, e, c, 1, 0.62, 'P'], // dressing, placard côté salle d'eau
+    ['r1', 'x', 9.10, 0.36, 1.50, e, c, 1, 0.65, 'P'], // chambre 1, dans l'angle contre le dressing
+    ['r1', 'x', 7.79, 0.36, 1.50, e, c, -1, 0.59, 'P'], // dressing, placard côté chambre 1
+    ['r1', 'x', 6.99, 0.36, 1.50, e, c, 1, 0.62, 'P'], // dressing, placard côté salle d'eau
     ['r1', 'z', 2.50, 6.37, 8.21, e, c, -1, 0.60, 'M'], // dressing, côté palier : 1,84 × 0,60 jusqu'au coffre du garage (plan : nu à z 2,50)
     ['r1', 'x', 8.79, 5.29, D - T, e, c, 1, 0.65, 'M'], // chambre 2
     ['r1', 'x', 4.37, 5.29, D - T, e, c, -1, 0.65, 'M'], // chambre 3
