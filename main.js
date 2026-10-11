@@ -12,7 +12,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { buildEnvironment } from './env.js';
+import { buildEnvironment, envGround } from './env.js';
 import { buildRue } from './rue.js';
 import { buildEquipment } from './equip.js';
 import { initNav } from './nav.js';
@@ -1047,6 +1047,7 @@ function hAt0(x, z) {
   let h = baseH(x, z);
   // voisin est : jardin surélevé derrière son mur de soutènement en limite
   if (z < -0.18) h += 0.85 * smooth(-0.18, -0.4, z) * smooth(-28, -26, x) * (1 - smooth(19.0, 19.3, x));
+  h = envGround(x, z, h); // fosse de son allée de garage en sous-sol, le long de la limite (env.js)
   const dS = Math.min(zWest(x) - z, xSouth(z) - x), dN = x - BND.A[0];
   if (dS > 0 && z > -0.05 && dN > 0) {
     const slide = z < 7.85 && x > xSouth(z) - 0.64;
@@ -1106,15 +1107,32 @@ function buildSite() {
   for (const [size, seg, drop] of [[600, 150, 0.08], [72, 360, 0.01]]) {
     const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2); g.translate(4, 0, 5);
     const p = g.attributes.position; const uv = g.attributes.uv;
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, hAt(x, z) - drop); uv.setXY(i, x, -z); }
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, (seg === 150 ? envGround(x, z, hAt(x, z), 4.5) : hAt(x, z)) - drop); uv.setXY(i, x, -z); } // maillage grossier abaissé autour de la fosse du voisin est
     g.computeVertexNormals(); const ground = new THREE.Mesh(g, M.grass); ground.receiveShadow = true; groups.site.add(ground);
   }
   // rue des Merlettes, branche ouest le long de la limite A–D (profil, bordures, trottoir, carrefour, mobilier) : rue.js ; rue des Fauvettes, branche sud le long de C–D
-  const xq = (z, o) => [xSouth(z) + o, z];
-  overlayQuad('site', 'curb', [xq(-70, 0), xq(-70, 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.055, 2, 84);
-  overlayQuad('site', 'asphalt', [xq(-70, 0.45), xq(-70, 5.3), xq(zWest(24.8) + 5.3, 5.3), xq(zWest(19.9) + 5.3, 0.45)], 0.045, 6, 84);
-  overlayQuad('site', 'asphalt', [xq(zWest(20) + 5.3, 0.45), xq(zWest(24.8) + 5.3, 5.3), xq(60, 5.3), xq(60, 0.45)], 0.045, 6, 40);
-  overlayQuad('site', 'curb', [xq(-70, 5.3), xq(-70, 6.4), xq(zWest(25.9), 6.4), xq(zWest(24.8), 5.3)], 0.09, 2, 84);
+  // branche sud : droite le long de la limite C–D jusqu'au cerisier du voisin est, puis virage vers le sud (plan Google, vue aérienne, photos 9 et 11)
+  const xq = (z, o) => [xSouth(z) + o, z], K = [27.785, 1.425], R0 = K[0] - xSouth(K[1]); // centre du virage (rayon 5,50 à l'axe), rayon du bord nord
+  overlayQuad('site', 'curb', [xq(K[1], 0), xq(K[1], 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.055, 2, 26);
+  overlayQuad('site', 'asphalt', [xq(K[1], 0.45), xq(K[1], 5.3), xq(zWest(24.8) + 5.3, 5.3), xq(zWest(19.9) + 5.3, 0.45)], 0.045, 6, 26);
+  overlayQuad('site', 'curb', [xq(K[1], 5.3), xq(K[1], 6.4), xq(zWest(25.9), 6.4), xq(zWest(24.8), 5.3)], 0.09, 2, 26);
+  { // virage et branche vers le sud jusqu'en x 60 ; o : décalage depuis le bord nord de la rue droite (0 = limite, 0,45 → 5,30 chaussée)
+    // côté extérieur, trottoir jusqu'aux clôtures du voisin (mur sud en x 19,41, plaques en z −7,66) ; côté intérieur, bordure de 1,10 réduite à 0,45
+    const T = [...Array(31).keys()].map(i => i / 30).concat([...Array(16).keys()].map(i => 1 + (i + 1) / 16), Math.atan2(K[1] + 7.62, R0) / (Math.PI / 2)).sort((p, q) => p - q); // + angle des clôtures
+    const at = (t, o) => { if (t > 1) return [K[0] + (t - 1) * (60 - K[0]), K[1] - R0 + o]; const a = t * Math.PI / 2, r = R0 - o; return [K[0] - r * Math.cos(a), K[1] - r * Math.sin(a)]; };
+    const out = t => { if (t > 1) return R0 - K[1] - 7.62; const a = t * Math.PI / 2; return R0 - Math.min((K[0] - xSouth(K[1])) / Math.max(Math.cos(a), 1e-6), (K[1] + 7.62) / Math.max(Math.sin(a), 1e-6)); };
+    const strip = (mat, lift, o0, o1, nu) => {
+      const pos = [], uv = [], idx = [];
+      T.forEach((t, j) => { for (let i = 0; i <= nu; i++) { const a = o0(t), [x, z] = at(t, a + (o1(t) - a) * i / nu); pos.push(x, hAt(x, z) + lift, z); uv.push(x, -z); }
+        if (j) for (let i = 0; i < nu; i++) { const a = (j - 1) * (nu + 1) + i, d = a + nu + 1; idx.push(a, d, d + 1, a, d + 1, a + 1); } });
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      if (g.attributes.normal.getY(0) < 0) { g.setIndex(idx.map((v, i) => idx[i - (i % 3) + [0, 2, 1][i % 3]])); g.computeVertexNormals(); }
+      const m = new THREE.Mesh(g, M[mat]); m.receiveShadow = true; groups.site.add(m);
+    };
+    strip('asphalt', 0.045, () => 0.45, () => 5.3, 6);
+    strip('curb', 0.055, out, () => 0.45, 2);
+    strip('curb', 0.09, () => 5.3, t => 6.4 - 0.66 * smooth(0, 1, t), 2);
+  }
   // allée gravillonnée (1,00 m) du portillon à la porte d'entrée, et place de stationnement en gravillon devant le garage
   overlayQuad('site', 'gravel', [[PATH.x0, PATH.z0], [PATH.x1, PATH.z0], [PATH.x1, zWest(PATH.x1) - 0.02], [PATH.x0, zWest(PATH.x0) - 0.02]], 0.03, 4, 60);
   overlayQuad('site', 'gravel', [[PATH.x1, PATH.z0], [PATH.xd, PATH.z0], [PATH.xd, PATH.z1], [PATH.x1, PATH.z1]], 0.03, 2, 4);
@@ -1148,7 +1166,7 @@ function buildSite() {
   tree(-7.4, 7.6, 1.0);
   // contexte : haies et arbres en face (voisins, murs sur rue, arbres du voisin est, lampadaires : rue.js)
   tree(-8, 20.5, 1.3); tree(9, 24.0, 1.2); tree(30.5, 3.5, 1.4); tree(31, -12, 1.5);
-  hedge(-60, 4.6, 6.4, 1.7); hedge(-40, 12.5, 0, 1.8);
+  hedge(-60, 4.6, 6.4, 1.7); hedge(1.0, 12.5, 0, 1.8); // au sud de la rue, à l'ouest du virage
   // PAC : unité extérieure sur le pignon nord, devant le WC (plan RDC « Ext. Mod. »)
   // (dessinée dans equip.js, centrée sous la fenêtre du WC)
   // appliques extérieures (façades PCMI 5) : de part et d'autre de la baie ouest, au-dessus du garage (celle de l'entrée est remplacée par le spot de l'auvent)
