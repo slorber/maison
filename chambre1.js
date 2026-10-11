@@ -227,8 +227,23 @@ function chambre1() {
   // lampe de bureau LED noire : socle rond, fût, barre lumineuse orientée vers le plan
   K.g('blackMatte', new THREE.CylinderGeometry(0.06, 0.066, 0.014, 24), 0.42, h + 0.007, 0.17); K.rod('blackMatte', [0.42, h + 0.014, 0.17], [0.42, h + 0.43, 0.17], 0.0065, 10);
   K.soft('blackMatte', 0.09, 0.44, h + 0.418, h + 0.436, 0.155, 0.185, 0.006, { nA: 2 }); K.box('mobLed', 0.11, 0.41, h + 0.416, h + 0.418, 0.16, 0.18);
-  aeron(11.86, 3.26, -0.35);
+  aeron(11.90, 3.46, 0); // rangé sous le bureau, droit : assise engagée de 13 cm, manchettes des accoudoirs juste devant la ceinture du plateau
   tvFrame();
+}
+// Valet de chambre chromé (photo du client, ~1,07 m) dans l'angle de la chambre parentale entre la porte du dressing et le retour du palier,
+// tourné vers le lit : cintre en arc de 58 cm, barre à pantalon de 42 cm à 0,56 m, deux montants plats 22 × 12, entretoise, socle rond Ø 38
+function valet() {
+  const xc = 8.76, zc = 2.80, K = new Kit('furn1', mtx(xc, C.E1, zc, Math.atan2(10.65 - xc, 1.36 - zc))); // repère local : face vers +z
+  K.g('mobChrome', new THREE.CylinderGeometry(0.19, 0.19, 0.018, 40), 0.04, 0.009, 0);
+  K.g('mobChrome', new THREE.CylinderGeometry(0.165, 0.178, 0.012, 40), 0.04, 0.024, 0);
+  K.box('mobChrome', -0.011, 0.011, 0.03, 1.055, -0.006, 0.006); // montant principal (cintre)
+  K.box('mobChrome', 0.069, 0.091, 0.03, 0.566, -0.006, 0.006); // montant de la barre à pantalon
+  K.box('mobChrome', -0.15, 0.27, 0.564, 0.584, -0.011, 0.011); // barre à pantalon
+  K.rod('mobChrome', [0.011, 0.215, 0], [0.069, 0.16, 0], 0.005, 8); // entretoise
+  const pts = [], n = 16, hw = 0.29, top = 1.07, sag = 0.088, yT = x => top - sag * (x / hw) ** 2;
+  for (let i = 0; i <= n; i++) { const x = -hw + 2 * hw * i / n; pts.push(new THREE.Vector2(x, yT(x))); }
+  for (let i = n; i >= 0; i--) { const x = -hw + 2 * hw * i / n; pts.push(new THREE.Vector2(x, yT(x) - 0.02)); }
+  K.g('mobChrome', new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: 0.012, bevelEnabled: false }), 0, 0, -0.006); // cintre en arc
 }
 // TV 55" façon Samsung The Frame (LS03 : 1238 × 709 × 24,9 mm, dalle 54,6" mate) en cadre noir, fixation murale extra-plate (4 mm du mur) ;
 // centrée sur l'axe du lit (x 10,65), centre à 1,40 m du sol, face au lit (vers −z). Écran en mode Art (œuvre et passe-partout).
@@ -261,7 +276,7 @@ function bureau() {
   const px = -0.70, pz = 0.17; K.rod('mobPaint', [px, h, pz], [px, h + 0.10, pz], 0.035, 18, 0.035, { c: '#3f5e6e' });
   for (const [dx, dz, c] of [[-0.01, 0.0, '#d9a441'], [0.012, 0.008, '#1f2a36'], [0.0, -0.012, '#9b4a3c']]) K.rod('mobPaint', [px + dx, h + 0.05, pz + dz], [px + dx * 2.5, h + 0.18, pz + dz * 2.5], 0.004, 6, 0.004, { c });
   K.box('mobPaint', -0.62, -0.42, h, h + 0.012, -0.12, 0.16, { c: '#1f2a36' });
-  aeron(7.12, 6.68, Math.PI / 2 - 0.3);
+  aeron(7.32, 6.60, Math.PI / 2); // rangé sous le bureau face au portable, assise engagée de 13 cm, accoudoirs contre la ceinture du plateau
 }
 
 // ---------------------------------------------------------------- canapé-lit (ouverture « rapido », matelas 140 × 190 en trois panneaux de 13 cm)
@@ -306,6 +321,6 @@ function canape() {
 
 export function buildChambre1(ctx) {
   C = ctx; M = ctx.M; BK.clear();
-  materials(); chambre1(); bureau(); canape();
+  materials(); chambre1(); valet(); bureau(); canape();
   flush();
 }

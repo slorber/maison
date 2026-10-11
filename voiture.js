@@ -1,4 +1,4 @@
-// Peugeot 5008 (3e génération, 2024–, aussi E-5008), teinte de lancement Vert Olivine, garée en marche avant dans le garage :
+// Peugeot 5008 (3e génération, 2024–, aussi E-5008), bleu pétrole métallisé à pavillon noir (photo du client), garée en marche avant dans le garage :
 // buildVoiture(ctx) est appelé juste après buildMobilier, avant A.build(groups) ; les meshes vont dans ctx.groups.furn0.
 // Cotes constructeur (fiches techniques autotijd.be / vehiclesizes.com / caroom.fr) : longueur 4 791, largeur 1 895 hors rétroviseurs
 // (2 108 rétroviseurs déployés), hauteur 1 694 (barres de toit comprises), empattement 2 901, porte-à-faux 940 / 950, voies 1 630 / 1 636,
@@ -16,7 +16,7 @@ const RA = 0.43, WL = 0.60; // découpe des passages de roue (rayon) et paroi in
 const U0 = 0.006, U1 = L - 0.003; // la caisse s'arrête 6 / 3 mm en deçà : calandre, logos et diffuseur posés devant restent dans la longueur
 const RF = 0.05, RR = 0.04; // arrondis des boucliers (en plan et en élévation)
 // placement : nez vers la cloison du local technique (x 7,08) à 0,40 m, centrée sur la baie de la porte de garage (z 1,68), sol à −0,13
-const X0 = 7.08 + 0.40, ZC = 1.68, Y0 = -0.13;
+const X0 = 7.08 + 0.40, ZC = 0.22 + 0.30 + 1.895 / 2, Y0 = -0.13; // 30 cm du mur mitoyen, 73,5 cm côté conducteur (garage de 2,93 m)
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -139,12 +139,12 @@ function cls(u, j, y, pushed) {
     if ((u > 2.30 && u < 2.40) || (u > 3.32 && u < 3.40) || j === 26 || j === 31) return 'gloss'; // montants B et C, encadrements
     return 'glass';
   }
-  if (j <= 36) return 'paint'; // arrondi du pavillon, montants de pare-brise et de lunette
+  if (j <= 36) return u > 1.235 && u < 4.70 ? 'gloss' : 'paint'; // arrondi du pavillon, montants de pare-brise et de lunette : noirs (photo du client)
   if (u > 1.17 && u < 1.235) return 'gloss'; // grille d'auvent
   if (u >= 1.235 && u < 2.09) return 'glass'; // pare-brise
   if (u > 4.48 && u < 4.535) return 'gloss';
   if (u >= 4.535 && u < 4.70) return 'glass'; // lunette
-  return 'paint';
+  return u > 2.09 && u < 4.535 ? 'gloss' : 'paint'; // pavillon noir
 }
 
 // ---------------------------------------------------------------- seaux par matériau
@@ -380,8 +380,8 @@ function becquet() {
 function materials() {
   const std = o => new THREE.MeshStandardMaterial(o);
   return {
-    // Vert Olivine : vert de gris métallisé, vernis
-    paint: new THREE.MeshPhysicalMaterial({ color: '#68735f', metalness: 0.3, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.05 }),
+    // bleu de la photo du client : bleu pétrole métallisé, vernis
+    paint: new THREE.MeshPhysicalMaterial({ color: '#0e5f82', metalness: 0.45, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.05 }),
     gloss: std({ color: '#0b0c0d', metalness: 0.2, roughness: 0.18 }),
     matte: std({ color: '#1d1e1f', roughness: 0.85 }),
     glass: std({ color: '#151b1e', metalness: 0.65, roughness: 0.05, envMapIntensity: 1.4 }),

@@ -392,39 +392,182 @@ function house(o) {
   return { g, yw, r };
 }
 
-// ---------------------------------------------------------------- voisin nord : maison R+C, toit 4 pans en tuiles brunes, lucarne, Velux, cheminée, parabole
+// ---------------------------------------------------------------- matériaux des voisins nord, ouest (rue des Merlettes) et sud (créés au premier appel)
+function matsOuest() {
+  const { M, makeTex, pixelNoise, rng, std, TEX } = C; if (M.envTileN) return;
+  const rgb = (r, g, b) => `rgb(${r | 0},${g | 0},${b | 0})`;
+  // tuiles mécaniques à côtes brun clair nuancé, rangs de 0,33 m, 4 au mètre (voisin nord, photos 4, 5, 18)
+  M.envTileN = std({ map: makeTex(512, 1.0, (g, s) => {
+    const r = rng(351), th = s / 3, tw = s / 4; g.fillStyle = '#4a2f24'; g.fillRect(0, 0, s, s);
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) {
+      const f = 0.8 + r() * 0.32, x = i * tw, y = j * th, c = k => rgb(172 * f * k, 114 * f * k, 86 * f * k);
+      for (const a of [0, 0.5]) { const grd = g.createLinearGradient(x + a * tw, 0, x + (a + 0.5) * tw, 0); grd.addColorStop(0, c(0.72)); grd.addColorStop(0.45, c(1.1)); grd.addColorStop(1, c(0.78)); g.fillStyle = grd; g.fillRect(x + a * tw, y + 2, tw / 2, th - 3); }
+      const sh = g.createLinearGradient(0, y + th * 0.75, 0, y + th); sh.addColorStop(0, 'rgba(35,22,16,0)'); sh.addColorStop(1, 'rgba(35,22,16,0.5)'); g.fillStyle = sh; g.fillRect(x, y, tw, th);
+    }
+    const img = g.getImageData(0, 0, s, s), d = img.data; for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * 18; d[i] += n; d[i + 1] += n; d[i + 2] += n; } g.putImageData(img, 0, 0);
+  }), roughness: 0.82 });
+  // crépi blanc projeté (piliers et murets du n° 4 en face) ; enduit blanc lisse (voisin nord, n° 4)
+  const crepi = makeTex(256, 0.5, (g, s) => pixelNoise(g, s, '#f2f0ea', 0.13, 0.03, 12, 352, (f, r) => r() < 0.05 ? f * 0.84 : f));
+  M.envRough = std({ map: crepi, bumpMap: crepi, bumpScale: 2.2, roughness: 1 });
+  M.envWhiteN = std({ map: TEX.lisse, color: '#f7f5ef', roughness: 0.9 });
+  M.envRose = std({ map: TEX.lisse, color: '#f4dbcf', roughness: 0.9 }); // enduit rose pâle de la maison au nord du n° 4 (photos 6, 13, 14)
+  // volets battants en planches verticales de 12 cm, brun foncé (voisin nord)
+  M.envWoodN = std({ map: makeTex(128, 0.48, (g, s) => { pixelNoise(g, s, '#4f3d30', 0.05, 0.06, 4, 353); g.fillStyle = 'rgba(18,12,8,0.75)'; for (let i = 0; i < 4; i++) g.fillRect(i * s / 4, 0, 2, s); }), roughness: 0.7 });
+  // tomettes carrées de 30 cm en terre cuite nuancée, joints clairs (terrasse du voisin nord)
+  M.envTerra = std({ map: makeTex(256, 0.6, (g, s) => { const r = rng(354); g.fillStyle = '#d2c2ae'; g.fillRect(0, 0, s, s); for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) { const f = 0.86 + r() * 0.22; g.fillStyle = rgb(194 * f, 134 * f, 106 * f); g.fillRect(i * s / 2 + 3, j * s / 2 + 3, s / 2 - 6, s / 2 - 6); } }), roughness: 0.8 });
+  M.envScreen = std({ color: '#1e4537', roughness: 0.92, side: THREE.DoubleSide }); // brise-vue vert foncé tendu sur le grillage
+  M.envGreen = std({ color: '#33604b', roughness: 0.55 }); // volets et porte du n° 4, boîte aux lettres, portail et portillon verts au nord du mur haut
+  M.envBeacon = std({ color: '#f08a1c', roughness: 0.4, emissive: '#c25c00', emissiveIntensity: 0.35 }); // gyrophare du portail du n° 6
+  // barreaudage noir à pointes de lance, 1 barreau tous les 12 cm, motif étiré sur la hauteur de la grille par les UV
+  const rail = makeTex(64, 1, (g, s, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#18191b'; const bw = 8, x = (w - bw) / 2; g.fillRect(x, 26, bw, h - 26); g.beginPath(); g.moveTo(x - 4, 30); g.lineTo(w / 2, 2); g.lineTo(x + bw + 4, 30); g.fill(); g.fillRect(0, 34, w, 7); g.fillRect(0, h - 22, w, 7); }, { w: 64, h: 256 });
+  rail.wrapT = THREE.ClampToEdgeWrapping;
+  M.envRail = std({ map: rail, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.3 });
+}
+// quadrilatère à UV imposés (grilles en transparence), fusionné par matériau avec les faces inclinées
+function quadUV(mat, P, U, n) { const k = 'site|' + mat; let bk = RF.get(k); if (!bk) { bk = { layer: 'site', mat, pos: [], nor: [], uv: [] }; RF.set(k, bk); } for (const i of [0, 1, 2, 0, 2, 3]) { bk.pos.push(...P[i]); bk.nor.push(...n); bk.uv.push(...U[i]); } }
+// grille à barreaux de p0 à p1 (plan XZ), pied ya (en p0) → yb (en p1), hauteur h jusqu'aux pointes
+function railing(p0, p1, ya, yb, h) { const l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), u = Math.max(1, Math.round(l / 0.12)); quadUV('envRail', [[p0[0], ya, p0[1]], [p1[0], yb, p1[1]], [p1[0], yb + h, p1[1]], [p0[0], ya + h, p0[1]]], [[0, 0], [u, 0], [u, 1], [0, 1]], [(p1[1] - p0[1]) / l, 0, -(p1[0] - p0[0]) / l]); }
+// toiture 4 pans à faîtage selon X (lx ≥ lz), croupes de pente propre pe ; égout ye au nu du débord, sous-face plate
+function hip2(mat, x0, x1, z0, z1, ye, p, pe) {
+  const yr = ye + (z1 - z0) / 2 * Math.tan(p * RAD), zr = (z0 + z1) / 2, re = (yr - ye) / Math.tan(pe * RAD), r0 = x0 + re, r1 = x1 - re;
+  rface('site', mat, [[x0, ye, z0], [x1, ye, z0], [r1, yr, zr], [r0, yr, zr]], [0, 1, -1]); rface('site', mat, [[x1, ye, z1], [x0, ye, z1], [r0, yr, zr], [r1, yr, zr]], [0, 1, 1]);
+  rface('site', mat, [[x0, ye, z1], [x0, ye, z0], [r0, yr, zr]], [-1, 1, 0]); rface('site', mat, [[x1, ye, z0], [x1, ye, z1], [r1, yr, zr]], [1, 1, 0]);
+  C.A.quadN('site', 'envSoffit', [[x0, ye, z0], [x1, ye, z0], [x1, ye, z1], [x0, ye, z1]], [0, -1, 0]);
+  return { yr, a: [r0, zr], b: [r1, zr] };
+}
+// lanterne murale noire sur potence (face f, abscisse a, hauteur de la potence y)
+function lanterne(fb, f, a, y) {
+  fb(f, a - 0.02, a + 0.02, y - 0.04, y + 0.02, 0, 0.22, 'blackMatte'); fb(f, a - 0.05, a + 0.05, y - 0.1, y + 0.08, 0, 0.03, 'blackMatte');
+  fb(f, a - 0.11, a + 0.11, y - 0.08, y - 0.03, 0.12, 0.32, 'blackMatte'); fb(f, a - 0.09, a + 0.09, y - 0.36, y - 0.08, 0.13, 0.31, 'envLantern'); fb(f, a - 0.06, a + 0.06, y - 0.41, y - 0.36, 0.16, 0.28, 'blackMatte');
+}
+
+// ---------------------------------------------------------------- voisin nord (2 rue des Merlettes, photos 4, 5, 17, 18) : R+C enduit blanc, toit 2 pans à 45° en tuiles mécaniques
+// brun clair, faîtage est–ouest, pignons est et ouest aveugles ; pan sud : Velux côté ouest, lucarne capucine côté est, souche enduite juste derrière
+// (antenne, parabole) ; façade sud : 3 portes-fenêtres à volets battants en bois brun, lanterne, bandeau sous l'égout ; terrasse en tomettes, salon blanc
 function northHouse() {
+  matsOuest();
   const { A } = C;
-  const x0 = -25.4, x1 = -17.8, z0 = 0.3, z1 = 10.3, p = 45, t = 1, ov = 0.4;
-  const [gmin, gmax] = groundMinMax(x0, x1, z0, z1), g = gmax + 0.25, yE = g + 3.3;
-  A.box('site', x0, x1, gmin - 0.4, yE, z0, z1, 'envCream');
-  A.box('site', x0 - 0.03, x1 + 0.03, gmin - 0.4, g + 0.03, z0 - 0.03, z1 + 0.03, 'envBase');
-  const r = hip('site', 'envTileB', x0 - ov, x1 + ov, z0 - ov, z1 + ov, yE - ov * t, p, 'envSoffit'); ridge('envTileB', r);
-  const yS = x => yE - ov * t + (x1 + ov - x) * t; // pan sud
+  const x0 = -25.5, x1 = -17.7, z0 = 0.5, z1 = 9.1, p = 45, t = Math.tan(p * RAD), ov = 0.3;
+  const [gmin, gmax] = groundMinMax(x0, x1 + 2.8, z0, z1), g = gmax + 0.12, yE = g + 2.9;
+  A.box('site', x0, x1, gmin - 0.4, yE, z0, z1, 'envWhiteN');
+  A.box('site', x0 - 0.03, x1 + 0.03, gmin - 0.4, g - 0.1, z0 - 0.03, z1 + 0.03, 'envBase');
+  const r = gable('site', 'envTileN', 'envWhiteN', x0, x1, z0, z1, yE, p, false, ov); ridge('envTileN', r);
+  const ye = yE - ov * t, yS = x => ye + (x1 + ov - x) * t; // hauteur du pan sud
   const { fb } = faces(x0, x1, z0, z1);
-  // baies du RDC (sud et ouest), volets roulants
-  for (const [f, as] of [['S', [1.9, 5.0, 8.3]], ['W', [-23.6, -19.8]], ['N', [3.0, 7.5]], ['E', [-21.6]]]) for (const a of as) {
-    const w = f === 'S' && a === 5.0 ? 1.8 : 1.1, y0 = g + (w > 1.5 ? 0.05 : 0.9), y1 = g + 2.15;
-    fb(f, a - w / 2 - 0.07, a + w / 2 + 0.07, y0 - 0.05, y1 + 0.07, -0.001, 0.025, 'appui'); fb(f, a - w / 2, a + w / 2, y0, y1, 0.025, 0.04, 'envGlass'); fb(f, a - w / 2, a + w / 2, y1 - 0.25, y1, 0.04, 0.05, 'slats');
+  // bandeau sous l'égout, gouttières en zinc, descente blanche à l'angle sud-ouest
+  fb('S', z0, z1, yE - 0.34, yE - 0.12, 0, 0.05, 'envWhiteN');
+  for (const xe of [x1 + ov - 0.06, x0 - ov + 0.06]) A.box('site', xe - 0.06, xe + 0.06, ye - 0.12, ye - 0.01, z0 - ov, z1 + ov, 'envZinc');
+  A.box('site', x1 + 0.03, x1 + 0.11, g - 0.1, ye - 0.12, z1 - 0.13, z1 - 0.05, 'white'); A.box('site', x1 + 0.03, x1 + ov - 0.02, ye - 0.2, ye - 0.12, z1 - 0.13, z1 - 0.05, 'white');
+  // portes-fenêtres 1,00 × 2,15 à 2 vantaux, volets battants ouverts de part et d'autre (3 traverses) ; lanterne entre les deux premières
+  for (const a of [6.8, 4.45, 2.25]) {
+    const y1 = g + 2.15;
+    fb('S', a - 0.5, a + 0.5, g, y1, 0, 0.012, 'envGlass');
+    for (const s of [a - 0.5, a - 0.03, a + 0.44]) fb('S', s, s + 0.06, g, y1, 0.012, 0.04, 'white');
+    for (const y of [g, g + 1.05, y1 - 0.06]) fb('S', a - 0.5, a + 0.5, y, y + 0.06, 0.012, 0.04, 'white');
+    for (const s of [-1, 1]) { const lo = Math.min(a + s * 0.53, a + s * 1.03), hi = Math.max(a + s * 0.53, a + s * 1.03); fb('S', lo, hi, g + 0.02, y1 + 0.05, 0.01, 0.045, 'envWoodN'); for (const y of [g + 0.25, g + 1.08, y1 - 0.2]) fb('S', lo + 0.03, hi - 0.03, y - 0.05, y + 0.05, 0.045, 0.065, 'envWoodN'); }
   }
-  // lucarne à deux pans sur le pan sud (côté est), fenêtre
-  { const zc = 2.1, xf = -18.55, yb = yS(xf) - 0.25, ye = yE + 1.85, yr = ye + 0.68;
-    A.box('site', xf - 2.2, xf, yb, ye, zc - 0.65, zc + 0.65, 'envCream');
-    A.polyN('site', 'envCream', [[xf, ye, zc - 0.65], [xf, ye, zc + 0.65], [xf, yr - 0.04, zc]], [1, 0, 0]);
-    for (const s of [-1, 1]) { const p4 = [[xf + 0.12, ye - 0.08, zc + s * 0.8], [xf - 2.6, ye - 0.08, zc + s * 0.8], [xf - 2.6, yr, zc], [xf + 0.12, yr, zc]]; rface('site', 'envTileB', p4, [0, 1, s]); rface('site', 'envSoffit', p4, [0, -1, -s]); }
-    A.box('site', xf, xf + 0.03, yb + 0.35, ye - 0.15, zc - 0.47, zc + 0.47, 'appui'); A.box('site', xf + 0.03, xf + 0.045, yb + 0.42, ye - 0.22, zc - 0.4, zc + 0.4, 'envGlass'); }
-  // Velux sur le pan sud (côté ouest)
-  { const xa = -19.25, xb = -20.0, za = 6.4, zb = 7.2;
-    rface('site', 'grille', [[xa + 0.05, yS(xa + 0.05) + 0.03, za - 0.05], [xa + 0.05, yS(xa + 0.05) + 0.03, zb + 0.05], [xb - 0.05, yS(xb - 0.05) + 0.03, zb + 0.05], [xb - 0.05, yS(xb - 0.05) + 0.03, za - 0.05]], [1, 1, 0]);
-    rface('site', 'envGlass', [[xa, yS(xa) + 0.06, za], [xa, yS(xa) + 0.06, zb], [xb, yS(xb) + 0.06, zb], [xb, yS(xb) + 0.06, za]], [1, 1, 0]); }
-  // souche de cheminée près de l'extrémité est du faîtage, antenne râteau et parabole
-  { const cx = -21.0, cz = 3.0, yt = r.yr + 0.85;
-    A.box('site', cx - 0.28, cx + 0.28, yE + 1.5, yt, cz - 0.4, cz + 0.4, 'envCream'); A.box('site', cx - 0.33, cx + 0.33, yt, yt + 0.08, cz - 0.45, cz + 0.45, 'coping');
-    A.box('site', cx - 0.02, cx + 0.02, yt + 0.08, yt + 2.4, cz - 0.02, cz + 0.02, 'grille'); for (const k of [0, 1, 2, 3]) A.box('site', cx - 0.015, cx + 0.015, yt + 1.6 + k * 0.2, yt + 1.62 + k * 0.2, cz - 0.4 + k * 0.05, cz + 0.4 - k * 0.05, 'grille');
-    const c = new THREE.Vector3(cx + 0.55, yt - 0.55, cz + 0.15), n = new THREE.Vector3(0.85, 0.32, 0.4).normalize(), u = new THREE.Vector3().crossVectors(n, new THREE.Vector3(0, 1, 0)).normalize(), v = new THREE.Vector3().crossVectors(u, n);
-    const pts = []; for (let i = 0; i < 14; i++) { const a = i / 14 * 2 * Math.PI; const q = c.clone().addScaledVector(u, Math.cos(a) * 0.32).addScaledVector(v, Math.sin(a) * 0.32); pts.push([q.x, q.y, q.z]); }
-    A.polyN('site', 'envDish', pts, [n.x, n.y, n.z]); A.polyN('site', 'envDish', pts, [-n.x, -n.y, -n.z]);
-    A.box('site', cx + 0.27, cx + 0.5, yt - 0.6, yt - 0.56, cz + 0.1, cz + 0.16, 'grille'); }
+  lanterne(fb, 'S', 5.62, g + 2.3);
+  // Velux 78 × 98 à mi-pente, côté ouest
+  { const zc = 7.1, xc = x1 + ov - 1.9, hw = 0.39, hl = 0.49 * Math.cos(p * RAD), q = (dx, dz, o) => [xc + dx, yS(xc + dx) + o, zc + dz];
+    rface('site', 'grille', [q(hl + 0.05, -hw - 0.05, 0.04), q(hl + 0.05, hw + 0.05, 0.04), q(-hl - 0.05, hw + 0.05, 0.1), q(-hl - 0.05, -hw - 0.05, 0.1)], [1, 1, 0]);
+    rface('site', 'envGlass', [q(hl - 0.03, -hw + 0.04, 0.09), q(hl - 0.03, hw - 0.04, 0.09), q(-hl + 0.05, hw - 0.04, 0.14), q(-hl + 0.05, -hw + 0.04, 0.14)], [1, 1, 0]); }
+  // lucarne capucine côté est : jouées enduites, croupe en façade, chambranle en bois brun, fenêtre à 2 vantaux blancs, appui, garde-corps
+  { const zc = 2.55, w = 0.66, xf = x1 - 0.35, yb = yS(xf), yd = yb + 1.5, W = w + 0.12, ydr = yd + W, xh = xf + 0.12, yd2 = yd - 0.04;
+    const xbe = x1 + ov - (yd2 - ye) / t, xbr = x1 + ov - (ydr - ye) / t;
+    A.box('site', xbe - 0.1, xf, yb - 0.05, yd, zc - w, zc + w, 'envWhiteN');
+    for (const s of [-1, 1]) { const q = [[xh, yd2, zc + s * W], [xbe, yd2, zc + s * W], [xbr, ydr, zc], [xh - W, ydr, zc]]; rface('site', 'envTileN', q, [0, 1, s]); rface('site', 'envSoffit', q, [0, -1, -s]); }
+    { const q = [[xh, yd2, zc - W], [xh, yd2, zc + W], [xh - W, ydr, zc]]; rface('site', 'envTileN', q, [1, 1, 0]); rface('site', 'envSoffit', q, [-1, -1, 0]); }
+    const yw0 = yb + 0.3, yw1 = yd - 0.16;
+    A.box('site', xf, xf + 0.05, yw0 - 0.12, yw1 + 0.1, zc - 0.58, zc + 0.58, 'envWoodN');
+    A.box('site', xf + 0.05, xf + 0.06, yw0, yw1, zc - 0.42, zc + 0.42, 'envGlass');
+    for (const z of [zc - 0.42, zc - 0.025, zc + 0.37]) A.box('site', xf + 0.05, xf + 0.08, yw0, yw1, z, z + 0.05, 'white');
+    for (const y of [yw0, yw1 - 0.05]) A.box('site', xf + 0.05, xf + 0.08, y, y + 0.05, zc - 0.42, zc + 0.42, 'white');
+    A.box('site', xf - 0.02, xf + 0.12, yb + 0.1, yb + 0.18, zc - 0.62, zc + 0.62, 'appui');
+    railing([xf + 0.1, zc - 0.42], [xf + 0.1, zc + 0.42], yw0 + 0.04, yw0 + 0.04, 0.42); }
+  // souche enduite grise sur le pan sud juste sous le faîtage, derrière la lucarne ; mât d'antenne râteau côté ouest, parabole au sud
+  { const cx = r.a[0] + 0.55, cz = 1.75, yt = r.yr + 1.15;
+    A.box('site', cx - 0.3, cx + 0.3, yS(cx + 0.3) - 0.2, yt, cz - 0.27, cz + 0.27, 'envWallC'); A.box('site', cx - 0.34, cx + 0.34, yt, yt + 0.06, cz - 0.31, cz + 0.31, 'coping');
+    A.box('site', cx - 0.02, cx + 0.02, yt - 0.6, yt + 1.7, cz + 0.29, cz + 0.33, 'grille'); for (const k of [0, 1, 2]) A.box('site', cx - 0.015, cx + 0.015, yt + 1.1 + k * 0.2, yt + 1.12 + k * 0.2, cz - 0.14 + k * 0.06, cz + 0.76 - k * 0.06, 'grille');
+    const c = new THREE.Vector3(cx + 0.42, yt - 0.55, cz - 0.05), n = new THREE.Vector3(0.79, 0.54, -0.29).normalize(), u = new THREE.Vector3().crossVectors(n, new THREE.Vector3(0, 1, 0)).normalize(), v = new THREE.Vector3().crossVectors(u, n);
+    const pts = []; for (let i = 0; i < 14; i++) { const a = i / 14 * 2 * Math.PI; const q = c.clone().addScaledVector(u, Math.cos(a) * 0.3).addScaledVector(v, Math.sin(a) * 0.3); pts.push([q.x, q.y, q.z]); }
+    A.polyN('site', 'envDish', pts, [n.x, n.y, n.z]); A.polyN('site', 'envDish', pts, [-n.x, -n.y, -n.z]); A.box('site', cx + 0.3, cx + 0.42, yt - 0.6, yt - 0.55, cz - 0.08, cz - 0.02, 'grille'); }
+  // terrasse en tomettes le long de la façade sud (2,80 m), table ronde et 4 chaises pliantes blanches
+  { const xt = x1 + 2.8, gt = g - 0.14; A.box('site', x1, xt, gmin - 0.3, gt, z0 - 0.2, z1 + 0.3, { py: 'envTerra', def: 'envBase' });
+    const tx = x1 + 1.45, tz = 3.4, disc = (y, s) => A.polyN('site', 'white', Array.from({ length: 12 }, (_, i) => [tx + 0.55 * Math.cos(i * Math.PI / 6), y, tz + 0.55 * Math.sin(i * Math.PI / 6)]), [0, s, 0]);
+    disc(gt + 0.74, 1); disc(gt + 0.72, -1); A.box('site', tx - 0.04, tx + 0.04, gt, gt + 0.72, tz - 0.04, tz + 0.04, 'white');
+    for (const [dx, dz] of [[0.85, 0], [-0.85, 0.2], [0.1, 0.85], [0.1, -0.85]]) {
+      const cx = tx + dx, cz = tz + dz, bx = Math.abs(dx) > Math.abs(dz);
+      A.box('site', cx - 0.2, cx + 0.2, gt + 0.43, gt + 0.46, cz - 0.2, cz + 0.2, 'white');
+      if (bx) { const x = cx + Math.sign(dx) * 0.2; A.box('site', x - 0.015, x + 0.015, gt + 0.46, gt + 0.88, cz - 0.2, cz + 0.2, 'white'); for (const s of [-1, 1]) A.box('site', cx - 0.2, cx + 0.2, gt, gt + 0.43, cz + s * 0.18 - 0.015, cz + s * 0.18 + 0.015, 'white'); }
+      else { const z = cz + Math.sign(dz) * 0.2; A.box('site', cx - 0.2, cx + 0.2, gt + 0.46, gt + 0.88, z - 0.015, z + 0.015, 'white'); for (const s of [-1, 1]) A.box('site', cx + s * 0.18 - 0.015, cx + s * 0.18 + 0.015, gt, gt + 0.43, cz - 0.2, cz + 0.2, 'white'); }
+    } }
+}
+
+// ---------------------------------------------------------------- en face, rue des Merlettes (photos 6, 7, 12 à 14, aérienne) : n° 4, R+C enduit blanc cassé en retrait de 11 m,
+// toit 4 pans en tuiles plates brunes à croupes raides, 2 lucarnes à 2 pans (volets roulants blancs) au droit des fenêtres, châssis de toit entre elles,
+// souche en haut de la croupe sud ; volets fermés et porte verts. Au nord, maison enduite rose à pignon sud, tuiles rouges, souche en tête de pignon
+function westHouses() {
+  matsOuest();
+  const { A } = C;
+  { const x0 = 4.0, x1 = 13.8, z0 = 33.0, z1 = 40.5, [gmin, gmax] = groundMinMax(x0, x1, z0, z1), g = gmax + 0.3, yE = g + 3.0, ov = 0.35, t = 1;
+    A.box('site', x0, x1, gmin - 0.4, yE, z0, z1, 'envWhiteN'); A.box('site', x0 - 0.03, x1 + 0.03, gmin - 0.4, g - 0.05, z0 - 0.03, z1 + 0.03, 'envBase');
+    const ye = yE - ov * t, r = hip2('envTileB', x0 - ov, x1 + ov, z0 - ov, z1 + ov, ye, 45, 65); ridge('envTileB', r);
+    const { fb } = faces(x0, x1, z0, z1), xm = (x0 + x1) / 2, yR = z => ye + (z - z0 + ov) * t, bays = [x1 - 2.4, x0 + 2.4];
+    // façade est : porte verte au centre (encadrement clair, marche), fenêtres à volets verts fermés de part et d'autre
+    fb('E', xm - 0.6, xm + 0.6, g - 0.05, g + 2.35, -0.001, 0.03, 'appui'); fb('E', xm - 0.47, xm + 0.47, g, g + 2.2, 0.03, 0.05, 'envGreen');
+    A.box('site', xm - 0.8, xm + 0.8, gmin - 0.2, g - 0.02, z0 - 0.45, z0, 'envBase');
+    for (const a of bays) { fb('E', a - 0.72, a + 0.72, g + 0.85, g + 2.22, -0.001, 0.025, 'appui'); fb('E', a - 0.62, a + 0.62, g + 0.92, g + 2.15, 0.025, 0.05, 'envGreen'); fb('E', a - 0.01, a + 0.01, g + 0.92, g + 2.15, 0.05, 0.056, 'blackMatte'); }
+    // lucarnes à 2 pans sur le pan est (jouées en tuiles, fronton enduit, volet roulant blanc baissé)
+    for (const a of bays) {
+      const zf = z0 + 0.2, yb = yR(zf), yd = yb + 1.25, w = 0.55, W = w + 0.1, ydr = yd + W * Math.tan(50 * RAD), zbe = z0 - ov + (yd - 0.03 - ye) / t, zbr = z0 - ov + (ydr - ye) / t;
+      A.box('site', a - w, a + w, yb - 0.05, yd, zf, zbe + 0.1, { nx: 'envTileB', px: 'envTileB', def: 'envWhiteN' });
+      for (const s of [-1, 1]) { const q = [[a + s * W, yd - 0.03, zf - 0.1], [a + s * W, yd - 0.03, zbe], [a, ydr, zbr], [a, ydr, zf - 0.1]]; rface('site', 'envTileB', q, [s, 1, 0]); rface('site', 'envSoffit', q, [-s, -1, 0]); }
+      A.polyN('site', 'envWhiteN', [[a - w, yd, zf], [a + w, yd, zf], [a, ydr - 0.05, zf]], [0, 0, -1]);
+      A.box('site', a - 0.42, a + 0.42, yb + 0.12, yd - 0.1, zf - 0.04, zf, 'white'); A.box('site', a - 0.47, a + 0.47, yb + 0.06, yb + 0.12, zf - 0.08, zf, 'appui');
+    }
+    { const zc = z0 + 1.7, q = (dx, dz, o) => [xm + dx, yR(zc + dz) + o, zc + dz]; rface('site', 'grille', [q(-0.3, -0.35, 0.04), q(0.3, -0.35, 0.04), q(0.3, 0.35, 0.04), q(-0.3, 0.35, 0.04)], [0, 1, -1]); rface('site', 'envGlass', [q(-0.24, -0.3, 0.06), q(0.24, -0.3, 0.06), q(0.24, 0.3, 0.06), q(-0.24, 0.3, 0.06)], [0, 1, -1]); }
+    { const cx = r.b[0] + 0.3, cz = r.b[1] - 0.25; A.box('site', cx - 0.3, cx + 0.3, r.yr - 1.0, r.yr + 0.85, cz - 0.25, cz + 0.25, 'envWhiteN'); A.box('site', cx - 0.35, cx + 0.35, r.yr + 0.85, r.yr + 0.92, cz - 0.3, cz + 0.3, 'coping'); }
+  }
+  // maison rose : pignon sud large (≈ 9,4 m) juste au nord du mur haut, recoupé sur les photos 6, 13 et 14 (faîtage vu au-dessus du portail du n° 4 en photo 6)
+  { const x0 = -12.0, x1 = -2.2, z0 = 21.8, z1 = 31.2, [gmin, gmax] = groundMinMax(x0, x1, z0, z1), g = gmax + 0.2, yE = g + 3.4;
+    A.box('site', x0, x1, gmin - 0.4, yE, z0, z1, 'envRose'); A.box('site', x0 - 0.03, x1 + 0.03, gmin - 0.4, g - 0.05, z0 - 0.03, z1 + 0.03, 'envBase');
+    const r = gable('site', 'envTileR', 'envRose', x0, x1, z0, z1, yE, 45, true, 0.35); ridge('envTileR', r);
+    const { fb } = faces(x0, x1, z0, z1), zr = (z0 + z1) / 2;
+    fb('S', z0 + 1.7, z0 + 2.8, yE + 0.3, yE + 1.55, -0.001, 0.035, 'envWood'); fb('S', z0 + 1.8, z0 + 2.7, yE + 0.4, yE + 1.45, 0.035, 0.045, 'envGlass'); // fenêtre de l'étage, moitié est du pignon sud
+    A.box('site', x1 - 0.6, x1 - 0.02, r.yr - 0.6, r.yr + 0.95, zr - 0.33, zr + 0.33, 'envRose'); A.box('site', x1 - 0.66, x1 + 0.04, r.yr + 0.95, r.yr + 1.02, zr - 0.39, zr + 0.39, 'coping');
+  }
+}
+
+// ---------------------------------------------------------------- au sud du sentier de Derrière le Gué (n° 6, photos 8 à 10, 15, aérienne) : R+1 enduit crème, toit 4 pans en
+// tuiles brunes à épis, corniche ; façade est (entrée, sur la partie nord–sud du sentier) : fronton central, oculus à l'étage, porte à auvent, lanterne,
+// fenêtres à volets blancs ; façade ouest 3 travées à volets blancs, barres d'appui en fer forgé à l'étage ; petite fenêtre à barreaux au nord
+function southHouse() {
+  matsOuest();
+  const { A } = C;
+  const x0 = 31.0, x1 = 41.5, z0 = 4.4, z1 = 13.4, [gmin, gmax] = groundMinMax(x0, x1, z0, z1), g = gmax + 0.3, yE = g + 5.7, ov = 0.4, p = 33, t = Math.tan(p * RAD), ye = yE - ov * t;
+  A.box('site', x0, x1, gmin - 0.4, yE, z0, z1, 'envCream'); A.box('site', x0 - 0.03, x1 + 0.03, gmin - 0.4, g - 0.05, z0 - 0.03, z1 + 0.03, 'envBase');
+  const r = hip2('envTileB2', x0 - ov, x1 + ov, z0 - ov, z1 + ov, ye, p, 40); ridge('envTileB2', r);
+  const { P, fb, disc, ring } = faces(x0, x1, z0, z1), xm = (x0 + x1) / 2, zm = (z0 + z1) / 2;
+  for (const f of ['S', 'N', 'W', 'E']) { const [a0, a1] = f === 'S' || f === 'N' ? [z0 - 0.06, z1 + 0.06] : [x0 - 0.06, x1 + 0.06]; fb(f, a0, a1, yE - 0.3, yE, 0, 0.06, 'envCream'); } // corniche
+  const win = (f, a, y0, h, w, guard) => {
+    fb(f, a - w / 2 - 0.08, a + w / 2 + 0.08, y0 - 0.06, y0 + h + 0.06, -0.001, 0.02, 'appui'); fb(f, a - w / 2, a + w / 2, y0, y0 + h, 0.02, 0.03, 'envGlass');
+    for (const s of [-1, 1]) fb(f, a + s * (w / 2 + 0.1) - (s > 0 ? 0 : w / 2), a + s * (w / 2 + 0.1) + (s > 0 ? w / 2 : 0), y0, y0 + h, 0.02, 0.05, 'white');
+    if (guard) { const p0 = P(f, a - w / 2, 0, 0.06), p1 = P(f, a + w / 2, 0, 0.06); railing([p0[0], p0[2]], [p1[0], p1[2]], y0 + 0.02, y0 + 0.02, 0.38); }
+  };
+  // façade est : fenêtre au sud, porte à auvent au centre, porte-fenêtre au nord ; à l'étage 2 fenêtres et oculus sous le fronton
+  win('E', xm + 3.0, g + 0.9, 1.35, 1.0); win('E', xm - 3.0, g + 0.05, 2.2, 1.0); win('E', xm + 3.0, g + 3.25, 1.3, 0.9); win('E', xm - 3.0, g + 3.25, 1.3, 0.9);
+  fb('E', xm - 0.6, xm + 0.6, g - 0.05, g + 2.32, -0.001, 0.02, 'appui'); fb('E', xm - 0.48, xm + 0.48, g, g + 2.22, 0.02, 0.05, 'envQuoin'); fb('E', xm - 0.85, xm + 0.85, g + 2.42, g + 2.56, 0, 0.28, 'envCream');
+  A.box('site', xm - 0.8, xm + 0.8, gmin - 0.2, g - 0.02, z0 - 0.5, z0, 'envBase'); lanterne(fb, 'E', xm + 1.0, g + 2.1);
+  ring('E', 'appui', xm, g + 4.0, 0.02, 0.3, 0.42); disc('E', 'envGlass', xm, g + 4.0, 0.015, 0.31);
+  { const hb = 1.25, ya = yE + 0.7, yp = ya + 0.12, zb = z0 - ov + (yp - ye) / t; A.polyN('site', 'envCream', [[xm - hb, yE, z0], [xm + hb, yE, z0], [xm, ya, z0]], [0, 0, -1]);
+    for (const s of [-1, 1]) { const q = [[xm + s * (hb + 0.35), ye, z0 - ov], [xm, yp, z0 - ov], [xm, yp, zb]]; rface('site', 'envTileB2', q, [s, 1, -1]); rface('site', 'envSoffit', q, [-s, -1, 1]); } }
+  // façade ouest : 3 travées ; façade nord : petite fenêtre à barreaux à l'étage ; descentes aux angles de l'entrée
+  for (const a of [xm - 3.0, xm, xm + 3.0]) { win('W', a, g + 0.9, 1.35, 1.0); win('W', a, g + 3.25, 1.3, 0.9, true); }
+  fb('N', zm - 0.32, zm + 0.32, g + 3.6, g + 4.3, -0.001, 0.02, 'appui'); fb('N', zm - 0.25, zm + 0.25, g + 3.67, g + 4.23, 0.02, 0.03, 'envGlass'); for (const a of [-0.12, 0, 0.12]) fb('N', zm + a - 0.01, zm + a + 0.01, g + 3.67, g + 4.23, 0.03, 0.045, 'blackMatte');
+  for (const a of [x0 + 0.12, x1 - 0.12]) fb('E', a - 0.04, a + 0.04, g - 0.1, ye, 0.02, 0.1, 'appui');
+  // souche enduite sur le faîtage côté nord, épis de faîtage
+  { const cx = r.a[0] + 0.7, cz = r.a[1]; A.box('site', cx - 0.3, cx + 0.3, r.yr - 0.8, r.yr + 1.0, cz - 0.35, cz + 0.35, 'envCream'); A.box('site', cx - 0.36, cx + 0.36, r.yr + 1.0, r.yr + 1.08, cz - 0.41, cz + 0.41, 'coping'); }
+  for (const e of [r.a, r.b]) A.box('site', e[0] - 0.03, e[0] + 0.03, r.yr, r.yr + 0.42, e[1] - 0.03, e[1] + 0.03, 'envZinc');
 }
 
 // ---------------------------------------------------------------- murs, portails et haies
@@ -443,32 +586,70 @@ function hedgeRow(pts, w, h, seed) { // haie taillée par tronçons de 2 m, haut
   for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[i], p1 = pts[i + 1], g0 = C.hAt(p0[0], p0[1]), g1 = C.hAt(p1[0], p1[1]), hh = h * (0.93 + r() * 0.14), dw = (r() - 0.5) * 0.15; C.sbox('site', 'hedge', p0, p1, -w / 2 - dw, w / 2 + dw, g0 - 0.15, g1 - 0.15, hh + 0.15); }
 }
 function streetFronts() {
-  const { zWest, A, hAt } = C;
-  // en face, rue des Merlettes (côté ouest) : mur enduit crème de 1,80 m, portillon et portail gris, végétation derrière
-  const zW = (x, o) => [x, zWest(x) + 6.4 + o];
-  const gates = [[10.42, 11.58], [12.92, 16.58]]; // portillon, portail ; piliers de 44 cm de part et d'autre
-  for (const [a, b] of [[5, 9.98], [12.02, 12.48], [17.02, 19.2]]) wallLine('site', 'envCream', 'coping', seg(zW(a, 0.2), zW(b, 0.2), 1.6), -0.1, 0.1, 1.8);
-  for (const [a, b] of gates) {
-    for (const x of [a - 0.22, b + 0.22]) pier(x, zWest(x) + 6.6, 1.95, 'envCream', 'coping', 0.22);
-    const g = Math.max(hAt(a, zWest(a) + 6.6), hAt(b, zWest(b) + 6.6));
-    C.sbox('site', 'fenceAlu', zW(a + 0.02, 0.2), zW(b - 0.02, 0.2), -0.03, 0.03, g + 0.05, g + 0.05, 1.7);
-    for (let k = 1; k < 9; k++) C.sbox('site', 'black', zW(a + 0.04, 0.2), zW(b - 0.04, 0.2), -0.035, 0.035, g + 0.05 + k * 0.19, g + 0.05 + k * 0.19, 0.008);
-  }
-  hedgeRow(seg(zW(5.2, 1.3), zW(10.0, 1.3), 2), 1.1, 2.6, 71); hedgeRow(seg(zW(17.0, 1.3), zW(19.4, 1.3), 2), 1.1, 2.4, 72);
-  // en face, rue des Fauvettes (côté sud) : mur crème de 1,40 m (prolongé en fond de la rue des Merlettes), portail de S1
-  const xw = 27.05, gS = [15.22, 18.58];
-  for (const [a, b] of [[12.5, 14.78], [19.02, 32]]) wallLine('site', 'envCream', 'coping', seg([xw, a], [xw, b], 1.6), -0.1, 0.1, 1.4);
-  for (const z of [gS[0] - 0.22, gS[1] + 0.22]) pier(xw, z, 1.6, 'envCream', 'coping', 0.22);
-  { const g = Math.max(hAt(xw, gS[0]), hAt(xw, gS[1])); A.box('site', xw - 0.03, xw + 0.03, g + 0.05, g + 1.5, gS[0] + 0.02, gS[1] - 0.02, 'fenceAlu'); }
-  hedgeRow(seg([xw + 0.9, 23.5], [xw + 0.9, 32], 2), 1.0, 2.2, 73);
-  // voisin nord, sur rue : muret enduit, grillage et haie
-  const pn = seg([-26.5, zWest(-26.5)], [-11.7, zWest(-11.7)], 2.2);
-  wallLine('site', 'envCream', 'coping', pn, 0, 0.2, 0.6);
-  for (let i = 0; i < pn.length - 1; i++) { const a = pn[i], b = pn[i + 1], ga = hAt(a[0], a[1]), gb = hAt(b[0], b[1]); A.quadN('site', 'mesh', [[a[0], ga + 0.66, a[1] - 0.1], [b[0], gb + 0.66, b[1] - 0.1], [b[0], gb + 1.75, b[1] - 0.1], [a[0], ga + 1.75, a[1] - 0.1]], [0, 0, 1]); A.box('site', a[0] - 0.02, a[0] + 0.02, ga + 0.6, ga + 1.78, a[1] - 0.12, a[1] - 0.08, 'meshPost'); }
-  hedgeRow(pn.map(p => [p[0], p[1] - 0.75]), 0.9, 2.0, 74);
-  // haie haute du voisin nord derrière le muret de limite, et entre lui et la maison de maître
+  matsOuest();
+  const { zWest, xSouth, A, hAt, BND } = C;
+  // muret à chaperon surmonté d'une grille à barreaux noirs, par tronçons horizontaux (redans) ; l'intérieur de la propriété est à droite du sens de parcours
+  const murGrille = (pts, hw, hr, mat) => { for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i], p1 = pts[i + 1], g0 = hAt(p0[0], p0[1]), g1 = hAt(p1[0], p1[1]), gb = Math.min(g0, g1) - 0.3, top = Math.max(g0, g1) + hw, l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+    const q = p => [p[0] + (p1[1] - p0[1]) / l * 0.1, p[1] - (p1[0] - p0[0]) / l * 0.1], c = q(p0);
+    C.sbox('site', mat, p0, p1, 0, 0.2, gb, gb, top - gb); C.sbox('site', 'coping', p0, p1, -0.03, 0.23, top, top, 0.05);
+    railing(q(p0), q(p1), top + 0.05, top + 0.05, hr); A.box('site', c[0] - 0.02, c[0] + 0.02, top + 0.05, top + hr - 0.02, c[1] - 0.02, c[1] + 0.02, 'blackMatte');
+  } };
+  // vantail de portail ou portillon entre p0 et p1 : soubassement plein (mp) jusqu'à hp, barreaux à pointes jusqu'à ht, montants et traverses (mf)
+  const vantail = (p0, p1, g, hp, ht, mp, mf = 'blackMatte') => {
+    C.sbox('site', mp, p0, p1, -0.015, 0.015, g + 0.06, g + 0.06, hp - 0.06); if (ht - hp > 0.05) railing(p0, p1, g + hp, g + hp, ht - hp);
+    for (const p of [p0, p1]) A.box('site', p[0] - 0.025, p[0] + 0.025, g + 0.04, g + Math.max(hp, ht - 0.12), p[1] - 0.025, p[1] + 0.025, mf);
+    for (const y of [g + 0.04, g + hp - 0.03]) C.sbox('site', mf, p0, p1, -0.025, 0.025, y, y, 0.05);
+  };
+
+  // ---- en face, rue des Merlettes (côté ouest), du sud au nord, nu sur rue au dos du trottoir (photos 6, 7, 12 à 14, 5, 17)
+  const W = (x, o = 0) => [x, zWest(x) + 6.42 + o], gW = x => hAt(x, zWest(x) + 6.6), pil = (x, mat, h = 1.95, s = 0.21, cap = 'coping') => pier(x, zWest(x) + 6.42 + s, h, mat, cap, s);
+  // n° 4 (angle de la rue des Fauvettes) : muret en crépi blanc à chaperon gris et grille à barreaux noirs, retour sur la rue des Fauvettes, massif d'arbustes derrière
+  const xc = 19.75, cW = W(xc);
+  murGrille(seg([xc, 34], cW, 2.4), 0.72, 0.95, 'envRough'); murGrille(seg(cW, W(7.81), 2.4), 0.72, 0.95, 'envRough');
+  hedgeRow(seg(W(19.0, 1.0), W(8.4, 1.0), 2), 1.1, 1.9, 81); hedgeRow(seg([xc - 1.0, 33], [xc - 1.0, cW[1] + 1.0], 2), 1.1, 1.9, 82);
+  // piliers en crépi blanc à couvertine grise ; portillon (soubassement blanc, barreaux noirs, photo 14 d'oct. 2026), boîte aux lettres verte sur tablette dans
+  // une niche (muret, compteur, barreaudage noir au-dessus), portail noir à 2 vantaux (soubassement plein, barreaux à pointes)
+  for (const x of [7.6, 6.09, 4.89, 1.59]) pil(x, 'envRough');
+  { const g = gW(6.84); vantail(W(7.39, 0.1), W(6.3, 0.1), g, 1.3, 1.72, 'white'); }
+  { const g = Math.max(gW(5.88), gW(5.1)), yt = g + 0.85; C.sbox('site', 'envRough', W(5.88), W(5.1), 0, 0.3, g - 0.3, g - 0.3, 1.15); C.sbox('site', 'coping', W(5.88), W(5.1), -0.05, 0.32, yt, yt, 0.05);
+    A.box('site', 5.62, 5.34, g + 0.12, g + 0.55, zWest(5.48) + 6.415, zWest(5.48) + 6.43, 'appui');
+    vantail(W(5.88, 0.27), W(5.1, 0.27), yt, 0.5, 0.9, 'blackMatte'); A.box('site', 5.31, 5.67, yt + 0.05, yt + 0.33, zWest(5.49) + 6.45, zWest(5.49) + 6.66, 'envGreen'); }
+  { const g = Math.max(gW(4.68), gW(1.8)); vantail(W(4.68, 0.1), W(3.24, 0.1), g, 1.3, 1.75, 'blackMatte'); vantail(W(3.24, 0.1), W(1.8, 0.1), g, 1.3, 1.75, 'blackMatte'); }
+  // maison rose : mur haut enduit crème à chaperon, haie de lauriers derrière ; pilier, portillon vert, pilier, trumeau (compteur, boîte aux lettres), portail vert, pilier
+  wallLine('site', 'envCream', 'coping', seg(W(1.38), W(-9.2), 1.6), 0, 0.2, 1.85);
+  hedgeRow(seg(W(1.0, 0.95), W(-9.0, 0.95), 2), 1.2, 3.0, 83);
+  for (const x of [-9.4, -10.8, -14.5]) pil(x, 'envCream', 1.95, 0.2);
+  { const g = gW(-10.1); vantail(W(-9.6, 0.1), W(-10.6, 0.1), g, 1.6, 1.6, 'envGreen', 'envGreen'); }
+  { const g = gW(-11.4); C.sbox('site', 'envCream', W(-11.0), W(-12.1), 0, 0.22, g - 0.3, g - 0.3, 1.85); C.sbox('site', 'coping', W(-11.0), W(-12.1), -0.03, 0.25, g + 1.55, g + 1.55, 0.05);
+    A.box('site', -11.25, -11.65, g + 0.5, g + 1.0, zWest(-11.45) + 6.41, zWest(-11.45) + 6.43, 'appui'); A.box('site', -11.75, -12.0, g + 1.05, g + 1.35, zWest(-11.9) + 6.39, zWest(-11.9) + 6.43, 'envGreen'); }
+  { const g = Math.max(gW(-12.1), gW(-14.3)); vantail(W(-12.1, 0.1), W(-13.2, 0.1), g, 1.6, 1.6, 'envGreen', 'envGreen'); vantail(W(-13.2, 0.1), W(-14.3, 0.1), g, 1.6, 1.6, 'envGreen', 'envGreen'); }
+  // plus au nord : muret bas et grillage vert sur poteaux
+  { const pts = seg(W(-14.7), W(-24), 2.4); wallLine('site', 'envCream', 'coping', pts, 0, 0.2, 0.3);
+    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], ga = hAt(a[0], a[1]) + 0.35, gb = hAt(b[0], b[1]) + 0.35; A.quadN('site', 'mesh', [[a[0], ga, a[1] + 0.1], [b[0], gb, b[1] + 0.1], [b[0], gb + 1.2, b[1] + 0.1], [a[0], ga + 1.2, a[1] + 0.1]], [0, 0, -1]); A.box('site', a[0] - 0.025, a[0] + 0.025, ga - 0.05, ga + 1.25, a[1] + 0.075, a[1] + 0.125, 'meshPost'); } }
+
+  // ---- voisin nord, sur rue (photos 4, 5, 17) : muret enduit blanc à chaperon, grillage simple torsion vert doublé d'un brise-vue vert foncé, poteaux verts
+  const pn = seg([-30, zWest(-30)], BND.A, 2.5);
+  wallLine('site', 'envWhiteN', 'coping', pn, 0, 0.2, 0.55);
+  for (let i = 0; i < pn.length - 1; i++) { const a = pn[i], b = pn[i + 1], ga = hAt(a[0], a[1]) + 0.6, gb = hAt(b[0], b[1]) + 0.6, za = a[1] - 0.1, zb = b[1] - 0.1;
+    A.quadN('site', 'mesh', [[a[0], ga, za + 0.01], [b[0], gb, zb + 0.01], [b[0], gb + 1.22, zb + 0.01], [a[0], ga + 1.22, za + 0.01]], [0, 0, 1]);
+    A.quadN('site', 'envScreen', [[a[0], ga + 0.02, za - 0.01], [b[0], gb + 0.02, zb - 0.01], [b[0], gb + 1.12, zb - 0.01], [a[0], ga + 1.12, za - 0.01]], [0, 0, 1]);
+    A.box('site', a[0] - 0.025, a[0] + 0.025, ga - 0.05, ga + 1.25, za - 0.035, za + 0.015, 'meshPost'); }
+  // haie haute du voisin nord derrière le muret de limite (photos 4, 16 à 18), et entre son jardin et la maison de maître (photo 4)
   hedgeRow(seg([-12.15, 0.1], [-12.15, 12.2], 2), 0.85, 2.35, 75);
   hedgeRow(seg([-17.4, 0.55], [-12.6, 0.55], 2), 0.8, 2.2, 76);
+
+  // ---- au sud du sentier de Derrière le Gué, n° 6 (photos 8 à 10, 15) : muret crème à chaperon et grille noire à lances le long du sentier, haie derrière ;
+  // façade est sur la partie nord–sud du sentier (bord à z = −1, à l'écart du virage) : pilier d'angle, portail noir à 2 vantaux, pilier à gyrophare orange,
+  // muret et grille, pilier du n° 6, portillon noir, pilier
+  const xl = z => xSouth(z) + 6.42, zE = -1.0, xE = xl(zE), pS = (x, z) => pier(x, z, 1.85, 'envCream', 'coping', 0.2);
+  murGrille(seg([xl(zE + 0.4), zE + 0.4], [xl(30), 30], 2.4), 0.85, 0.85, 'envCream');
+  hedgeRow(seg([xl(1.2) + 1.0, 1.2], [xl(29.5) + 1.0, 29.5], 2), 0.9, 1.9, 84);
+  for (const x of [xE + 0.2, 29.7, 38.2, 40.0]) pS(x, zE + 0.2);
+  { const g = Math.max(hAt(xE + 0.4, zE), hAt(29.5, zE)), zg = zE + 0.2, xm = (xE + 0.4 + 29.5) / 2; vantail([xE + 0.4, zg], [xm, zg], g, 0.9, 1.62, 'blackMatte'); vantail([xm, zg], [29.5, zg], g, 0.9, 1.62, 'blackMatte');
+    const gp = hAt(29.7, zE); A.box('site', 29.62, 29.78, gp + 1.91, gp + 2.08, zE + 0.12, zE + 0.28, 'envBeacon'); }
+  murGrille(seg([38.0, zE], [29.9, zE], 2.4), 0.85, 0.85, 'envCream');
+  { const g = hAt(39.1, zE); vantail([38.4, zE + 0.2], [39.8, zE + 0.2], g, 0.9, 1.62, 'blackMatte'); }
 }
 
 // ---------------------------------------------------------------- jardin du voisin est : annexe, kiosque, clôtures en plaques de béton
@@ -496,25 +677,6 @@ function eastGarden() {
   { const g = hAt(xs(-16.2), -16.2); A.box('site', xs(-16.2) - 0.03, xs(-16.2) + 0.03, g + 0.05, g + 1.55, -17.38, -15.02, 'fenceAlu'); }
 }
 
-// ---------------------------------------------------------------- lampadaires (fût noir fin, fourche en Y, tête en disque)
-function streetLamps() {
-  const { zWest, hAt, groups, M } = C;
-  const dark = [], light = [];
-  const cyl = (r0, r1, h, x, y, z, seg = 10) => { const g = new THREE.CylinderGeometry(r0, r1, h, seg); g.translate(x, y + h / 2, z); return g; };
-  for (const x of [-9.8, 8.9]) {
-    const z = zWest(x) + 0.25, y = hAt(x, z);
-    dark.push(cyl(0.12, 0.14, 0.45, x, y - 0.1, z), cyl(0.045, 0.065, 4.3, x, y, z));
-    for (const s of [-1, 1]) { // branches de la fourche, dans le plan perpendiculaire à la rue
-      const a = new THREE.Vector3(x, y + 4.25, z), b = new THREE.Vector3(x, y + 4.98, z + s * 0.17), d = b.clone().sub(a);
-      const g = new THREE.CylinderGeometry(0.017, 0.02, d.length(), 6); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize())); g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); dark.push(g);
-    }
-    dark.push(cyl(0.3, 0.3, 0.06, x, y + 4.98, z, 24), cyl(0.12, 0.27, 0.06, x, y + 5.04, z, 24));
-    light.push(cyl(0.25, 0.25, 0.012, x, y + 4.97, z, 24));
-  }
-  const m1 = new THREE.Mesh(mergeGeometries(dark), M.envPole); m1.castShadow = true; groups.site.add(m1);
-  const m2 = new THREE.Mesh(mergeGeometries(light), M.envLampDiff); groups.site.add(m2);
-}
-
 // ---------------------------------------------------------------- point d'entrée
 export function buildEnvironment(ctx) {
   C = ctx;
@@ -523,12 +685,10 @@ export function buildEnvironment(ctx) {
   manor(balTex);
   eastGarden();
   northHouse();
-  // en face : W2 (crépi rosé, pignon au sud) et W1 rue des Merlettes, S1 rue des Fauvettes (tuiles rouge orangé)
-  house({ x0: -15.5, x1: -6, z0: 23.5, z1: 33, h: 5.0, pitch: 42, roof: 'gx', wall: 'envPeach', roofMat: 'envTileB2', chim: [-6.55, 28.25], door: 'E', shutters: 'white' });
-  house({ x0: 0, x1: 10.5, z0: 34.5, z1: 44, h: 5.2, pitch: 35, roof: 'hip', wall: 'envCream', roofMat: 'envTileB', door: 'E', chim: [3.2, 41] });
-  house({ x0: 28.5, x1: 37, z0: 13, z1: 23, h: 5.6, pitch: 32, roof: 'hip', wall: 'envCream', roofMat: 'envTileR', chim: [33.6, 20.6], door: 'N', shutters: 'white' });
+  // en face : n° 4 et maison rose rue des Merlettes, n° 6 au sud du sentier de Derrière le Gué
+  westHouses();
+  southHouse();
   streetFronts();
-  streetLamps();
   // arbres : cèdre au nord-est de la maison de maître, cerisier, grands arbres derrière les clôtures, massifs sombres au sud-est
   cedar(-29.5, -9.5, 1.0);
   leafy(15.5, -3.5, 1.0, { r: 1.8, n: 24, hue: 0.22, sat: 0.4, light: 0.32, trunk: 1.8 });

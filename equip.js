@@ -1,5 +1,6 @@
 // Équipements : PAC Atlantic Alféa Extensa Duo A.I. R32 5 kW (module intérieur au garage, unité extérieure sur le pignon nord),
-// spots LED encastrés du dressing et de la salle d'eau, proposition de garde-corps acier RAL 7016 pour l'escalier. Appelé avant A.build(groups).
+// spots LED encastrés du dressing et de la salle d'eau, proposition de garde-corps acier RAL 7016 pour l'escalier,
+// grilles d'aération « périscope » RAL 7016 du vide sanitaire (pignons nord et sud). Appelé avant A.build(groups).
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -24,7 +25,7 @@ export function buildEquipment(ctx) {
   M.spotTrim = std({ color: '#f5f5f2', roughness: 0.35, metalness: 0.1 });
   M.spotLed = std({ color: '#fffaf2', emissive: '#fff0dc', emissiveIntensity: 0, roughness: 0.3 });
   const n0 = Object.fromEntries(Object.entries(ctx.groups).map(([k, g]) => [k, g.children.length])); // [perf] repères pour la fusion ci-dessous
-  pacInterieure(ctx); nourrice(ctx); pacExterieure(ctx); spots(ctx); gardeCorps(ctx);
+  pacInterieure(ctx); nourrice(ctx); pacExterieure(ctx); spots(ctx); gardeCorps(ctx); grillesVH(ctx);
   // [perf] petits maillages statiques (PAC, spots) fusionnés par calque et matériau : moins d'appels de dessin, rendu identique
   if (ctx.mergeStatic) for (const [k, g] of Object.entries(ctx.groups)) { const added = g.children.slice(n0[k] ?? 0); if (added.length > 1) ctx.mergeStatic(added, g); }
 }
@@ -146,7 +147,7 @@ function nourrice(ctx) {
 // FUJITSU et atlantic (1/3 droit), capot des vannes galbé et poignée sur le flanc droit, pieds emboutis débordant à l'avant.
 function pacExterieure(ctx) {
   const { A, M, hAt } = ctx, LS = 'site';
-  const W = 0.886, Hh = 0.632, Dp = 0.325, xb = -0.12, xf = xb - Dp, z0 = 0.86 - W / 2, z1 = z0 + W;
+  const W = 0.886, Hh = 0.632, Dp = 0.325, xb = -0.12, xf = xb - Dp, z0 = 0.93 - W / 2, z1 = z0 + W; // sous la fenêtre du WC (axe 0,86), décalée de 7 cm vers l'ouest pour que l'équerre ouest enjambe la grille VH nord-est (z 1,17)
   // sur équerres murales en acier galvanisé (pas de dalle) : bras de 50 cm à 35 cm au-dessus du terrain fini, jambe de force, platine chevillée
   const yp = Math.max(hAt(xf - 0.05, z0), hAt(xf - 0.05, z1)) + 0.35, xa = xf - 0.06;
   for (const zc of [z0 + 0.075, z1 - 0.105]) {
@@ -273,4 +274,103 @@ function gardeCorps(ctx) {
     const n = Math.ceil((q - p - 0.10) / 0.12), gp = (q - p - 0.02 * n) / (n + 1);
     for (let i = 0; i < n; i++) { const x0 = p + gp * (i + 1) + 0.02 * i, x1 = x0 + 0.02; part(x0, x1, zc - 0.01, zc + 0.01, yN(x0) - 0.27, yN(x1) - 0.27, yH(x0) - 0.01, yH(x1) - 0.01); }
   }
+}
+
+// ---------------------------------------------------------------- grilles d'aération du vide sanitaire (« VH »), RAL 7016
+// Plan travaux v3, page 8 « Vide sanitaire ht 1.20m » (1/50) : 4 VH, petits jours dans les murs de soubassement des pignons nord et sud.
+// Non cotés : axes relevés à l'échelle sur le plan vectoriel (± 1,5 cm), comptés en Z depuis la façade est ; murs du vide sanitaire de
+// 12,86 × 7,86 au nu des agglos de 20, soit 2 cm en retrait du nu de l'enduit (12,90 × 7,90) :
+//  - nord, côté est : 15 cm après le mur intérieur est du vide sanitaire (nu ouest coté 1,00 depuis la façade est) → z 1,17
+//  - sud, au milieu : 15 cm après le mur de refend longitudinal (coté 2,93 → 3,13) → z 3,30
+//  - nord et sud, côté ouest : 25 cm du nu intérieur du mur ouest → z 7,43 (47 cm de la façade ouest)
+// Coupe AA (page 11) : jours Ø 10 d'axe −0,54, sous le dessous du plancher (−0,39) et au moins 32 cm sous le terrain fini (−0,17) :
+// aucune grille murale ne tient à leur niveau. Modèle choisi par Sébastien (3DMatch, photos) : grille « périscope » emboîtée sur un tube
+// PVC Ø 100 vertical qui remonte du jour, dos contre l'enduit ; bas de la buse à 3 cm au-dessus du sol fini (tube visible sur ces 3 cm).
+// Pièce de 204 mm de haut et 107 mm de large : buse ronde Ø 101 (44 mm), raccord biais (50 mm) vers le corps de 58,5 mm de saillie en tête
+// (110 mm), angles hauts abattus, arête haute arrière chanfreinée, casquette de 10 mm autour de la grille perforée hexagonale (trous en texture).
+function grillesVH(ctx) {
+  const { M, std, hAt, FACE } = ctx, LS = 'site';
+  const VH = [['N', 1.17], ['N', 7.43], ['S', 3.30], ['S', 7.43]];
+  const e = 0.008; // peau d'enduit en saillie de 8 mm sur le nu (main.js)
+  // ---- pièce en repère local : u = X le long du mur (centré), v = Y depuis le bas de la buse, w = Z sortant du mur (dos en w = 0)
+  const a = 0.0535, r = 0.0505, wc = 0.0535, vb = 0.044, v0 = 0.094, vt = 0.204, cu = 0.015, cv = 0.017, wk = 0.0195, dg = 0.0105;
+  const wf = v => 0.0532 + 0.0053 * (v - v0) / (vt - v0); // nu avant du corps : léger surplomb de la casquette (53,2 mm en pied, 58,5 en tête)
+  const P = [], Nn = [];
+  // polygone plan convexe (éventail), normale de Newell orientée selon la direction sortante o
+  const poly = (pts, o) => {
+    let nx = 0, ny = 0, nz = 0;
+    for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; nx += (p[1] - q[1]) * (p[2] + q[2]); ny += (p[2] - q[2]) * (p[0] + q[0]); nz += (p[0] - q[0]) * (p[1] + q[1]); }
+    if (nx * o[0] + ny * o[1] + nz * o[2] < 0) { pts = [...pts].reverse(); nx = -nx; ny = -ny; nz = -nz; }
+    const l = Math.hypot(nx, ny, nz) || 1;
+    for (let i = 1; i < pts.length - 1; i++) for (const q of [pts[0], pts[i], pts[i + 1]]) { P.push(q[0], q[1], q[2]); Nn.push(nx / l, ny / l, nz / l); }
+  };
+  const F = (u, v, d = 0) => [u, v, wf(v) - d]; // point de la face avant (d : retrait)
+  const vc = vt - cv;
+  // corps : flancs, pans abattus des angles hauts, dessus, chanfrein arrière (dos et dessous masqués par le mur et le raccord)
+  for (const sg of [1, -1]) {
+    poly([[sg * a, v0, 0], F(sg * a, v0), F(sg * a, vc), [sg * a, vc, 0]], [sg, 0, 0]);
+    poly([F(sg * a, vc), F(sg * (a - cu), vt), [sg * (a - cu), vt, wk], [sg * a, vc, 0]], [sg, 1, 0]);
+  }
+  poly([[-(a - cu), vt, wk], [a - cu, vt, wk], F(a - cu, vt), F(-(a - cu), vt)], [0, 1, 0]);
+  poly([[-a, vc, 0], [a, vc, 0], [a - cu, vt, wk], [-(a - cu), vt, wk]], [0, 1, -1]);
+  // casquette : cadre avant (contour à angles hauts abattus), embrasure biaise de 10 mm, grille au fond
+  const oct = (hw, y0, y1, c) => [[-hw, y0], [hw, y0], [hw, y1 - c], [hw - c, y1], [-(hw - c), y1], [-hw, y1 - c]];
+  const O = [[-a, v0], [a, v0], [a, vc], [a - cu, vt], [-(a - cu), vt], [-a, vc]];
+  const If = oct(0.0485, 0.0965, 0.1985, 0.0125), Ig = oct(0.0454, 0.098, 0.195, 0.011);
+  for (let i = 0; i < 6; i++) {
+    const j = (i + 1) % 6;
+    poly([F(...O[i]), F(...O[j]), F(...If[j]), F(...If[i])], [0, 0, 1]);
+    const mx = (If[i][0] + If[j][0]) / 2, my = (If[i][1] + If[j][1]) / 2;
+    poly([F(...If[i]), F(...If[j]), F(...Ig[j], dg), F(...Ig[i], dg)], [-mx, -(my - (Ig[0][1] + Ig[3][1]) / 2), 0.4]); // tournée vers le milieu de la grille
+  }
+  poly(Ig.map(p => F(p[0], p[1], dg)), [0, 0, 1]);
+  const corps = new THREE.BufferGeometry();
+  corps.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); corps.setAttribute('normal', new THREE.Float32BufferAttribute(Nn, 3));
+  // raccord biais : du cercle de la buse au rectangle du pied du corps (u ± a, w 0 → wf(v0)), normales lissées
+  const n = 24, lp = [], li = [];
+  for (let k = 0; k < n; k++) {
+    const t = k / n * Math.PI * 2, c = Math.cos(t), s = Math.sin(t), m = Math.max(Math.abs(c), Math.abs(s));
+    lp.push(r * c, vb, wc + r * s, a * c / m, v0, wf(v0) / 2 * (1 + s / m));
+    const k2 = (k + 1) % n; li.push(2 * k, 2 * k2, 2 * k + 1, 2 * k + 1, 2 * k2, 2 * k2 + 1);
+  }
+  let raccord = new THREE.BufferGeometry(); raccord.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); raccord.setIndex(li);
+  raccord.computeVertexNormals();
+  { const p = raccord.attributes.position, nr = raccord.attributes.normal; let sum = 0; // sens des faces : normales vers l'extérieur
+    for (let k = 0; k < p.count; k += 2) sum += nr.getX(k) * p.getX(k) + nr.getZ(k) * (p.getZ(k) - wc);
+    if (sum < 0) { for (let k = 0; k < li.length; k += 3) [li[k + 1], li[k + 2]] = [li[k + 2], li[k + 1]]; raccord.setIndex(li); raccord.computeVertexNormals(); } }
+  raccord = raccord.toNonIndexed();
+  const buse = new THREE.CylinderGeometry(r, r, vb, n, 1, true).translate(0, vb / 2, wc).toNonIndexed(); buse.deleteAttribute('uv');
+  const piece = mergeGeometries([corps, raccord, buse]);
+  // trous hexagonaux de la grille : texture alpha (blanc = trou) sur un voile sombre posé 0,6 mm devant la tôle
+  const gw = 0.0908, gh = 0.097, tw = 256, th = 274;
+  const tex = decal(tw, th, (g, W, Hh) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#fff';
+    const sx = W / gw, sy = Hh / gh, R = 0.0022, px = 0.0056, py = px * Math.sqrt(3) / 2, mg = 0.0026;
+    const inside = (x, y) => Math.abs(x) < 0.0454 - mg && y > 0.098 + mg && y < 0.195 - mg && Math.abs(x) - (0.0454 - 0.011) < 0.195 - mg * 1.4 - y;
+    for (let j = 0, y = 0.098 + mg + R; y < 0.195; j++, y += py) for (let x = -0.0454 - (j % 2) * px / 2; x < 0.0454; x += px) {
+      if (!inside(x, y)) continue;
+      g.beginPath(); for (let k = 0; k < 6; k++) { const t = Math.PI / 6 + k * Math.PI / 3, X = (x + R * Math.cos(t) + gw / 2) * sx, Y = (0.195 - y - R * Math.sin(t)) * sy; k ? g.lineTo(X, Y) : g.moveTo(X, Y); }
+      g.closePath(); g.fill();
+    }
+  });
+  tex.colorSpace = THREE.NoColorSpace;
+  M.vhTrous = std({ color: '#0b0d0e', roughness: 0.9, alphaMap: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  M.vhPVC = std({ color: '#8a8d8c', roughness: 0.55 }); // tube PVC gris Ø 100
+  const tp = [], tu = [], ti = [];
+  Ig.forEach(([u, v]) => { const q = F(u, v, dg - 0.0006); tp.push(...q); tu.push((u + gw / 2) / gw, (v - 0.098) / gh); });
+  for (let i = 1; i < 5; i++) ti.push(0, i, i + 1);
+  const trous = new THREE.BufferGeometry(); trous.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3)); trous.setAttribute('uv', new THREE.Float32BufferAttribute(tu, 2));
+  trous.setIndex(ti); trous.computeVertexNormals();
+  // ---- pose : dos sur l'enduit, bas de la buse à 3 cm au-dessus du sol fini (place de stationnement gravillonnée au sud : gravier 2,5 cm au-dessus du terrain)
+  const G = { p: [], t: [], v: [] };
+  for (const [face, z] of VH) {
+    const f = FACE[face], x0 = f.F + f.s * e, xs = [f.F + f.s * 0.01, f.F + f.s * 0.115];
+    const sol = Math.max(...xs.flatMap(x => [hAt(x, z - a), hAt(x, z + a)])) + (face === 'S' && z < 3.89 ? 0.025 : 0), yb = sol + 0.03;
+    const place = g => g.rotateY(f.s * Math.PI / 2).translate(x0, yb, z);
+    G.p.push(place(piece.clone())); G.t.push(place(trous.clone()));
+    const tb = new THREE.CylinderGeometry(0.050, 0.050, 0.09, n, 1, true); tb.translate(0, -0.025, wc); tb.deleteAttribute('uv'); G.v.push(place(tb)); // de 4 cm sous le sol à 2 cm dans la buse
+  }
+  mk(ctx, LS, mergeGeometries(G.p), M.ral7016);
+  mk(ctx, LS, mergeGeometries(G.t), M.vhTrous, 0, 0, 0, false);
+  mk(ctx, LS, mergeGeometries(G.v), M.vhPVC);
 }

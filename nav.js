@@ -319,7 +319,7 @@ export function initNav(ctx) {
   }
   function physics(dt) {
     const turnIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0), moveIn = (keys.up ? 1 : 0) - (keys.down ? 1 : 0), k = 1 - Math.exp(-dt * 9);
-    W.vt += (turnIn * (keys.shift ? 2.0 : 1.25) - W.vt) * k; W.v += (moveIn * (keys.shift ? 3.2 : 1.35) - W.v) * k;
+    W.vt += (turnIn * (keys.shift ? 2.4 : 1.6) - W.vt) * k; W.v += (moveIn * (keys.shift ? 4.5 : 2.4) - W.v) * k; // marche 2,4 m/s (Maj : 4,5), demande client
     if (Math.abs(W.vt) > 1e-4) W.dir.applyAxisAngle(UP, W.vt * dt);
     const s = W.v * dt; if (Math.abs(s) > 1e-5) { const n = Math.ceil(Math.abs(s) / 0.04); for (let i = 0; i < n; i++) if (!moveStep(s / n)) { W.v *= 0.5; break; } }
     W.feetS += (W.feet - W.feetS) * (1 - Math.exp(-dt * 12));
@@ -468,7 +468,7 @@ export function initNav(ctx) {
     walkBtn.setAttribute('aria-pressed', W.on ? 'true' : 'false');
     const lv = state.lastView || ''; const k = lv.startsWith('o_') ? lv.slice(2) : null;
     if (k) document.querySelectorAll('#panel [data-room]').forEach(b => b.setAttribute('aria-pressed', b.dataset.room === k ? 'true' : 'false'));
-    if (hint) hint.textContent = W.on ? '↑ ↓ : avancer, reculer · ← → : tourner · Maj : plus vite · Glisser : regarder autour · Clic : ouvrir une porte · Échap : arrêter' : hint0 + ' · Flèches : se promener';
+    if (hint) hint.textContent = W.on ? '↑ ↓ : avancer, reculer · ← → : tourner · 2 doigts ← → : pas de côté · Maj : plus vite · Glisser : regarder autour · Clic : ouvrir une porte · Échap : arrêter' : hint0 + ' · Flèches : se promener';
   }
   syncUI();
   // la capture d'image doit passer par la même chaîne de rendu (panoramique) et ne pas tenir compte du panneau
@@ -493,6 +493,24 @@ export function initNav(ctx) {
   });
   window.addEventListener('keyup', e => { const k = KEYMAP[e.key]; if (k) keys[k] = false; keys.shift = e.shiftKey; });
   window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+  // ------------------------------------------------------------ trackpad : glisser à deux doigts vers la gauche ou la droite = travelling latéral, orientation conservée
+  // (en balade : pas de côté, collisions comprises). Le glissement vertical garde le zoom d'OrbitControls, le pincement (ctrl + molette) aussi.
+  const _r = new THREE.Vector3();
+  window.addEventListener('wheel', e => {
+    if (e.target !== renderer.domElement || e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    e.preventDefault(); e.stopPropagation(); // avant OrbitControls (phase de capture) : pas de zoom parasite
+    const dx = e.deltaX * (e.deltaMode === 1 ? 16 : 1);
+    if (W.on) {
+      const hl = Math.hypot(W.dir.x, W.dir.z), s = dx * 0.006, n = Math.ceil(Math.abs(s) / 0.04);
+      if (hl > 1e-6) for (let i = 0; i < n; i++) if (!tryMove(-W.dir.z / hl * s / n, W.dir.x / hl * s / n)) break;
+    } else {
+      camera.getWorldDirection(_t); _r.crossVectors(_t, UP).normalize();
+      const d = Math.max(camera.position.distanceTo(controls.target), 3) * 0.001 * dx;
+      camera.position.addScaledVector(_r, d); controls.target.addScaledVector(_r, d);
+    }
+    ctx.requestRender?.();
+  }, { capture: true, passive: false });
 
   // accès pour les essais (scripts de rendu)
   window.__nav = { W, keys, ROOMS, startWalk, stopWalk, goRoom, simulate, clearance: (x, z, f) => clearance(x, z, f), floorAt: (x, z, t) => floorAt(x, z, t), setOptic: o => { optic = o; opticSel.value = o; }, setOpen: v => { openEl.checked = openMode = v; }, silh, place: (x, z, dx, dz, f = 0) => { if (!C) buildColliders(); W.x = x; W.z = z; W.dir.set(dx, 0, dz).normalize(); W.feet = W.feetS = groundAt(x, z, f); W.c0 = clearance(x, z, W.feet); },

@@ -13,6 +13,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildEnvironment } from './env.js';
+import { buildRue } from './rue.js';
 import { buildEquipment } from './equip.js';
 import { initNav } from './nav.js';
 import { buildBains } from './bains.js';
@@ -730,6 +731,9 @@ function buildInterior() {
   // cloison 7 cm à 1,70 m de la porte entrée / garage, juste après le lave-linge : local technique (PAC, lave-linge, nourrice, tableau) / garage,
   // porte de service alignée sur la porte de l'entrée (demande de Sébastien)
   wall('rdc', 'z', 7.01, 7.08, SH, 3.15, -0.13, H.rdcCeil, [{ a0: 1.42, a1: 2.30, y0: -0.13, y1: -0.13 + d0 }], { neg: 'garageWall', pos: 'garageWall', end: 'garageWall', top: 'cut' });
+  // poteaux BA 25 × 25 du garage (plan travaux v3 p. 9), contre la cloison du séjour sous la poutre BA : à l'angle du local technique et
+  // au droit du garage ; le troisième est noyé dans le jambage de la porte de garage (mur sud)
+  for (const x0 of [5.31, 8.43]) A.box('rdc', x0, x0 + 0.25, -0.13, H.rdcCeil, 2.90, 3.15, 'garageWall');
   wall('rdc', 'x', 4.17, 4.24, T, 3.86, 0, H.rdcCeil, [], P); // escalier / cuisine
   wall('rdc', 'z', 3.79, 3.86, 4.24, 4.89, 0, H.rdcCeil, [], P); // retour cuisine
   // cloisons étage
@@ -975,7 +979,7 @@ function buildFurniture() {
 
   // cuisine, séjour, chambres, bureau, radiateurs et lave-linge : mobilier.js ; PAC : equip.js ; salles de bains et WC : bains.js
   // --- Local technique et garage : tableau, accès VS
-  B(f0, 5.31, 5.43, 0.95, 1.85, 2.45, 2.95, 'white'); // tableau électrique (nourrice : equip.js)
+  B(f0, 5.31, 5.43, 0.95, 1.85, 2.42, 2.88, 'white'); // tableau électrique, entre la porte ISO 83 et le poteau BA (nourrice : equip.js)
   B(f0, 10.60, 11.20, -0.13, -0.122, 1.50, 2.10, 'inox');
 
   B(f1, 4.37, 5.02, e, e + 2.40, 5.05, D - T, 'white'); B(f1, 8.14, 8.79, e, e + 2.40, 5.05, D - T, 'white'); // placards 65 cm
@@ -1105,12 +1109,7 @@ function buildSite() {
     for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, hAt(x, z) - drop); uv.setXY(i, x, -z); }
     g.computeVertexNormals(); const ground = new THREE.Mesh(g, M.grass); ground.receiveShadow = true; groups.site.add(ground);
   }
-  // rue des Merlettes : branche ouest (le long de la limite A–D) et branche sud (le long de C–D)
-  const X0 = -80, X1 = 27;
-  const zq = (x, o) => [x, zWest(x) + o];
-  overlayQuad('site', 'curb', [zq(X0, 0), zq(X1, 0), zq(X1, 0.45), zq(X0, 0.45)], 0.05, 107, 2);
-  overlayQuad('site', 'asphalt', [zq(X0, 0.45), zq(X1, 0.45), zq(X1, 5.3), zq(X0, 5.3)], 0.04, 107, 6);
-  overlayQuad('site', 'curb', [zq(X0, 5.3), zq(X1, 5.3), zq(X1, 6.4), zq(X0, 6.4)], 0.09, 107, 2);
+  // rue des Merlettes, branche ouest le long de la limite A–D (profil, bordures, trottoir, carrefour, mobilier) : rue.js ; rue des Fauvettes, branche sud le long de C–D
   const xq = (z, o) => [xSouth(z) + o, z];
   overlayQuad('site', 'curb', [xq(-70, 0), xq(-70, 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.055, 2, 84);
   overlayQuad('site', 'asphalt', [xq(-70, 0.45), xq(-70, 5.3), xq(zWest(24.8) + 5.3, 5.3), xq(zWest(19.9) + 5.3, 0.45)], 0.045, 6, 84);
@@ -1147,7 +1146,7 @@ function buildSite() {
   { const y = hAt(17.45, 11.6); A.box('site', 17.20, 17.70, y - 0.1, y + 0.02, 11.35, 11.85, 'concrete'); A.box('site', 17.24, 17.66, y + 0.02, y + 0.03, 11.39, 11.81, 'grille'); }
   // arbre à planter (jardin nord, plan de masse)
   tree(-7.4, 7.6, 1.0);
-  // contexte : haies et arbres en face (voisins, murs sur rue, arbres du voisin est, lampadaires : env.js)
+  // contexte : haies et arbres en face (voisins, murs sur rue, arbres du voisin est, lampadaires : rue.js)
   tree(-8, 20.5, 1.3); tree(9, 24.0, 1.2); tree(30.5, 3.5, 1.4); tree(31, -12, 1.5);
   hedge(-60, 4.6, 6.4, 1.7); hedge(-40, 12.5, 0, 1.8);
   // PAC : unité extérieure sur le pignon nord, devant le WC (plan RDC « Ext. Mod. »)
@@ -1357,7 +1356,7 @@ function init() {
   buildTextures(); buildMaterials();
   for (const l of LAYERS) { groups[l] = new THREE.Group(); groups[l].name = l; scene.add(groups[l]); }
   buildShell(); buildInterior(); buildRoof(); buildFurniture(); buildSite();
-  buildEquipment(ctx()); buildEnvironment(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildOuvrants(ctx());
+  buildEquipment(ctx()); buildEnvironment(ctx()); buildRue(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildOuvrants(ctx());
   A.build(groups);
 
   sky = new Sky(); sky.scale.setScalar(4000); scene.add(sky);

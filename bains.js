@@ -419,26 +419,20 @@ export function buildBains(ctx) {
   // --- Bains (x 0,36 → 3,86, z 0,36 → 3,10) : Balmani Moon 160 double vasque sur la cloison de l'escalier (z 3,10), colonne haute dans l'angle nord à sa droite
   moon(ctx, f1, 1.66, 3.10, 1.60, [-0.40, 0.40], [1.40, 0.80]); // un grand miroir 140 × 80 au lieu de deux ronds
   moonColumn(ctx, f1, T + 0.175, 3.10);
-  // douche 160 × 90 du plan (angle sud-est), receveur extra-plat ; cage fermée sur les 160 cm (demande client) : retour fixe de 90, panneau fixe et porte coulissante
-  // de 80 à l'intérieur du fixe, au bout côté cloison du WC (l'ouverture se fait près du sèche-serviettes) ; profilés noirs fins, rail haut sur toute la façade
-  const zf = 1.255, xr = 2.262, ef = 0.368, xs = 3.852, zg = zf - 0.022, xf = 3.12, xd = 3.04; // zg : plan de la porte, xf : chant du fixe, xd : bord de la porte fermée
+  // douche 160 × 90 du plan (angle sud-est), receveur extra-plat, ouverte au nord face à la fenêtre (pas de porte : face d'entrée libre de 90) ;
+  // une seule paroi fixe en verre clair de 160 cm côté ouest (z 1,255), profilé mural sur la cloison du WC, barre de stabilisation vers le mur est ; profilés noirs fins
+  const zf = 1.255, xr = 2.262, ef = 0.368, xs = 3.852;
   B('furn1', 2.26, xs, e, e + 0.025, ef, 1.262, 'bnTray');
   B('furn1', 2.48, 2.60, e + 0.025, e + 0.0265, 0.73, 0.85, 'bnBlack'); // bonde carrée
-  B('furn1', xr - 0.004, xr + 0.004, e + 0.03, e + 1.99, ef + 0.02, zf - 0.01, 'glassShower'); B('furn1', xr + 0.01, xf, e + 0.03, e + 1.99, zf - 0.004, zf + 0.004, 'glassShower'); // retour et fixe
-  B('furn1', xd + 0.012, xs - 0.037, e + 0.035, e + 1.985, zg - 0.004, zg + 0.004, 'glassShower'); // porte coulissante (fermée ; elle glisse derrière le fixe)
-  B('furn1', xr - 0.01, xr + 0.01, e + 0.025, e + 2.0, ef, ef + 0.02, 'bnBlack'); // profilé mural du retour
-  B('furn1', xr - 0.01, xr + 0.01, e + 0.025, e + 2.0, zf - 0.01, zf + 0.01, 'bnBlack'); // profilé d'angle
-  B('furn1', xr - 0.01, xr + 0.01, e + 1.985, e + 2.005, ef, zf - 0.01, 'bnBlack'); // profilé haut du retour
-  B('furn1', xr + 0.01, xf, e + 0.025, e + 0.03, zf - 0.007, zf + 0.007, 'bnBlack'); B('furn1', xf - 0.012, xf, e + 0.03, e + 2.0, zf - 0.007, zf + 0.007, 'bnBlack'); // profilé bas et chant du fixe
-  for (const x of [xd, xs - 0.037]) B('furn1', x, x + 0.012, e + 0.035, e + 1.985, zg - 0.007, zg + 0.007, 'bnBlack'); // montants de porte
-  B('furn1', xs - 0.02, xs, e + 0.025, e + 2.0, zg - 0.012, zg + 0.012, 'bnBlack'); // profilé mural de fermeture
-  B('furn1', xr - 0.01, xs, e + 2.0, e + 2.04, zg - 0.016, zf + 0.012, 'bnBlack'); // rail haut
-  for (const x of [xd + 0.09, xs - 0.12]) B('furn1', x - 0.03, x + 0.03, e + 1.975, e + 2.0, zg - 0.016, zg - 0.004, 'bnBlack'); // chariots
-  for (const s of [1, -1]) { B('furn1', xs - 0.10, xs - 0.086, e + 0.78, e + 1.32, zg + s * 0.042, zg + s * 0.056, 'bnBlack'); for (const y of [0.84, 1.26]) B('furn1', xs - 0.098, xs - 0.088, e + y - 0.006, e + y + 0.006, zg + s * 0.004, zg + s * 0.042, 'bnBlack'); } // poignées bâton (butée sur le chant du fixe : passage libre ≈ 63 cm)
+  B('furn1', xr + 0.012, xs - 0.02, e + 0.03, e + 2.0, zf - 0.004, zf + 0.004, 'glassShower'); // paroi fixe de 160
+  B('furn1', xs - 0.02, xs, e + 0.025, e + 2.0, zf - 0.012, zf + 0.012, 'bnBlack'); // profilé mural (cloison du WC)
+  B('furn1', xr, xs - 0.02, e + 0.025, e + 0.03, zf - 0.007, zf + 0.007, 'bnBlack'); // profilé bas
+  B('furn1', xr, xr + 0.012, e + 0.025, e + 2.0, zf - 0.006, zf + 0.006, 'bnBlack'); // chant libre côté entrée
+  B('furn1', xr + 0.03, xr + 0.05, e + 1.95, e + 1.97, ef, zf - 0.006, 'bnBlack'); // barre de stabilisation (haut du chant libre → mur est)
   showerColumn(f1, M.bnBlack, M.bnBlackDark, xs, e, (ef + 1.262) / 2, -HP); // colonne sur la cloison du WC (demande client), au milieu de la profondeur du receveur
-  // sèche-serviettes Atlantic Adélis 750 W blanc (140,2 × 55, seul chauffage de la pièce d'environ 9,6 m²) en sortie de douche, sur la cloison du WC
-  // entre la douche et la porte (z 1,405 → 1,955 ; débattement de la porte à partir de z 2,28), de 0,51 à 1,91 m du sol
-  adelis(f1, M, 3.86, e, 1.68, -HP);
+  // sèche-serviettes Atlantic Adélis 750 W blanc (140,2 × 55, seul chauffage de la pièce d'environ 9,6 m²) en sortie de douche, à son emplacement d'origine :
+  // sur le mur est juste au nord de l'entrée de la douche (x 1,175 → 1,725), de 0,51 à 1,91 m du sol
+  adelis(f1, M, 1.45, e, T, 0);
 
   // --- Salle d'eau parentale (x 4,90 → 6,29, z 0,36 → 3,10, sans fenêtre ; passage sans porte vers le dressing dans la cloison x 6,29 à z 1,55 → 2,42)
   const t = 0.01, X0 = 4.90 + t, X1 = 6.29 - t, Z0 = T + t, Z1 = 3.10 - t, fl = e + 0.003, yo = e + 2.04;
