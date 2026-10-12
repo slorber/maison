@@ -16,7 +16,7 @@ const RA = 0.43, WL = 0.60; // découpe des passages de roue (rayon) et paroi in
 const U0 = 0.006, U1 = L - 0.003; // la caisse s'arrête 6 / 3 mm en deçà : calandre, logos et diffuseur posés devant restent dans la longueur
 const RF = 0.05, RR = 0.04; // arrondis des boucliers (en plan et en élévation)
 // placement : nez vers la cloison du local technique (x 7,08) à 0,40 m, centrée sur la baie de la porte de garage (z 1,68), sol à −0,13
-const X0 = 7.08 + 0.40, ZC = 0.22 + 0.30 + 1.895 / 2, Y0 = -0.13; // 30 cm du mur mitoyen, 73,5 cm côté conducteur (garage de 2,93 m)
+const X0 = 7.08 + 0.60, ZC = 0.22 + 0.30 + 1.895 / 2, Y0 = -0.13; // 60 cm devant la cloison du local technique (reculée de 20 cm le 12/10 pour dégager la porte de service), 30 cm du mur mitoyen, 73,5 cm côté conducteur (garage de 2,93 m)
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));

@@ -729,8 +729,8 @@ function buildInterior() {
   wall('rdc', 'z', 5.16, 5.31, SH, 3.30, -0.13, H.rdcCeil, [{ a0: 1.42, a1: 2.30, y0: 0, y1: d0 }], { neg: 'paint', pos: 'garageWall', end: 'paint', top: 'cut' }); // entrée / garage
   wall('rdc', 'x', 3.15, 3.30, 5.31, L - SH, -0.13, H.rdcCeil, [], { neg: 'garageWall', pos: 'paint', end: 'paint', top: 'cut' }); // garage / séjour
   // cloison 7 cm à 1,70 m de la porte entrée / garage, juste après le lave-linge : local technique (PAC, lave-linge, nourrice, tableau) / garage,
-  // porte de service alignée sur la porte de l'entrée (demande de Sébastien)
-  wall('rdc', 'z', 7.01, 7.08, SH, 3.15, -0.13, H.rdcCeil, [{ a0: 1.42, a1: 2.30, y0: -0.13, y1: -0.13 + d0 }], { neg: 'garageWall', pos: 'garageWall', end: 'garageWall', top: 'cut' });
+  // porte de service côté conducteur de la voiture, tableau ouest à 60 cm de la cloison du séjour (z 3,15) : passage 1,67 → 2,55 (client, 12/10)
+  wall('rdc', 'z', 7.01, 7.08, SH, 3.15, -0.13, H.rdcCeil, [{ a0: 1.67, a1: 2.55, y0: -0.13, y1: -0.13 + d0 }], { neg: 'garageWall', pos: 'garageWall', end: 'garageWall', top: 'cut' });
   // poteaux BA 25 × 25 du garage (plan travaux v3 p. 9), contre la cloison du séjour sous la poutre BA : à l'angle du local technique et
   // au droit du garage ; le troisième est noyé dans le jambage de la porte de garage (mur sud)
   for (const x0 of [5.31, 8.43]) A.box('rdc', x0, x0 + 0.25, -0.13, H.rdcCeil, 2.90, 3.15, 'garageWall');
@@ -754,7 +754,7 @@ function buildInterior() {
 
   // portes intérieures Righini Graphik (choix client) : [calque, axe du mur, milieu du mur, charnière, autre montant, sol, sens d'ouverture, épaisseur du mur]
   buildDoors([
-    ['rdc', 'x', 1.395, 2.11, 1.38, 0, 1, 0.07], ['rdc', 'z', 5.235, 1.42, 2.30, 0, -1, 0.15], ['rdc', 'z', 7.045, 1.42, 2.30, -0.13, -1, 0.07], // porte de service, ouvrant côté local technique
+    ['rdc', 'x', 1.395, 2.11, 1.38, 0, 1, 0.07], ['rdc', 'z', 5.235, 1.42, 2.30, 0, -1, 0.15], ['rdc', 'z', 7.045, 1.67, 2.55, -0.13, -1, 0.07], // porte de service, ouvrant côté local technique
     ['r1', 'z', 3.895, 3.03, 2.28, e, -1, 0.07], ['r1', 'x', 2.145, 4.75, 4.03, e, 1, 0.07], ['r1', 'z', 8.415, 1.65, 2.38, e, 1, 0.07],
     ['r1', 'z', 9.105, 4.10, 3.35, e, 1, 0.07], ['r1', 'x', 4.205, 4.94, 4.19, e, 1, 0.07], ['r1', 'x', 4.205, 7.98, 7.25, e, 1, 0.07], ['r1', 'x', 4.205, 8.26, 8.98, e, 1, 0.07],
   ]);
@@ -1171,24 +1171,26 @@ function buildSite() {
   // rue des Merlettes, branche ouest le long de la limite A–D (profil, bordures, trottoir, carrefour, mobilier) : rue.js ; rue des Fauvettes, branche sud le long de C–D
   // branche sud : droite le long de la limite C–D jusqu'au cerisier du voisin est, puis virage vers le sud (plan Google, vue aérienne, photos 9 et 11)
   const xq = (z, o) => [xSouth(z) + o, z], K = [27.785, 1.425], R0 = K[0] - xSouth(K[1]); // centre du virage (rayon 5,50 à l'axe), rayon du bord nord
-  overlayQuad('site', 'curb', [xq(K[1], 0), xq(K[1], 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.055, 2, 26);
+  // pas de trottoir le long de notre clôture sud : la chaussée vient jusqu'au mur (client, 12/10) ; le trottoir ne commence qu'au pilier sud-est, dans l'angle du virage
+  overlayQuad('site', 'asphalt', [xq(K[1], 0), xq(K[1], 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.045, 2, 26);
   overlayQuad('site', 'asphalt', [xq(K[1], 0.45), xq(K[1], 5.3), xq(zWest(24.8) + 5.3, 5.3), xq(zWest(19.9) + 5.3, 0.45)], 0.045, 6, 26);
   overlayQuad('site', 'curb', [xq(K[1], 5.3), xq(K[1], 6.4), xq(zWest(25.9), 6.4), xq(zWest(24.8), 5.3)], 0.09, 2, 26);
   { // virage et branche vers le sud jusqu'en x 60 ; o : décalage depuis le bord nord de la rue droite (0 = limite, 0,45 → 5,30 chaussée)
-    // côté extérieur, trottoir jusqu'aux clôtures du voisin (mur sud en x 19,41, plaques en z −7,66) ; côté intérieur, bordure de 1,10 réduite à 0,45
-    const T = [...Array(31).keys()].map(i => i / 30).concat([...Array(16).keys()].map(i => 1 + (i + 1) / 16), Math.atan2(K[1] + 7.62, R0) / (Math.PI / 2)).sort((p, q) => p - q); // + angle des clôtures
+    // côté extérieur, trottoir à partir de notre pilier sud-est jusqu'aux clôtures du voisin (mur sud en x 19,41, plaques en z −7,66) ; côté intérieur, bordure de 1,10 réduite à 0,45
+    const tC = Math.asin(K[1] / R0) / (Math.PI / 2); // droit du pilier sud-est de notre clôture (z 0) : début du trottoir
+    const T = [...Array(31).keys()].map(i => i / 30).concat([...Array(16).keys()].map(i => 1 + (i + 1) / 16), Math.atan2(K[1] + 7.62, R0) / (Math.PI / 2), tC, tC + 1e-4).sort((p, q) => p - q); // + angle des clôtures
     const at = (t, o) => { if (t > 1) return [K[0] + (t - 1) * (60 - K[0]), K[1] - R0 + o]; const a = t * Math.PI / 2, r = R0 - o; return [K[0] - r * Math.cos(a), K[1] - r * Math.sin(a)]; };
     const out = t => { if (t > 1) return R0 - K[1] - 7.62; const a = t * Math.PI / 2; return R0 - Math.min((K[0] - xSouth(K[1])) / Math.max(Math.cos(a), 1e-6), (K[1] + 7.62) / Math.max(Math.sin(a), 1e-6)); };
-    const strip = (mat, lift, o0, o1, nu) => {
+    const strip = (mat, lift, o0, o1, nu, TT = T) => {
       const pos = [], uv = [], idx = [];
-      T.forEach((t, j) => { for (let i = 0; i <= nu; i++) { const a = o0(t), [x, z] = at(t, a + (o1(t) - a) * i / nu); pos.push(x, hAt(x, z) + lift, z); uv.push(x, -z); }
+      TT.forEach((t, j) => { for (let i = 0; i <= nu; i++) { const a = o0(t), [x, z] = at(t, a + (o1(t) - a) * i / nu); pos.push(x, hAt(x, z) + lift, z); uv.push(x, -z); }
         if (j) for (let i = 0; i < nu; i++) { const a = (j - 1) * (nu + 1) + i, d = a + nu + 1; idx.push(a, d, d + 1, a, d + 1, a + 1); } });
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
       if (g.attributes.normal.getY(0) < 0) { g.setIndex(idx.map((v, i) => idx[i - (i % 3) + [0, 2, 1][i % 3]])); g.computeVertexNormals(); }
       const m = new THREE.Mesh(g, M[mat]); m.receiveShadow = true; groups.site.add(m);
     };
-    strip('asphalt', 0.045, () => 0.45, () => 5.3, 6);
-    strip('curb', 0.055, out, () => 0.45, 2);
+    strip('asphalt', 0.045, t => t <= tC ? out(t) : 0.45, () => 5.3, 6);
+    strip('curb', 0.055, out, () => 0.45, 2, T.filter(t => t > tC));
     strip('curb', 0.09, () => 5.3, t => 6.4 - 0.66 * smooth(0, 1, t), 2);
   }
   // allée gravillonnée (1,00 m) du portillon à la porte d'entrée, et place de stationnement en gravillon devant le garage
