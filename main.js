@@ -22,6 +22,7 @@ import { buildSousEscalier } from './sousEscalier.js';
 import { buildChambre1 } from './chambre1.js';
 import { buildVoiture } from './voiture.js';
 import { buildOuvrants, initOuvrants } from './ouvrants.js';
+import { buildPrises } from './prises.js';
 // RAL 7016 gris anthracite : valeur nominale #383E42, affichée un peu plus claire pour compenser la courbe de rendu et rendre la teinte
 // telle qu'on la voit en vrai (calée sur les photos de Sébastien) ; peinture thermolaquée satinée, non métallique
 export const RAL7016 = '#4d5459';
@@ -1287,8 +1288,6 @@ function buildSite() {
     for (let i = 0; i < n; i++) { m4.compose(new THREE.Vector3(px0 + 0.12 + (i + 0.5) * step, yt - 0.06, (pz0 + pz1) / 2), q, new THREE.Vector3(1, 1, 1)); im.setMatrixAt(i, m4); }
     im.castShadow = im.receiveShadow = true; groups.pergola.add(im); }
   // table de jardin pour 6 sous la pergola : mobilier.js (calque pergola)
-  // robinets extérieurs
-  A.box('rdc', -0.06, 0, 0.55, 0.65, 7.10, 7.18, 'inox'); A.box('rdc', L, L + 0.06, 0.55, 0.65, 6.92, 7.00, 'inox');
   buildFences();
 }
 
@@ -1579,7 +1578,7 @@ function init() {
   buildTextures(); buildMaterials();
   for (const l of LAYERS) { groups[l] = new THREE.Group(); groups[l].name = l; scene.add(groups[l]); }
   buildShell(); buildInterior(); buildRoof(); buildFurniture(); buildSite();
-  buildEquipment(ctx()); buildEnvironment(ctx()); buildRue(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildOuvrants(ctx());
+  buildEquipment(ctx()); buildEnvironment(ctx()); buildRue(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildPrises(ctx()); buildOuvrants(ctx());
   A.build(groups);
 
   sky = new Sky(); sky.scale.setScalar(4000); scene.add(sky);
