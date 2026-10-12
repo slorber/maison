@@ -1076,14 +1076,20 @@ const surfAllee = x => driveH(x) + 0.025; // dessus fini de l'allée : le gravil
 // - muret allée / jardin déplacé de 20 cm vers l'allée : nu côté allée à z 3,77, épaisseur 15 cm (porte de garage, z 0,43 → 2,93, dégagée) ;
 // - seuil du portail coulissant en béton enduit ton pierre, de la limite + 0,20 à + 0,62 (+ 0,80 dans la niche du moteur), sur toute la course du vantail ;
 //   muret de soutènement le long du seuil (t 0,62 → 0,80), décroché en niche derrière le moteur (t 0,80 → 0,98, s 9,25 → angle des murets)
-//   et retourné jusqu'à la clôture au bout de la course (retour z 7,80 → 8,00) ;
-// - marche de l'allée au jardin centrée à 2,00 m de la façade sud, dans une interruption de 1,00 m du muret.
-const MUR = { z: 3.77, e: 0.15 };
+//   et retourné jusqu'à la clôture au bout de la course (retour z 7,80 → 8,00), dessus horizontal à la hauteur du bout du muret allée / jardin ;
+// Reprise du muret et de la marche (Sébastien, 12/10/2026) :
+// - muret allée / jardin du nu de l'enduit de la façade sud jusqu'à la niche du moteur du portail ; dessus et chaperon rectilignes,
+//   à pente constante de 6,5 % (+0,03 au nu de la façade, −0,33 au bout), sans suivre le terrain : 10 cm au moins au-dessus du sol
+//   le plus haut de part et d'autre (allée près de la maison, pelouse ensuite), 18 cm au plus ; c'est le pied qui s'adapte au sol ;
+// - marche dans le muret : passage de 0,80 m centré à 2,00 m de la façade sud, contremarche au nu côté allée (aucun débord sur le gravillon),
+//   giron de 25 cm (épaisseur du muret + 10 cm côté jardin) au niveau de la pelouse, parallèle au chaperon, 10 cm sous le dessus du muret.
+const MUR = { z: 3.77, e: 0.15, y0: 0.03, k: -0.065 };
+const murY = x => MUR.y0 + MUR.k * (x - L); // dessus du muret allée / jardin (sous le chaperon de 3 cm)
 const SEUIL = { t0: 0.20, t1: 0.62, tn: 0.80, tm: 0.98, zRet: 8.00, zNiche: 4.45 }; // profondeurs t depuis la limite sud ; zNiche : bout de la niche (s 9,25)
-const MARCHE = { x0: L + 1.50, x1: L + 2.50, zN: 3.62, zR: 3.645, zB: 3.97, zP: 4.475, pente: 0.02 };
+const MARCHE = { x0: L + 1.60, x1: L + 2.40, zB: MUR.z + 0.25, dJ: 0.10 };
 MARCHE.xc = (MARCHE.x0 + MARCHE.x1) / 2;
-// dessus du giron et de la dalle d'arrivée : pente d'écoulement de 2 % dans le sens de l'allée, contremarche de 16 cm au point le plus bas de l'allée (7,5 cm au plus haut)
-const marcheY = x => surfAllee(MARCHE.x1) + 0.16 + MARCHE.pente * (MARCHE.x1 - x);
+// dessus du giron, parallèle au chaperon : contremarche de 10 cm côté maison à 13 cm côté portail au-dessus du gravillon (l'allée descend de 10,5 %)
+const marcheY = x => murY(x) - MARCHE.dJ;
 function gardenH(x, z) {
   const ri = polyInfo(RAIN, x, z);
   if (ri.inside) return TF_RAIN - 0.18 * smooth(0, 0.6, ri.d);
@@ -1103,10 +1109,10 @@ function hAt0(x, z) {
     const slide = z < SEUIL.zRet && x > xSouth(z) - (z < SEUIL.zNiche ? SEUIL.tm : SEUIL.tn);
     let tf;
     if (x > L - 0.01 && (z < MUR.z + MUR.e || slide)) tf = driveH(x);
-    else { // jardin ; pelouse arasée au niveau de la dalle d'arrivée de la marche, raccordée sur 60 cm
+    else { // jardin ; pelouse au niveau du giron de la marche à son bord arrière et sur ses côtés, raccordée sur 50 cm ; sous le giron : 3 cm plus bas
       tf = gardenH(x, z);
-      const dm = Math.hypot(Math.max(0, Math.abs(x - MARCHE.xc) - 0.60), Math.max(0, z - MARCHE.zP - 0.10));
-      tf += (marcheY(x) - tf) * (1 - smooth(0, 0.6, dm));
+      const dm = Math.hypot(Math.max(0, Math.abs(x - MARCHE.xc) - (MARCHE.x1 - MARCHE.x0) / 2), Math.max(0, z - MARCHE.zB));
+      tf = dm > 0 ? tf + (marcheY(x) - tf) * (1 - smooth(0, 0.5, dm)) : marcheY(x) - 0.03;
     }
     tf += (h - tf) * smooth(-2.5, -7.5, x); // jardin nord : raccord au terrain naturel
     if (x > -2.6 && x < -0.4) tf += (h - tf) * (1 - smooth(0.2, 2.2, dS)); // abords de l'allée : rampe douce vers le portillon
@@ -1407,51 +1413,44 @@ function buildFences() {
   const dG = door(lfG, 'portail', 1 / 3, v => { const k = TRAV * smooth(0, 1, v); lfG.g.position.set(ux * k, 0, uz * k); }); // ~3 s
   { const c = atT(runS, (S0G - TRAV + S1G) / 2, TR); dG._navC = { x: c[0], y: ybG + 1.0, z: c[1], r: (S1G - S0G + TRAV) / 2 + 0.1 }; } // emprise de toute la course (obstacle dynamique de la balade, nav.js)
 
-  // ---- murets : 12 cm au-dessus du terrain le plus haut, dessus et chaperon rampants (sans gradins)
-  const murTop = x => Math.max(driveH(x), gardenH(x, MUR.z + MUR.e + 0.10)) + 0.12, murBot = x => driveH(x) - 0.12;
+  // ---- murets : dessus et chaperons rectilignes (sans gradins ni courbe), pied enterré sous le terrain
+  const murBot = x => driveH(x) - 0.12;
   const xEnd = xSouth(MUR.z + MUR.e / 2) - SEUIL.tm; // le muret allée / jardin bute contre la niche du moteur (nu côté jardin)
-  const gT = s => { const p = atT(runS, s, SEUIL.tm + 0.12); return gardenH(p[0], p[1]); };
-  const dC = murTop(xEnd) - gT(sC) - 0.12, soutTop = s => gT(s) + 0.12 + dC * clamp((s - sC + 1.2) / 1.2, 0, 1); // raccord dans l'angle des murets
-  // muret de soutènement le long du seuil (s croissants : du bout de course vers l'angle), par tronçons de 50 cm au plus
-  const soutRun = (sa0, sb0, ta, tb, mat, h, ext0 = 0, ext1 = 0) => {
-    const n = Math.max(1, Math.ceil((sb0 - sa0) / 0.5));
-    for (let i = 0; i < n; i++) {
-      const sa = sa0 + (sb0 - sa0) * i / n - (i ? 0 : ext0), sb = sa0 + (sb0 - sa0) * (i + 1) / n + (i < n - 1 ? 0 : ext1), ya = soutTop(sa), yb = soutTop(sb);
-      if (h) sbox('fence', mat, at(runS, sa), at(runS, sb), ta, tb, ya, yb, h); else { const hh = Math.max(ya, yb) + 1.05; sbox('fence', mat, at(runS, sa), at(runS, sb), ta, tb, ya - hh, yb - hh, hh); }
-    }
+  const yC = murY(xEnd); // murets du seuil : dessus horizontal (le seuil est de niveau à 3 mm près), à la hauteur du bout du muret allée / jardin
+  // muret de soutènement le long du seuil (s croissants : du bout de course vers l'angle) ; h = 0 : corps descendu à −1,05
+  const soutRun = (sa, sb, ta, tb, mat, h, ext0 = 0, ext1 = 0) => {
+    const hh = h || yC + 1.05;
+    sbox('fence', mat, at(runS, sa - ext0), at(runS, sb + ext1), ta, tb, h ? yC : yC - hh, h ? yC : yC - hh, hh);
   };
-  { const yRet = soutTop(5.80), hh = yRet + 1.05;
-    sbox('fence', 'enduit', at(runS, 5.70), at(runS, 5.90), 0.15, SEUIL.tn, yRet - hh, yRet - hh, hh); // retour jusqu'à la clôture au bout de la course
-    sbox('fence', 'coping', at(runS, 5.68), at(runS, 5.92), SEUIL.t0, SEUIL.tn + 0.02, yRet, yRet, 0.03);
+  { const hh = yC + 1.05;
+    sbox('fence', 'enduit', at(runS, 5.70), at(runS, 5.90), 0.15, SEUIL.tn, yC - hh, yC - hh, hh); // retour jusqu'à la clôture au bout de la course
+    sbox('fence', 'coping', at(runS, 5.68), at(runS, 5.92), SEUIL.t0, SEUIL.tn + 0.02, yC, yC, 0.03);
     soutRun(5.90, 9.43, SEUIL.t1, SEUIL.tn, 'enduit', 0); soutRun(9.25, sC, SEUIL.tn, SEUIL.tm, 'enduit', 0); // le long du seuil, puis niche du moteur
     soutRun(5.92, 9.25, SEUIL.t1 - 0.02, SEUIL.tn + 0.02, 'coping', 0.03); soutRun(9.25, 9.45, SEUIL.t1 - 0.02, SEUIL.tn - 0.02, 'coping', 0.03);
     soutRun(9.25, sC, SEUIL.tn - 0.02, SEUIL.tm + 0.02, 'coping', 0.03, 0.02, 0.02); }
-  // muret entre l'allée du garage et le jardin, interrompu au droit de la marche (chaperons retournés sur les abouts)
-  const murRun = (xa0, xb0, ca0, cb0) => {
-    const n = Math.max(1, Math.ceil((xb0 - xa0) / 0.5));
-    for (let i = 0; i < n; i++) {
-      const xa = xa0 + (xb0 - xa0) * i / n, xb = xa0 + (xb0 - xa0) * (i + 1) / n, ya = murTop(xa), yb = murTop(xb), k = (yb - ya) / (xb - xa);
-      const hs = Math.max(ya - murBot(xa), yb - murBot(xb)), ca = i ? 0.002 : ca0, cb = i < n - 1 ? 0.002 : cb0;
-      sbox('fence', 'enduit', [xa, MUR.z], [xb, MUR.z], -MUR.e, 0, ya - hs, yb - hs, hs);
-      sbox('fence', 'coping', [xa - ca, MUR.z], [xb + cb, MUR.z], -MUR.e - 0.02, 0.02, ya - k * ca, yb + k * cb, 0.03);
-    }
+  // muret entre l'allée du garage et le jardin : un prisme par tronçon, dessus et chaperon sur la droite murY (pente constante de 6,5 %),
+  // pied parallèle enterré d'au moins 12 cm sous l'allée ; interrompu au droit de la marche (chaperons retournés de 2 cm sur les joues)
+  const murRun = (xa, xb, ca, cb) => {
+    const ya = murY(xa), yb = murY(xb), hs = Math.max(ya - murBot(xa), yb - murBot(xb));
+    sbox('fence', 'enduit', [xa, MUR.z], [xb, MUR.z], -MUR.e, 0, ya - hs, yb - hs, hs);
+    sbox('fence', 'coping', [xa - ca, MUR.z], [xb + cb, MUR.z], -MUR.e - 0.02, 0.02, murY(xa - ca), murY(xb + cb), 0.03);
   };
-  murRun(L + 0.25, MARCHE.x0, 0.02, 0.02); murRun(MARCHE.x1, xEnd, 0.02, -0.02);
-  // marche de l'allée au jardin, dans l'interruption de 1,00 m du muret (centrée à 2,00 m de la façade sud) : bloc-marche en pierre reconstituée
-  // (giron 35 cm dont 15 cm en avancée sur l'allée, nez débordant de 2,5 cm, contremarche de 7,5 à 16 cm selon la pente de l'allée), dalle d'arrivée 100 × 50
-  // au niveau de la pelouse ; sol de la balade au clavier (userData.navKind = 0 : marche franchissable, nav.js)
-  { const { x0, x1, zN, zR, zB, zP } = MARCHE, acc = new Acc(), grp = new THREE.Group(); grp.name = 'marche allée / jardin'; groups.fence.add(grp);
-    const y0 = marcheY(x0), y1 = marcheY(x1), hb = y1 - 0.05 - (surfAllee(x1) - 0.14); // bloc enterré de 14 cm sous l'allée au point bas
-    sbox('st', 'coping', [x0, zR], [x1, zR], -(zB - zR), 0, y0 - 0.05 - hb, y1 - 0.05 - hb, hb, acc); // corps du bloc (contremarche)
-    sbox('st', 'coping', [x0, zN], [x1, zN], -(zB - zN), 0, y0 - 0.05, y1 - 0.05, 0.05, acc); // giron et nez
-    sbox('st', 'galet', [x0 + 0.002, zB], [x1 - 0.002, zB], -0.008, 0, y0 - 0.06, y1 - 0.06, 0.052, acc); // joint
-    sbox('st', 'coping', [x0, zB + 0.008], [x1, zB + 0.008], -(zP - zB - 0.008), 0, y0 - 0.06, y1 - 0.06, 0.06, acc); // dalle d'arrivée
+  murRun(L + 0.008, MARCHE.x0, 0, 0.02); murRun(MARCHE.x1, xEnd, 0.02, -0.02); // depuis le nu de l'enduit de la façade sud
+  // marche de l'allée au jardin dans le passage de 0,80 m : giron en pierre reconstituée (comme le chaperon) de 25 cm × 5 cm, nu avant au nu
+  // côté allée du muret (sans nez ni débord), sur une contremarche enduite dans le plan du muret ; sol de la balade au clavier
+  // (userData.navKind = 0 : marche franchissable, nav.js)
+  { const { x0, x1, zB } = MARCHE, acc = new Acc(), grp = new THREE.Group(); grp.name = 'marche allée / jardin'; groups.fence.add(grp);
+    const y0 = marcheY(x0) - 0.05, y1 = marcheY(x1) - 0.05, hb = Math.max(y0 - murBot(x0), y1 - murBot(x1));
+    sbox('st', 'enduit', [x0, MUR.z], [x1, MUR.z], -MUR.e, 0, y0 - hb, y1 - hb, hb, acc); // contremarche (corps du muret sous le giron)
+    sbox('st', 'coping', [x0, MUR.z], [x1, MUR.z], -(zB - MUR.z), 0, y0, y1, 0.05, acc); // giron
     acc.build({ st: grp }); grp.traverse(o => { if (o.isMesh) o.userData.navKind = 0; }); }
   // pelouse le long des murets côté jardin (le maillage du terrain, au pas de 20 cm, y creuserait une rigole)
   const grassStrip = c => overlayQuad('site', 'grass', c, -0.006, Math.max(2, Math.ceil(dist2(c[0], c[1]) / 0.25)), 2);
   const gq = (s0, s1, t0, t1) => [atT(runS, s0, t0), atT(runS, s1, t0), atT(runS, s1, t1), atT(runS, s0, t1)];
   const zg = MUR.z + MUR.e + 0.003; // 3 mm du nu : le bord de la bande est évalué côté jardin
-  grassStrip([[L + 0.25, zg], [xEnd, zg], [xEnd, zg + 0.25], [L + 0.25, zg + 0.25]]);
+  const { x0: xm0, x1: xm1, zB: zmB } = MARCHE, xg0 = xm0 - 0.003, xg1 = xm1 + 0.003;
+  grassStrip([[L + 0.008, zg], [xg0, zg], [xg0, zg + 0.25], [L + 0.008, zg + 0.25]]); grassStrip([[xg1, zg], [xEnd, zg], [xEnd, zg + 0.25], [xg1, zg + 0.25]]);
+  grassStrip([[xg0, zmB + 0.003], [xg1, zmB + 0.003], [xg1, zg + 0.25], [xg0, zg + 0.25]]); // derrière le giron (bord arrière au niveau de la pelouse)
   grassStrip(gq(9.25, sC, SEUIL.tm + 0.003, SEUIL.tm + 0.25)); grassStrip(gq(5.70, 9.25, SEUIL.tn + 0.003, SEUIL.tn + 0.25)); grassStrip(gq(5.45, 5.697, SEUIL.t0, SEUIL.tn + 0.25));
 }
 
