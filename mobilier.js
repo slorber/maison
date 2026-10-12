@@ -336,13 +336,14 @@ function tvUnit() {
 // ---------------------------------------------------------------- radiateurs
 // Acova Fassane Vertical double (RDC) : tubes plats verticaux 70 × 11 au pas de 74 mm soudés sur deux collecteurs ronds, robinet thermostatique.
 // Repère local : x le long du mur, z vers la pièce depuis le nu du mur, y depuis le sol.
-function fassane(F, w) {
+function fassane(F, w, right = false) { // right : robinet à l'extrémité x = w (sinon x = 0)
   const K = new Kit('furn0', F), n = Math.max(3, Math.round(w / 0.074)), p = w / n, y0 = 0.10, y1 = 2.10, tube = stadiumG(0.068, 0.011, y1 - y0);
   for (const z of [0.052, 0.082]) for (let i = 0; i < n; i++) K.g('radiator', tube, (i + 0.5) * p, y0, z);
   for (const y of [y0 + 0.04, y1 - 0.04]) K.rod('radiator', [0.002, y, 0.067], [w - 0.002, y, 0.067], 0.017, 16);
   for (const x of [0.12, w - 0.12]) for (const y of [y0 + 0.06, y1 - 0.06]) K.rod('radiator', [x, y, 0], [x, y, 0.05], 0.008, 8);
   for (const x of [0.035, w - 0.035]) K.rod('radiator', [x, 0, 0.067], [x, y0 + 0.03, 0.067], 0.008, 10);
-  K.rod('mobChrome', [0.035, 0.045, 0.067], [0.035, 0.10, 0.067], 0.013, 12); K.rod('radiator', [0.035, 0.072, 0.067], [-0.05, 0.072, 0.067], 0.024, 20, 0.022);
+  const xr = right ? w - 0.035 : 0.035, xe = right ? w + 0.05 : -0.05;
+  K.rod('mobChrome', [xr, 0.045, 0.067], [xr, 0.10, 0.067], 0.013, 12); K.rod('radiator', [xr, 0.072, 0.067], [xe, 0.072, 0.067], 0.024, 20, 0.022);
 }
 // Radson Integra Ramo (étage) : panneaux type 21 à façade profilée, joues, grille perforée, tête thermostatique latérale
 function panel(F, w) {
@@ -355,14 +356,17 @@ function panel(F, w) {
 }
 function radiators() {
   const e = C.E1, D = C.D, L = C.L, T = C.T;
-  fassane(mtx(0.62, 0, 1.43, 0), 0.44); fassane(mtx(5.11, 0, D - T, Math.PI), 0.81); fassane(mtx(L - T, 0, 3.80, -Math.PI / 2), 0.81);
-  panel(mtx(L - T, e, 2.50, -Math.PI / 2), 0.80); panel(mtx(L - T, e, 6.20, -Math.PI / 2), 0.80); panel(mtx(4.20, e, D - T, Math.PI), 0.80); panel(mtx(7.90, e, D - T, Math.PI), 0.70);
+  // RDC, plan travaux v3 p. 9 (RBT vertical, 60 cm, robinet dessiné) : entrée x 0,56 → 1,16 contre le WC, robinet au sud ; séjour ouest x 4,36 → 4,96, robinet au sud ;
+  // séjour sud z 3,80 → 4,40, robinet côté porte-fenêtre puis 15 cm (coté) jusqu'au tableau
+  fassane(mtx(0.56, 0, 1.43, 0), 0.60, true); fassane(mtx(4.96, 0, D - T, Math.PI), 0.60); fassane(mtx(L - T, 0, 3.80, -Math.PI / 2), 0.60, true);
+  // Radson Ramo de l'étage : 90 cm aux emplacements du plan étage (PT p. 10) : ch. 1 z 2,42 → 3,32, ch. 2 z 6,09 → 6,99, ch. 3 x 3,37 → 4,27, bureau x 7,12 → 8,02
+  panel(mtx(L - T, e, 2.42, -Math.PI / 2), 0.90); panel(mtx(L - T, e, 6.09, -Math.PI / 2), 0.90); panel(mtx(4.27, e, D - T, Math.PI), 0.90); panel(mtx(8.02, e, D - T, Math.PI), 0.90);
 }
 
 // ---------------------------------------------------------------- garage, entrée
 // Lave-linge frontal 60 cm, collé à 1 cm de la cloison du garage (x 6,40 → 7,00) : carrosserie arrondie, bandeau (bac à lessive, sélecteur, afficheur), hublot (anneau, verre bombé, soufflet, tambour)
 function garage() {
-  const K = new Kit('furn0', mtx(6.70, -0.13, 0.22)), W = 'white', zf = 0.585, dy = 0.38;
+  const K = new Kit('furn0', mtx(6.70, -0.13, 0.36)), W = 'white', zf = 0.585, dy = 0.38; // dos contre le doublage du mur est (z 0,36, plan p. 9)
   for (const x of [-0.25, 0.25]) for (const z of [0.06, 0.52]) K.g('mobGrey', new THREE.CylinderGeometry(0.02, 0.02, 0.012, 12), x, 0.006, z);
   K.soft(W, -0.298, 0.298, 0.012, 0.83, 0.01, zf - 0.11, 0.014, { nI: [2, 3, 2] });
   { const sh = new THREE.Shape([[-0.298, 0.012], [0.298, 0.012], [0.298, 0.70], [-0.298, 0.70]].map(([x, y]) => new THREE.Vector2(x, y))); const h = new THREE.Path(); h.absarc(0, dy, 0.15, 0, Math.PI * 2, true); sh.holes.push(h);

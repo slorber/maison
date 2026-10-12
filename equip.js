@@ -68,10 +68,11 @@ const FONT = 'Helvetica, Arial, "Liberation Sans", "DejaVu Sans", sans-serif';
 
 // ---------------------------------------------------------------- PAC : module intérieur (ballon ECS intégré), garage, dos au mur est
 // 1863 × 648 × 700 mm, posé sur la dalle du local technique (−0,13), façade vers l'ouest (+Z), à 5 cm du lave-linge (collé à 1 cm de la cloison du garage),
+// dos à 6 cm du doublage du mur est comme sur le plan RDC des plans travaux v3 p. 9 (PAC dessinée z 0,42 → 1,12 ; doublage z 0,22 → 0,36),
 // nourrice à sa gauche contre la cloison de l'entrée ; interface en bas à droite comme sur la photo Atlantic
 function pacInterieure(ctx) {
   const { A, M, SH, H } = ctx, L0 = 'furn0';
-  const w = 0.648, d = 0.700, h = 1.863, x0 = 5.702, x1 = x0 + w, y0 = -0.13, yt = y0 + h, z0 = SH, z1 = z0 + d, r = 0.032, bv = 0.006, pl = 0.02;
+  const w = 0.648, d = 0.700, h = 1.863, x0 = 5.702, x1 = x0 + w, y0 = -0.13, yt = y0 + h, z0 = 0.42, z1 = z0 + d, r = 0.032, bv = 0.006, pl = 0.02;
   // caisson : rectangle à angles verticaux arrondis (R 32) extrudé, arêtes haute et basse adoucies, socle en retrait de 2 cm
   const s = new THREE.Shape(), a = w / 2 - bv, b = d / 2 - bv, rr = r - bv;
   s.moveTo(-a + rr, -b); s.lineTo(a - rr, -b); s.absarc(a - rr, -b + rr, rr, -Math.PI / 2, 0); s.lineTo(a, b - rr); s.absarc(a - rr, b - rr, rr, 0, Math.PI / 2);
@@ -97,7 +98,7 @@ function pacInterieure(ctx) {
   plane(ctx, L0, std2({ map: atl, roughness: 0.17 }), 0.036, 0.216, x1 + 0.0007, yt - 0.165, z1 - 0.052, '+x');
   // raccordements en partie haute vers le plafond du garage : départ / retour chauffage (isolés), eau froide / ECS (cuivre),
   // liaisons frigorifiques gaz et liquide (isolant noir) vers l'unité extérieure, gaine électrique
-  const yc = H.rdcCeil, zc = z0 + 0.11;
+  const yc = H.garageCeil, zc = z0 + 0.11; // plafond du garage et du local technique +2,40 (coupe AA : 2,53 sous plafond depuis −0,13)
   for (const [xr, rad, m] of [[0.10, 0.0225, M.pipeGrey], [0.185, 0.0225, M.pipeGrey], [0.265, 0.011, M.copper], [0.325, 0.011, M.copper], [0.435, 0.0175, M.pipeIns], [0.505, 0.0125, M.pipeIns], [0.58, 0.01, M.pipeGrey]]) {
     const x = x0 + xr;
     mk(ctx, L0, new THREE.CylinderGeometry(rad, rad, yc - yt + 0.006, 16), m, x, (yt - 0.006 + yc) / 2, zc);
@@ -107,7 +108,7 @@ function pacInterieure(ctx) {
 }
 const std2 = o => new THREE.MeshStandardMaterial(o);
 
-// ---------------------------------------------------------------- nourrice du local technique (plan travaux v3) : sur la cloison de l'entrée (x 5,31), entre z 0,43 et 1,07, à gauche de la PAC
+// ---------------------------------------------------------------- nourrice du local technique (plan travaux v3 p. 9) : sur la cloison de l'entrée (x 5,31), entre z 0,40 et 1,04, à gauche de la PAC
 // Entre 1,00 et 1,70 m au-dessus du sol du local (−0,13) : arrivée d'eau montant du vide sanitaire, vanne générale à levier rouge, réducteur de pression et manomètre,
 // puis deux collecteurs laiton horizontaux à vannes quart de tour : eau froide en haut (6 départs, poignées et PER bleus), eau chaude sanitaire en bas
 // (5 départs, poignées et PER rouges) alimentée par le ballon de la PAC depuis le plafond ; départs PER descendant vers le vide sanitaire.
@@ -118,7 +119,7 @@ function nourrice(ctx) {
   const add = (m, g) => (G[m] = G[m] || []).push(g);
   const cyl = (m, r, l, x, y, z, ax, seg = 14) => { const g = new THREE.CylinderGeometry(r, r, l, seg); if (ax === 'z') g.rotateX(Math.PI / 2); if (ax === 'x') g.rotateZ(Math.PI / 2); g.translate(x, y, z); add(m, g); };
   const cY = (m, r, y0, y1, x, z) => cyl(m, r, y1 - y0, x, (y0 + y1) / 2, z), cZ = (m, r, z0, z1, x, y) => cyl(m, r, z1 - z0, x, y, (z0 + z1) / 2, 'z');
-  const za = 0.50, zb = 1.02, zi = 0.43, zr = 1.07, dz = 0.088;
+  const za = 0.47, zb = 0.99, zi = 0.40, zr = 1.04, dz = 0.088;
   const EF = { y: yF + 1.50, x: xw + 0.085, m: 'perBleu', n: 6, z0: za + 0.04 }, EC = { y: yF + 1.16, x: xw + 0.052, m: 'perRouge', n: 5, z0: za + 0.04 + dz / 2 };
   for (const r of [EF, EC]) {
     cZ('laiton', 0.016, za, zb, r.x, r.y); cZ('laiton', 0.019, zb, zb + 0.012, r.x, r.y); // collecteur 1" et bouchon
@@ -137,7 +138,7 @@ function nourrice(ctx) {
   cyl('laiton', 0.031, 0.02, EF.x + 0.055, yF + 1.30, zi, 'x', 24); cyl('manoFace', 0.026, 0.003, EF.x + 0.0665, yF + 1.30, zi, 'x', 24); // manomètre
   cY('laiton', 0.016, yF + 1.24, EF.y, EF.x, zi); cZ('laiton', 0.016, zi, za, EF.x, EF.y);
   // eau chaude sanitaire du ballon de la PAC : descente PER rouge depuis le plafond, coude dans le collecteur bas
-  cY('perRouge', 0.0095, EC.y, H.rdcCeil, EC.x, zr); cZ('perRouge', 0.0095, zb + 0.012, zr, EC.x, EC.y);
+  cY('perRouge', 0.0095, EC.y, H.garageCeil, EC.x, zr); cZ('perRouge', 0.0095, zb + 0.012, zr, EC.x, EC.y);
   for (const k in G) mk(ctx, L0, mergeGeometries(G[k]), M[k]);
 }
 
@@ -212,10 +213,11 @@ function pacExterieure(ctx) {
 }
 
 // ---------------------------------------------------------------- spots LED encastrés (Ø 8,5 cm) et leurs lumières
-// 2 dans le dressing (axe de l'allée entre les placards), 2 dans la salle d'eau parentale (axe de la pièce, aux quarts)
+// positions du plan électrique étage (plans travaux v3 p. 13, non cotées, relevées à l'échelle) : dans chaque pièce l'attente spot et le point de centre ;
+// dressing : (7,38 ; 0,96) entre les placards et (7,38 ; 2,04) ; salle d'eau parentale : (5,59 ; 0,85) au-dessus de la cabine et (5,605 ; 2,00)
 function spots(ctx) {
   const { M, H, roomLights, hooks } = ctx, yc = H.r1Ceil, lights = [];
-  const pts = [[6.87, 1.705, 1.0], [7.88, 1.705, 1.0], [5.595, 1.045, 0.8], [5.595, 2.415, 0.8]];
+  const pts = [[7.38, 0.96, 1.0], [7.38, 2.04, 1.0], [5.59, 0.85, 0.8], [5.605, 2.00, 0.8]];
   const trim = new THREE.CylinderGeometry(0.0425, 0.0425, 0.005, 32, 1, true);
   const ring = new THREE.RingGeometry(0.031, 0.0425, 32); ring.rotateX(Math.PI / 2);
   const led = new THREE.CircleGeometry(0.031, 32); led.rotateX(Math.PI / 2);
@@ -235,7 +237,7 @@ function spots(ctx) {
 // Découpé au niveau du plancher de l'étage : la partie basse dans 'rdc', la partie haute dans 'r1' (vues en coupe).
 function gardeCorps(ctx) {
   const { A, E1 } = ctx, mat = 'ral7016';
-  const rise = E1 / 16, xs = 1.31, zj = 3.27, go = (3.91 - xs) / 11, ov = 0.02;
+  const rise = E1 / 16, xs = 1.26, zj = 3.27, go = (3.91 - xs) / 11, ov = 0.02; // xs, go : comme buildStair (main.js)
   const yN = x => rise * (5 + (x + ov - xs) / go), yH = x => yN(x) + 0.90; // ligne des nez au jour, dessus de main courante
   const zp0 = zj - 0.052, zp1 = zj - 0.012, zc = (zp0 + zp1) / 2;
   const prism = (layer, x0, x1, z0, z1, yb0, yb1, yt0, yt1) => prismX(A, layer, mat, x0, x1, z0, z1, yb0, yb1, yt0, yt1);
@@ -253,7 +255,7 @@ function gardeCorps(ctx) {
   };
   const box = (x0, x1, y0, y1, z0, z1) => part(x0, x1, z0, z1, y0, y0, y1, y1);
   // main courante plate 40×10, du poteau de départ au poteau d'arrivée
-  const xd = 1.315, xa = 3.85;
+  const xd = xs + 0.005, xa = 3.85; // poteau de départ au jour de la partie basse (x 1,26)
   part(xd, xa, zp0, zp1, yH(xd) - 0.01, yH(xa) - 0.01, yH(xd), yH(xa));
   // poteau de départ sur platine (marche 1), patte sur la joue de la marche 2
   box(xd - 0.03, xd + 0.07, rise, rise + 0.008, zp0 - 0.028, zj - 0.002);

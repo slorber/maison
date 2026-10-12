@@ -465,7 +465,9 @@ function wall(layer, axis, c0, c1, a0, a1, y0, y1, openings, mats) {
 }
 
 // ---------------------------------------------------------------- données du plan (plans travaux v3, relevés en vectoriel)
-const H = { rdcCeil: 2.50, r1Floor: 2.87, r1Ceil: 5.37, wallTop: 5.60, eave: 5.67, ridge: 8.54 };
+// coupe AA (p. 11) : plafond RDC 2,50, plafond du garage 2,40 (2,53 au-dessus du sol du garage à −0,13), plancher étage +2,87, plafond étage +5,37,
+// arase des murs +5,51 ; égout +5,67 (façades p. 6 et coupe), +5,78 côté est (gouttière havraise en limite), faîtage +8,54
+const H = { rdcCeil: 2.50, garageCeil: 2.40, r1Floor: 2.87, r1Ceil: 5.37, wallTop: 5.51, eave: 5.67, eaveE: 5.78, ridge: 8.54 };
 const L = 12.90, D = 7.90, T = 0.36, SH = 0.22; // longueur, profondeur, murs 36 cm (brique 20 + enduit, doublage 14)
 const E1 = H.r1Floor;
 // faces : axis, F (plan extérieur), s (sens sortant)
@@ -475,7 +477,7 @@ const OPEN = {
   W: [
     { a0: 2.04, a1: 3.44, y0: 1.10, y1: 2.15, t: 'win', n: 2, lvl: 0, vr: 1 }, // cuisine
     { a0: 5.55, a1: 7.35, y0: 0, y1: 2.15, t: 'baie', n: 2, lvl: 0, vr: 1 }, // porte-fenêtre 2 vantaux du séjour, serrure barillet
-    { a0: 9.45, a1: 10.85, y0: 1.10, y1: 2.15, t: 'win', n: 2, lvl: 0, vr: 1 },
+    { a0: 9.46, a1: 10.86, y0: 1.10, y1: 2.15, t: 'win', n: 2, lvl: 0, vr: 1 }, // séjour : 2,04 + 1,40 + 2,11 + 1,80 + 2,11 = 9,46 (plan p. 9, symétrique de la cuisine)
     { a0: 2.24, a1: 3.24, y0: 3.57, y1: 5.02, t: 'win', n: 2, lvl: 1, vr: 1, gc: 1 },
     { a0: 5.95, a1: 6.95, y0: 3.57, y1: 5.02, t: 'win', n: 2, lvl: 1, vr: 1, gc: 1 },
     { a0: 9.66, a1: 10.66, y0: 3.57, y1: 5.02, t: 'win', n: 2, lvl: 1, vr: 1, gc: 1 },
@@ -518,7 +520,7 @@ function buildShell() {
     wall(layer, 'z', 0, SH, 0, D, y0, y1, ops('N'), { neg: null, pos: 'garageWall', end: 'lisse', top });
     wall(layer, 'z', L - SH, L, 0, D, y0, y1, ops('S'), { neg: 'garageWall', pos: null, end: 'lisse', top });
     wall(layer, 'x', D - SH, D, SH, L - SH, y0, y1, ops('W'), { neg: 'garageWall', pos: null, end: 'lisse', top });
-    wall(layer, 'x', 0, SH, SH, L - SH, y0, lv ? H.eave : y1, [], { neg: null, pos: 'garageWall', end: 'lisse', top });
+    wall(layer, 'x', 0, SH, SH, L - SH, y0, lv ? H.eaveE : y1, [], { neg: null, pos: 'garageWall', end: 'lisse', top });
     // doublage 14 cm des pièces chauffées (pas de doublage côté garage)
     const iy0 = lv ? H.r1Floor : 0, iy1 = lv ? H.r1Ceil : H.r1Floor;
     const P = { neg: 'paint', pos: 'paint', end: 'paint', top: 'cut' };
@@ -530,6 +532,8 @@ function buildShell() {
     } else {
       wall(layer, 'z', L - T, L - SH, 3.30, D - SH, iy0, iy1, ops('S'), P);
       wall(layer, 'x', SH, T, T, 5.16, iy0, iy1, [], P);
+      // local technique : le plan p. 9 prolonge le doublage du mur est de x 5,31 à 7,01 (bout de la cote 1,70) ; garage 21,36 m² = 7,37 × 2,93 − 1,70 × 0,14
+      wall(layer, 'x', SH, T, 5.31, 7.01, -0.13, H.garageCeil, [], P);
     }
   }
   // peau d'enduit continue sur toute la hauteur (et version coupée à +2,87 pour la vue du RDC)
@@ -539,13 +543,13 @@ function buildShell() {
     wall(layer, 'z', -e, 0, -e, D + e, -0.6, t, ops('N'), { neg: 'enduit', pos: null, end: null, top: null, bottom: null });
     wall(layer, 'z', L, L + e, -e, D + e, -0.6, t, ops('S'), { neg: null, pos: 'enduit', end: null, top: null, bottom: null });
     wall(layer, 'x', D, D + e, -e, L + e, -0.6, t, ops('W'), { neg: null, pos: 'enduit', end: null, top: null, bottom: null });
-    wall(layer, 'x', -e, 0, -e, L + e, -0.6, top || H.eave, [], { neg: 'enduit', pos: null, end: null, top: null, bottom: null });
+    wall(layer, 'x', -e, 0, -e, L + e, -0.6, top || H.eaveE, [], { neg: 'enduit', pos: null, end: null, top: null, bottom: null });
   }
   // 4 chaînes d'angle droites lissées à l'éponge (30 cm sur chaque face)
   const q = 0.30, p = 0.02, yb = -0.6, yt = H.wallTop;
   for (const [face, a0, a1] of [['W', 0, q], ['W', L - q, L], ['E', 0, q], ['E', L - q, L], ['N', 0, q], ['N', D - q, D], ['S', 0, q], ['S', D - q, D]]) {
     LB(face, 'rdc', a0, a1, yb, H.r1Floor, -p, 0, 'lisse');
-    LB(face, 'r1', a0, a1, H.r1Floor, face === 'E' ? H.eave : yt, -p, 0, 'lisse');
+    LB(face, 'r1', a0, a1, H.r1Floor, face === 'E' ? H.eaveE : yt, -p, 0, 'lisse');
   }
   // 17 encadrements d'ouvertures lissés, appuis, menuiseries
   for (const face of ['W', 'N', 'S']) for (const o of OPEN[face]) { encadrement(face, o); menuiserie(face, o); }
@@ -710,6 +714,8 @@ function buildInterior() {
   A.box('slab1', SH, L - SH, H.rdcCeil, yS, SH, 3.17, sl);
   A.box('slab1', SH, L - SH, H.rdcCeil, yS, 4.17, D - SH, sl);
   A.box('slab1', 3.91, L - SH, H.rdcCeil, yS, 3.17, 4.17, sl);
+  // plafond du garage et du local technique à +2,40 (coupe AA : 2,53 sous plafond depuis le sol à −0,13, isolant 7/20 sous la dalle)
+  A.box('slab1', 5.31, L - SH, H.garageCeil, H.rdcCeil, SH, 3.15, sl);
   // jour de 10 cm laissé vide entre la cloison de la salle de bains (z 3,17) et la joue de l'escalier (z 3,27)
   // parquet partout à l'étage, carrelage 60×60 dans les pièces d'eau (posé par-dessus)
   const pq = { py: 'parquet', def: 'ceiling' };
@@ -719,47 +725,52 @@ function buildInterior() {
   const tw = { py: 'tileW', def: 'ceiling' };
   A.box('slab1', T, 3.86, yS + 0.004, H.r1Floor, T, 3.10, tw); // bains
   A.box('slab1', 3.93, 4.83, yS + 0.004, H.r1Floor, T, 2.11, tw); // WC
-  A.box('slab1', 4.90, 6.29, yS + 0.004, H.r1Floor, T, 3.10, tw); // douche
+  A.box('slab1', 4.90, 6.31, yS + 0.004, H.r1Floor, T, 3.10, tw); // douche (1,41 × 2,74 = 3,86 m²)
   // plafond étage + isolant
   A.box('ceil1', T, L - T, H.r1Ceil, H.r1Ceil + 0.12, T, D - T, { ny: 'ceiling', py: 'insul', def: 'ceiling' });
 
   const P = { neg: 'paint', pos: 'paint', end: 'paint', top: 'cut' };
   const d0 = 2.04;
   // cloisons RDC
-  wall('rdc', 'x', 1.36, 1.43, T, 2.43, 0, H.rdcCeil, [{ a0: 1.38, a1: 2.11, y0: 0, y1: d0 }], P); // WC / entrée
+  wall('rdc', 'x', 1.36, 1.43, T, 2.43, 0, H.rdcCeil, [{ a0: 1.33, a1: 2.16, y0: 0, y1: d0 }], P); // WC / entrée (PP 73 : baie x 1,33 → 2,16, plan p. 9)
   wall('rdc', 'z', 2.36, 2.43, T, 1.43, 0, H.rdcCeil, [], P); // WC / placard
   A.box('rdc', 2.43, 2.65, 0, H.rdcCeil, 0.99, 1.43, 'paint'); // gaine colonnes WC et bains
-  wall('rdc', 'z', 5.16, 5.31, SH, 3.30, -0.13, H.rdcCeil, [{ a0: 1.42, a1: 2.30, y0: 0, y1: d0 }], { neg: 'paint', pos: 'garageWall', end: 'paint', top: 'cut' }); // entrée / garage
+  wall('rdc', 'z', 5.16, 5.31, SH, 3.30, -0.13, H.rdcCeil, [{ a0: 1.36, a1: 2.29, y0: 0, y1: d0 }], { neg: 'paint', pos: 'garageWall', end: 'paint', top: 'cut' }); // entrée / garage (ISO 83 : baie z 1,36 → 2,29, plan p. 9)
   wall('rdc', 'x', 3.15, 3.30, 5.31, L - SH, -0.13, H.rdcCeil, [], { neg: 'garageWall', pos: 'paint', end: 'paint', top: 'cut' }); // garage / séjour
   // cloison 7 cm à 1,70 m de la porte entrée / garage, juste après le lave-linge : local technique (PAC, lave-linge, nourrice, tableau) / garage,
   // porte de service côté conducteur de la voiture, tableau ouest à 60 cm de la cloison du séjour (z 3,15) : passage 1,67 → 2,55 (client, 12/10)
-  wall('rdc', 'z', 7.01, 7.08, SH, 3.15, -0.13, H.rdcCeil, [{ a0: 1.67, a1: 2.55, y0: -0.13, y1: -0.13 + d0 }], { neg: 'garageWall', pos: 'garageWall', end: 'garageWall', top: 'cut' });
+  wall('rdc', 'z', 7.01, 7.08, SH, 3.15, -0.13, H.garageCeil, [{ a0: 1.67, a1: 2.55, y0: -0.13, y1: -0.13 + d0 }], { neg: 'garageWall', pos: 'garageWall', end: 'garageWall', top: 'cut' });
   // poteaux BA 25 × 25 du garage (plan travaux v3 p. 9), contre la cloison du séjour sous la poutre BA : à l'angle du local technique et
   // au droit du garage ; le troisième est noyé dans le jambage de la porte de garage (mur sud)
-  for (const x0 of [5.31, 8.43]) A.box('rdc', x0, x0 + 0.25, -0.13, H.rdcCeil, 2.90, 3.15, 'garageWall');
+  for (const x0 of [5.31, 8.43]) A.box('rdc', x0, x0 + 0.25, -0.13, H.garageCeil, 2.90, 3.15, 'garageWall');
   wall('rdc', 'x', 4.17, 4.24, T, 3.86, 0, H.rdcCeil, [], P); // escalier / cuisine
   wall('rdc', 'z', 3.79, 3.86, 4.24, 4.89, 0, H.rdcCeil, [], P); // retour cuisine
   // cloisons étage
   const e = E1, c = H.r1Ceil, d1 = e + d0;
   wall('r1', 'x', 3.10, 3.17, T, 3.86, e, c, [], P); // bains / escalier
-  wall('r1', 'z', 3.86, 3.93, T, 3.17, e, c, [{ a0: 2.28, a1: 3.03, y0: e, y1: d1 }], P); // bains / WC
+  wall('r1', 'z', 3.86, 3.93, T, 3.17, e, c, [{ a0: 2.22, a1: 3.05, y0: e, y1: d1 }], P); // bains / dégagement (PP 73 : baie z 2,22 → 3,05)
   wall('r1', 'z', 4.83, 4.90, T, 3.17, e, c, [], P); // WC / douche
-  wall('r1', 'x', 2.11, 2.18, 3.93, 4.83, e, c, [{ a0: 4.03, a1: 4.75, y0: e, y1: d1 }], P);
-  wall('r1', 'z', 6.29, 6.37, T, 3.10, e, c, [{ a0: 1.62, a1: 2.42, y0: e, y1: d1 }], P); // douche / dressing (passage, plan p. 10 : z 1,62 → 2,42)
+  wall('r1', 'x', 2.11, 2.18, 3.93, 4.83, e, c, [{ a0: 3.97, a1: 4.80, y0: e, y1: d1 }], P); // WC (1,75 de profondeur) : PP 73, baie x 3,97 → 4,80
+  wall('r1', 'z', 6.31, 6.38, T, 3.10, e, c, [{ a0: 1.62, a1: 2.42, y0: e, y1: d1 }], P); // douche / dressing (douche 1,41, dressing 2,00 ; passage, plan p. 10 : z 1,62 → 2,42)
   wall('r1', 'x', 3.10, 3.17, 4.90, 9.14, e, c, [], P);
-  wall('r1', 'z', 8.38, 8.45, T, 3.10, e, c, [{ a0: 1.65, a1: 2.38, y0: e, y1: d1 }], P); // dressing / chambre 1
-  wall('r1', 'z', 9.07, 9.14, 3.17, 4.17, e, c, [{ a0: 3.35, a1: 4.10, y0: e, y1: d1 }], P); // palier / chambre 1
-  wall('r1', 'x', 4.17, 4.24, T, L - T, e, c, [{ a0: 4.19, a1: 4.94, y0: e, y1: d1 }, { a0: 7.25, a1: 7.98, y0: e, y1: d1 }, { a0: 8.26, a1: 8.98, y0: e, y1: d1 }], P);
+  wall('r1', 'z', 8.38, 8.45, T, 3.10, e, c, [{ a0: 1.62, a1: 2.45, y0: e, y1: d1 }], P); // dressing / chambre 1 (PP 73 : baie z 1,62 → 2,45)
+  wall('r1', 'z', 9.07, 9.14, 3.17, 4.17, e, c, [{ a0: 3.29, a1: 4.12, y0: e, y1: d1 }], P); // palier / chambre 1 (PP 73 : baie z 3,29 → 4,12)
+  wall('r1', 'x', 4.17, 4.24, T, L - T, e, c, [{ a0: 4.14, a1: 4.97, y0: e, y1: d1 }, { a0: 7.19, a1: 8.02, y0: e, y1: d1 }, { a0: 8.19, a1: 9.02, y0: e, y1: d1 }], P); // PP 73 des chambres 3, 2 et du bureau
   wall('r1', 'z', 5.02, 5.09, 4.24, D - T, e, c, [], P); // chambre 3 / bureau
   wall('r1', 'z', 8.07, 8.14, 4.24, D - T, e, c, [], P); // bureau / chambre 2
-  A.box('r1', 3.93, 4.08, e, c, T, 0.57, 'paint'); // décompression WC
+  A.box('r1', 3.93, 4.15, e, c, T, 0.58, 'paint'); // coffre de décompression WC 22 × 22 (plan p. 10 ; WC 0,90 × 1,75 − 0,22² = 1,53 m²)
+  A.box('r1', T, 0.58, e, c, T, 0.58, 'paint'); // coffre VMC du WC du RDC, angle nord-est des bains, 22 × 22 (bains 3,50 × 2,74 − 0,22² = 9,54 m²)
+  A.box('r1', T, 0.63, e, c, 7.27, D - T, 'paint'); // coffre VMC de la cuisine, angle nord-ouest de la chambre 3, 27 × 27 (plan p. 10)
+  // trappe d'accès aux combles 60 × 60 au plafond du bureau (plan p. 10 : x 5,19 → 5,79, z 4,34 → 4,94)
+  A.box('ceil1', 5.19, 5.79, H.r1Ceil - 0.012, H.r1Ceil - 0.002, 4.34, 4.94, 'white'); A.box('ceil1', 5.23, 5.75, H.r1Ceil - 0.016, H.r1Ceil - 0.012, 4.38, 4.90, 'white');
   A.box('r1', 8.21, 8.38, e, c, 2.50, 3.10, 'paint'); // coffre vide garage → combles (plan p. 10 : x 8,21 → cloison, z 2,50 → 3,10), joue contre le placard du dressing côté palier
 
   // portes intérieures Righini Graphik (choix client) : [calque, axe du mur, milieu du mur, charnière, autre montant, sol, sens d'ouverture, épaisseur du mur]
+  // baies brutes des plans p. 9 et 10 (0,83 pour les PP 73, 0,93 pour l'ISO 83), vantaux de 73 / 83 cm dans des huisseries d'environ 5 cm
   buildDoors([
-    ['rdc', 'x', 1.395, 2.11, 1.38, 0, 1, 0.07], ['rdc', 'z', 5.235, 1.42, 2.30, 0, -1, 0.15], ['rdc', 'z', 7.045, 1.67, 2.55, -0.13, -1, 0.07], // porte de service, ouvrant côté local technique
-    ['r1', 'z', 3.895, 3.03, 2.28, e, -1, 0.07], ['r1', 'x', 2.145, 4.75, 4.03, e, 1, 0.07], ['r1', 'z', 8.415, 1.65, 2.38, e, 1, 0.07],
-    ['r1', 'z', 9.105, 4.10, 3.35, e, 1, 0.07], ['r1', 'x', 4.205, 4.94, 4.19, e, 1, 0.07], ['r1', 'x', 4.205, 7.98, 7.25, e, 1, 0.07], ['r1', 'x', 4.205, 8.26, 8.98, e, 1, 0.07],
+    ['rdc', 'x', 1.395, 2.16, 1.33, 0, 1, 0.07, 0.73], ['rdc', 'z', 5.235, 1.36, 2.29, 0, -1, 0.15, 0.83], ['rdc', 'z', 7.045, 1.67, 2.55, -0.13, -1, 0.07, 0.83], // porte de service, ouvrant côté local technique
+    ['r1', 'z', 3.895, 3.05, 2.22, e, -1, 0.07, 0.73], ['r1', 'x', 2.145, 4.80, 3.97, e, 1, 0.07, 0.73], ['r1', 'z', 8.415, 1.62, 2.45, e, 1, 0.07, 0.73],
+    ['r1', 'z', 9.105, 4.12, 3.29, e, 1, 0.07, 0.73], ['r1', 'x', 4.205, 4.97, 4.14, e, 1, 0.07, 0.73], ['r1', 'x', 4.205, 8.02, 7.19, e, 1, 0.07, 0.73], ['r1', 'x', 4.205, 8.19, 9.02, e, 1, 0.07, 0.73],
   ]);
   buildClosets();
 
@@ -772,24 +783,25 @@ function buildInterior() {
 function buildDoors(list) {
   const hd = 2.04, t = 0.04, jb = 0.02, gap = 0.003, grooves = [0.43, 0.86, 1.29, 1.71];
   const mesh = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, M[m]); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
-  for (const [ly, ax, cc, h, o, y, side, tw] of list) {
+  for (const [ly, ax, cc, h, o, y, side, tw, lw] of list) {
     const sg = Math.sign(o - h), fl = ly; // portes rangées avec les murs de leur niveau (pas avec le mobilier)
+    const js = lw ? (Math.abs(o - h) - lw) / 2 - gap : jb; // montants d'huisserie : la baie brute moins le vantail nominal (73 / 83) et les jeux
     const UB = (u0, u1, y0, y1, w0, w1, m) => { const [a0, a1] = [Math.min(u0, u1), Math.max(u0, u1)], [b0, b1] = [Math.min(w0, w1), Math.max(w0, w1)];
       if (ax === 'x') A.box(fl, a0, a1, y0, y1, b0, b1, m); else A.box(fl, b0, b1, y0, y1, a0, a1, m); };
     // huisserie dans l'épaisseur du mur, chambranles de 6 cm sur les deux faces
-    UB(h, h + sg * jb, y, y + hd, cc - tw / 2 - 0.002, cc + tw / 2 + 0.002, 'doorFrame');
-    UB(o - sg * jb, o, y, y + hd, cc - tw / 2 - 0.002, cc + tw / 2 + 0.002, 'doorFrame');
+    UB(h, h + sg * js, y, y + hd, cc - tw / 2 - 0.002, cc + tw / 2 + 0.002, 'doorFrame');
+    UB(o - sg * js, o, y, y + hd, cc - tw / 2 - 0.002, cc + tw / 2 + 0.002, 'doorFrame');
     UB(h, o, y + hd - jb, y + hd, cc - tw / 2 - 0.002, cc + tw / 2 + 0.002, 'doorFrame');
     for (const sf of [1, -1]) { const f = cc + sf * tw / 2, f1 = f + sf * 0.012;
       UB(h - sg * 0.045, h + sg * 0.015, y, y + hd + 0.045, f, f1, 'doorFrame'); UB(o - sg * 0.015, o + sg * 0.045, y, y + hd + 0.045, f, f1, 'doorFrame');
       UB(h + sg * 0.015, o - sg * 0.015, y + hd - 0.015, y + hd + 0.045, f, f1, 'doorFrame'); }
     // vantail : repère local x = largeur (de la charnière vers la serrure), z = vers le côté d'ouverture, pivot sur l'arête de la charnière
     const U = ax === 'x' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1), Wv = ax === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
-    const pu = h + sg * (jb + gap), pw = cc + side * tw / 2;
+    const pu = h + sg * (js + gap), pw = cc + side * tw / 2;
     const outer = new THREE.Group(); const mtx = new THREE.Matrix4().makeBasis(U.clone().multiplyScalar(sg), new THREE.Vector3(0, 1, 0), Wv.clone().multiplyScalar(side));
     mtx.setPosition(ax === 'x' ? new THREE.Vector3(pu, y, pw) : new THREE.Vector3(pw, y, pu)); mtx.decompose(outer.position, outer.quaternion, outer.scale);
     const g = new THREE.Group(); outer.add(g); groups[fl].add(outer);
-    const wd = Math.abs(o - h) - 2 * (jb + gap), lh = hd - jb - 0.012, meshes = [];
+    const wd = Math.abs(o - h) - 2 * (js + gap), lh = hd - jb - 0.012, meshes = [];
     // rainures dessinées dans une texture mipmappée des deux faces du vantail : les filets en relief (5 mm de haut, métalliques, 0,8 mm devant la laque)
     // tombaient sous le pixel et scintillaient au moindre mouvement de la vue ; chants du vantail renvoyés sur une zone unie de la texture
     if (!M.doorLeaf.map) { const cv = document.createElement('canvas'); cv.width = 4; cv.height = 2048; const cx = cv.getContext('2d'); cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, 4, 2048);
@@ -833,13 +845,13 @@ function buildClosets() {
   wall('r1', 'x', 5.22, 5.29, 4.37, 5.02, e, c, [], P);
   // dressing et chambre 1 (plan p. 10) : deux placards de 62 cm face à face de part et d'autre d'une allée de 80 cm, placard de la chambre 1
   // dans l'angle nord-est, chacun fermé côté ouest par un retour de 7 cm (plan p. 10 : z 1,50 → 1,57)
-  wall('r1', 'x', 1.50, 1.57, 6.37, 6.99, e, c, [], P); wall('r1', 'x', 1.50, 1.57, 7.79, 8.38, e, c, [], P); wall('r1', 'x', 1.50, 1.57, 8.45, 9.10, e, c, [], P);
+  wall('r1', 'x', 1.50, 1.57, 6.38, 6.98, e, c, [], P); wall('r1', 'x', 1.50, 1.57, 7.78, 8.38, e, c, [], P); wall('r1', 'x', 1.50, 1.57, 8.45, 9.10, e, c, [], P);
   const list = [
     ['rdc', 'z', 1.09, 2.65, 5.16, 0, H.rdcCeil, 1, 0.73, 'E', 2.43], // entrée : 2,73 × 0,65 (z 0,36 → 1,01) derrière le coffrage des colonnes WC / bains, façade de 8 cm devant, entre le coffrage et la cloison du garage
     ['r1', 'x', 9.10, 0.36, 1.50, e, c, 1, 0.65, 'P'], // chambre 1, dans l'angle contre le dressing
-    ['r1', 'x', 7.79, 0.36, 1.50, e, c, -1, 0.59, 'P'], // dressing, placard côté chambre 1
-    ['r1', 'x', 6.99, 0.36, 1.50, e, c, 1, 0.62, 'P'], // dressing, placard côté salle d'eau
-    ['r1', 'z', 2.50, 6.37, 8.21, e, c, -1, 0.60, 'M'], // dressing, côté palier : 1,84 × 0,60 jusqu'au coffre du garage (plan : nu à z 2,50)
+    ['r1', 'x', 7.78, 0.36, 1.50, e, c, -1, 0.60, 'P'], // dressing, placard côté chambre 1 (nu à x 7,78, plan p. 10)
+    ['r1', 'x', 6.98, 0.36, 1.50, e, c, 1, 0.60, 'P'], // dressing, placard côté salle d'eau (nu à x 6,98, plan p. 10)
+    ['r1', 'z', 2.50, 6.38, 8.21, e, c, -1, 0.60, 'M'], // dressing, côté palier : 1,83 × 0,60 jusqu'au coffre du garage (plan : nu à z 2,50)
     ['r1', 'x', 8.79, 5.29, D - T, e, c, 1, 0.65, 'M'], // chambre 2
     ['r1', 'x', 4.37, 5.29, D - T, e, c, -1, 0.65, 'M'], // chambre 3
   ];
@@ -887,11 +899,12 @@ function buildClosets() {
 }
 
 // ---------------------------------------------------------------- escalier
-// Béton 1/4 tournant bas des plans travaux v3 (16 hauteurs de 17,9 cm, nez de la marche 1 à 31 cm du tableau de porte,
-// arrivée +2,87) dans la version retenue par les clients : marche 1 débordante à angle arrondi, marches 2 à 5 légèrement
+// Béton 1/4 tournant bas des plans travaux v3 (16 hauteurs de 17,9 cm, nez de la marche 1 à 31 cm du tableau de porte, emmarchement 90
+// dans les deux volées : jour de la partie basse à x 1,26 (0,36 + 0,90, poteau du plan p. 10), volée droite de z 3,27 à 4,17 ; giron de la volée
+// droite ≈ 24 cm (nez des marches 6 à 15 du plan à x 1,51 … 3,67), arrivée à x 3,91 / +2,87) dans la version retenue par les clients : marche 1 débordante à angle arrondi, marches 2 à 5 légèrement
 // balancées, marches en chêne clair, contremarches, joue et sous-face peintes, plinthe à crémaillère.
 function buildStair() {
-  const rise = H.r1Floor / 16, xs = 1.31, z0 = 3.03, zs = 3.27, zf = 4.17, xE = 3.91, go = (xE - xs) / 11, rw = 0.45;
+  const rise = H.r1Floor / 16, xs = 1.26, z0 = 3.03, zs = 3.27, zf = 4.17, xE = 3.91, go = (xE - xs) / 11, rw = 0.45;
   const tt = 0.03, ov = 0.02; // marche bois de 30 mm, nez de marche de 2 cm sur la contremarche peinte
   // ligne de foulée à 45 cm du jour
   const W = j => { if (j <= 1) return [xs - rw, z0 + j * (zs - z0)]; if (j <= 4) { const a = Math.PI - (j - 1) * Math.PI / 6; return [xs + rw * Math.cos(a), zs + rw * Math.sin(a)]; } return [xs + (j - 4) * go, zs + rw]; };
@@ -957,7 +970,8 @@ function buildStair() {
 }
 
 // ---------------------------------------------------------------- toiture 4 pans 35°
-function hipRoof(layer, x0, x1, z0, z1, ye, pitch, mat) {
+// zMin : pans coupés au plan z = zMin (pan est arrêté au nu du mur en limite)
+function hipRoof(layer, x0, x1, z0, z1, ye, pitch, mat, zMin = -Infinity) {
   const t = Math.tan(pitch * Math.PI / 180);
   const run = Math.min(x1 - x0, z1 - z0) / 2; const yr = ye + run * t;
   const zr = (z0 + z1) / 2, rx0 = x0 + run, rx1 = x1 - run;
@@ -969,11 +983,13 @@ function hipRoof(layer, x0, x1, z0, z1, ye, pitch, mat) {
   ];
   const pos = [], uv = [];
   const V = a => new THREE.Vector3(...a);
-  for (const f of faces) {
-    const p0 = V(f[0]), p1 = V(f[1]); const e = p1.clone().sub(p0).normalize();
-    const c = f.length === 4 ? V(f[3]) : V(f[2]); const up = c.clone().sub(p0); up.sub(e.clone().multiplyScalar(up.dot(e))).normalize();
-    const tri = f.length === 4 ? [[0, 2, 1], [0, 3, 2]] : [[0, 2, 1]];
-    for (const tr of tri) for (const i of tr) { const p = V(f[i]); pos.push(p.x, p.y, p.z); const r = p.clone().sub(p0); uv.push(r.dot(e), r.dot(up)); }
+  const clip = f => { const out = []; for (let i = 0; i < f.length; i++) { const a = f[i], b = f[(i + 1) % f.length], ia = a[2] >= zMin - 1e-9, ib = b[2] >= zMin - 1e-9;
+    if (ia) out.push(a); if (ia !== ib) { const u = (zMin - a[2]) / (b[2] - a[2]); out.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, zMin]); } } return out; };
+  for (const f0 of faces) {
+    const p0 = V(f0[0]), p1 = V(f0[1]); const e = p1.clone().sub(p0).normalize();
+    const c = f0.length === 4 ? V(f0[3]) : V(f0[2]); const up = c.clone().sub(p0); up.sub(e.clone().multiplyScalar(up.dot(e))).normalize();
+    const f = clip(f0); if (f.length < 3) continue;
+    for (let i = 1; i < f.length - 1; i++) for (const k of [0, i + 1, i]) { const p = V(f[k]); pos.push(p.x, p.y, p.z); const r = p.clone().sub(p0); uv.push(r.dot(e), r.dot(up)); }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
@@ -981,35 +997,39 @@ function hipRoof(layer, x0, x1, z0, z1, ye, pitch, mat) {
   return { yr, zr, rx0, rx1 };
 }
 function buildRoof() {
-  // débords 30 cm au nord, au sud et à l'ouest ; gouttière havraise en limite (est) ; égout +5,67, faîtage +8,54
-  const x0 = -0.30, x1 = L + 0.30, z0 = 0, z1 = D + 0.30, ye = H.eave;
-  const { yr, zr, rx0, rx1 } = hipRoof('roof', x0, x1, z0, z1, ye, 35, 'roof');
+  // débords de 15 cm au nord, au sud et à l'ouest (coupe AA : planche de rive à 15 cm du nu de l'enduit, égout +5,67) ; à l'est, pan arrêté au nu
+  // du mur en limite (gouttière havraise, égout +5,78 des façades, plans travaux v3 p. 6) : pans à 35° tracés comme pour un débord de 15 cm puis coupés à z = 0
+  // (5,67 + 0,15 × tan 35° = 5,775) ; faîtage +8,54 long de 5,00 m (façade ouest), de x 3,95 à 8,95, à z 3,95 (pignon nord : 3,96 du nu est)
+  const ov = 0.15, x0 = -ov, x1 = L + ov, z0 = -ov, z1 = D + ov, ye = H.eave;
+  const { yr, zr, rx0, rx1 } = hipRoof('roof', x0, x1, z0, z1, ye, 35, 'roof', 0);
   const V = a => new THREE.Vector3(...a);
+  const cut = (a, b) => { if (b[2] >= 0) return b; const u = -a[2] / (b[2] - a[2]); return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, 0]; };
   // faîtage et arêtiers en tuiles demi-rondes
-  const lines = [[[rx0, yr, zr], [rx1, yr, zr]], [[rx0, yr, zr], [x0, ye, z0]], [[rx0, yr, zr], [x0, ye, z1]], [[rx1, yr, zr], [x1, ye, z0]], [[rx1, yr, zr], [x1, ye, z1]]];
+  const lines = [[[rx0, yr, zr], [rx1, yr, zr]], [[rx0, yr, zr], cut([rx0, yr, zr], [x0, ye, z0])], [[rx0, yr, zr], [x0, ye, z1]], [[rx1, yr, zr], cut([rx1, yr, zr], [x1, ye, z0])], [[rx1, yr, zr], [x1, ye, z1]]];
   for (const [a, b] of lines) {
     const va = V(a), vb = V(b); const len = va.distanceTo(vb);
     const cm = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, len, 10), M.ridge);
     cm.position.copy(va).add(vb).multiplyScalar(0.5); cm.position.y += 0.03;
     cm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize()); cm.castShadow = true; groups.roof.add(cm);
   }
-  // sous-faces, cache-moineaux PVC anthracite
-  A.box('roof', x0, 0, 5.47, 5.49, z0, z1, 'soffit');
-  A.box('roof', L, x1, 5.47, 5.49, z0, z1, 'soffit');
+  // sous-faces (5,47 → 5,49, coupe AA), cache-moineaux PVC anthracite ; rien au-delà de la limite est (z < 0)
+  A.box('roof', x0, 0, 5.47, 5.49, 0, z1, 'soffit');
+  A.box('roof', L, x1, 5.47, 5.49, 0, z1, 'soffit');
   A.box('roof', 0, L, 5.47, 5.49, D, z1, 'soffit');
-  A.box('roof', x0, x0 + 0.025, 5.47, ye + 0.02, z0, z1, 'soffit');
-  A.box('roof', x1 - 0.025, x1, 5.47, ye + 0.02, z0, z1, 'soffit');
+  A.box('roof', x0, x0 + 0.025, 5.47, ye + 0.02, 0, z1, 'soffit');
+  A.box('roof', x1 - 0.025, x1, 5.47, ye + 0.02, 0, z1, 'soffit');
   A.box('roof', x0, x1, 5.47, ye + 0.02, z1 - 0.025, z1, 'soffit');
-  // gouttières moulurées alu 7016
-  const gut = (bx0, bx1, bz0, bz1) => { A.box('roof', bx0, bx1, ye - 0.10, ye + 0.03, bz0, bz1, 'alu'); };
-  gut(x0 - 0.13, x0, z0, z1 + 0.13); gut(x1, x1 + 0.13, z0, z1 + 0.13); gut(x0, x1, z1, z1 + 0.13);
-  A.box('roof', 0, L, ye, ye + 0.11, -0.02, 0.18, 'alu'); // gouttière havraise en limite (+5,78)
+  // gouttières moulurées alu 7016 accrochées à la planche de rive (coupe AA : 17 cm de saillie, de +5,50 à +5,62)
+  const gut = (bx0, bx1, bz0, bz1) => { A.box('roof', bx0, bx1, ye - 0.17, ye - 0.05, bz0, bz1, 'alu'); };
+  gut(x0 - 0.17, x0, 0, z1 + 0.17); gut(x1, x1 + 0.17, 0, z1 + 0.17); gut(x0, x1, z1, z1 + 0.17);
+  A.box('roof', 0, L, H.eaveE - 0.02, H.eaveE + 0.04, -0.015, 0.20, 'alu'); // gouttière havraise en limite (égout +5,78), au droit du mur est
   // descentes rectangulaires alu 7016 : NO et SO (façade ouest), NE (pignon nord), SE (pignon sud)
   const dp = (x, z, yTop) => A.box('rdc', x - 0.04, x + 0.04, -0.6, yTop, z - 0.03, z + 0.03, 'alu');
-  dp(0.42, D + 0.05, ye - 0.15); A.box('roof', 0.38, 0.46, ye - 0.25, ye - 0.10, D + 0.02, z1 + 0.07, 'alu');
-  dp(L - 0.42, D + 0.05, ye - 0.15); A.box('roof', L - 0.46, L - 0.38, ye - 0.25, ye - 0.10, D + 0.02, z1 + 0.07, 'alu');
-  A.box('rdc', -0.08, -0.02, -0.6, ye + 0.05, 0.08, 0.16, 'alu');
-  A.box('rdc', L + 0.02, L + 0.08, -0.6, ye + 0.05, 0.20, 0.28, 'alu');
+  // axes relevés sur les symboles EP du plan RDC (plans travaux v3 p. 9) : (0,36 ; 7,99), (12,54 ; 7,99), (12,99 ; 0,22) ; pignon nord : z 0,10 → 0,21 (façade nord)
+  dp(0.361, D + 0.089, ye - 0.15); A.box('roof', 0.321, 0.401, ye - 0.25, ye - 0.10, D + 0.059, z1 + 0.07, 'alu');
+  dp(L - 0.359, D + 0.089, ye - 0.15); A.box('roof', L - 0.399, L - 0.319, ye - 0.25, ye - 0.10, D + 0.059, z1 + 0.07, 'alu');
+  A.box('rdc', -0.08, -0.02, -0.6, ye - 0.15, 0.115, 0.195, 'alu'); A.box('roof', x0 - 0.10, -0.02, ye - 0.25, ye - 0.10, 0.115, 0.195, 'alu');
+  A.box('rdc', L + 0.062, L + 0.122, -0.6, ye - 0.15, 0.179, 0.259, 'alu'); A.box('roof', L + 0.062, x1 + 0.10, ye - 0.25, ye - 0.10, 0.179, 0.259, 'alu');
 }
 
 // ---------------------------------------------------------------- équipements et mobilier (indicatif hors plans)
@@ -1019,8 +1039,8 @@ function buildFurniture() {
 
   // cuisine, séjour, chambres, bureau, radiateurs et lave-linge : mobilier.js ; PAC : equip.js ; salles de bains et WC : bains.js
   // --- Local technique et garage : tableau, accès VS
-  B(f0, 5.31, 5.43, 0.95, 1.85, 2.42, 2.88, 'white'); // tableau électrique, entre la porte ISO 83 et le poteau BA (nourrice : equip.js)
-  B(f0, 10.60, 11.20, -0.13, -0.122, 1.50, 2.10, 'inox');
+  B(f0, 5.31, 5.46, 0.95, 1.85, 2.50, 2.90, 'white'); // tableau électrique 40 × 15 du plan RDC (z 2,50 → 2,90), entre la porte ISO 83 et le poteau BA (nourrice : equip.js)
+  B(f0, 10.70, 11.18, -0.13, -0.122, 1.33, 2.08, 'inox'); // trappe d'accès au vide sanitaire 48 × 75 (plan RDC)
 
   // placards : intérieurs (tablettes, séparations, tringles) et façades coulissantes dans buildClosets (les blocs blancs pleins d'avant débordaient de 17 cm devant les retours des chambres 2 et 3)
 
@@ -1580,7 +1600,7 @@ function init() {
   labelScene = new THREE.Scene(); // [perf] étiquettes dans une scène à part : le rendu CSS2D ne parcourt plus les ~1 800 objets de la maquette
   const e1 = H.r1Floor + 0.05;
   const rooms = [
-    ['rdc', 'Entrée', '12,82 m²', 3.0, 0.05, 2.2], ['rdc', 'WC', '2,00 m²', 1.3, 0.05, 0.85], ['rdc', 'Cuisine', '11,50 m²', 2.0, 0.95, 5.6], ['rdc', 'Séjour', '36,24 m²', 8.2, 0.9, 4.6], ['rdc', 'Garage', '16,41 m²', 9.9, 0.0, 1.8], ['rdc', 'Local technique', '4,98 m²', 6.2, 0.0, 1.9],
+    ['rdc', 'Entrée', '12,82 m²', 3.0, 0.05, 2.2], ['rdc', 'WC', '2,00 m²', 1.3, 0.05, 0.85], ['rdc', 'Cuisine', '11,50 m²', 2.0, 0.95, 5.6], ['rdc', 'Séjour', '36,24 m²', 8.2, 0.9, 4.6], ['rdc', 'Garage', '16,41 m²', 9.9, 0.0, 1.8], ['rdc', 'Local technique', '4,74 m²', 6.2, 0.0, 1.9], // 1,70 × 2,79 (doublage du mur est) ; garage + cloison + local = 21,36 m² du plan
     ['r1', 'Bains', '9,54 m²', 1.5, e1, 1.9], ['r1', 'WC', '1,53 m²', 4.38, e1, 1.4], ['r1', 'Douche', '3,86 m²', 5.6, e1, 2.0], ['r1', 'Dressing', '5,29 m²', 7.4, e1, 1.8], ['r1', 'Chambre 1', '14,80 m²', 10.6, e1 + 0.6, 3.1],
     ['r1', 'Palier', '6,05 m²', 6.6, e1, 3.67], ['r1', 'Chambre 3', '15,26 m²', 2.4, e1 + 0.6, 6.8], ['r1', 'Bureau', '9,83 m²', 6.4, e1, 5.4], ['r1', 'Chambre 2', '14,47 m²', 10.6, e1 + 0.6, 6.8],
   ];

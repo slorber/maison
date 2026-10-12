@@ -431,11 +431,12 @@ export function buildBains(ctx) {
   B('furn1', xr + 0.03, xr + 0.05, e + 1.95, e + 1.97, ef, zf - 0.006, 'bnBlack'); // barre de stabilisation (haut du chant libre → mur est)
   showerColumn(f1, M.bnBlack, M.bnBlackDark, xs, e, (ef + 1.262) / 2, -HP); // colonne sur la cloison du WC (demande client), au milieu de la profondeur du receveur
   // sèche-serviettes Atlantic Adélis 750 W blanc (140,2 × 55, seul chauffage de la pièce d'environ 9,6 m²) en sortie de douche, à son emplacement d'origine :
-  // sur le mur est juste au nord de l'entrée de la douche (x 1,175 → 1,725), de 0,51 à 1,91 m du sol
-  adelis(f1, M, 1.45, e, T, 0);
+  // sur le mur est juste au nord de l'entrée de la douche, axe x 1,49 comme sur le plan étage p. 10 (dessiné x 1,24 → 1,74) : x 1,215 → 1,765, de 0,51 à 1,91 m du sol
+  adelis(f1, M, 1.49, e, T, 0);
 
-  // --- Salle d'eau parentale (x 4,90 → 6,29, z 0,36 → 3,10, sans fenêtre ; passage sans porte vers le dressing dans la cloison x 6,29 à z 1,62 → 2,42)
-  const t = 0.01, X0 = 4.90 + t, X1 = 6.29 - t, Z0 = T + t, Z1 = 3.10 - t, fl = e + 0.003, yo = e + 2.04;
+  // --- Salle d'eau parentale (x 4,90 → 6,31, z 0,36 → 3,10 : 1,41 × 2,74 = 3,86 m² du tableau des surfaces ; sans fenêtre ; passage sans porte vers le dressing
+  // dans la cloison x 6,31 → 6,38 à z 1,62 → 2,42)
+  const t = 0.01, X0 = 4.90 + t, X1 = 6.31 - t, Z0 = T + t, Z1 = 3.10 - t, fl = e + 0.003, yo = e + 2.04;
   // faïence toute hauteur sur les 4 murs, douche comprise ; le passage et ses tableaux restent peints
   const wt = new MB();
   tileWall(wt, 'z', Z0, 1, X0, X1, e, c, X0, fl); // mur est (doublage)
@@ -443,11 +444,11 @@ export function buildBains(ctx) {
   tileWall(wt, 'z', Z1, -1, X0, X1, e, c, X0, fl); // cloison palier
   tileWall(wt, 'x', X1, -1, Z0, 1.62, e, c, Z0, fl); tileWall(wt, 'x', X1, -1, 2.42, Z1, e, c, Z0, fl); tileWall(wt, 'x', X1, -1, 1.62, 2.42, yo, c, Z0, fl); // cloison dressing, autour du passage
   wt.mesh(M.bnWallTile, groups.r1, false);
-  B('r1', X1 - 0.002, 6.292, e, yo + 0.006, 1.615, 1.623, 'bnTrim'); B('r1', X1 - 0.002, 6.292, e, yo + 0.006, 2.417, 2.425, 'bnTrim'); B('r1', X1 - 0.002, 6.292, yo - 0.002, yo + 0.006, 1.615, 2.425, 'bnTrim'); // profilés d'arrêt
-  const tf = new MB(); tileFloor(tf, X0, X1, Z0, Z1, fl, 5.295, 1.36); tileFloor(tf, X1, 6.37, 1.622, 2.418, fl, 5.295, 1.36); tf.mesh(M.bnTerrazzo, groups.slab1, false); // dalles centrées sur la pièce
-  B('slab1', 6.362, 6.372, e - 0.006, fl + 0.002, 1.622, 2.418, 'bnTrim'); // barre de seuil vers le parquet du dressing
+  B('r1', X1 - 0.002, 6.312, e, yo + 0.006, 1.615, 1.623, 'bnTrim'); B('r1', X1 - 0.002, 6.312, e, yo + 0.006, 2.417, 2.425, 'bnTrim'); B('r1', X1 - 0.002, 6.312, yo - 0.002, yo + 0.006, 1.615, 2.425, 'bnTrim'); // profilés d'arrêt
+  const tf = new MB(); tileFloor(tf, X0, X1, Z0, Z1, fl, 5.305, 1.36); tileFloor(tf, X1, 6.38, 1.622, 2.418, fl, 5.305, 1.36); tf.mesh(M.bnTerrazzo, groups.slab1, false); // dalles centrées sur la pièce
+  B('slab1', 6.372, 6.382, e - 0.006, fl + 0.002, 1.622, 2.418, 'bnTrim'); // barre de seuil vers le parquet du dressing
   // Balmani Moon 120 simple vasque contre la cloison du palier, grand miroir rectangulaire rétroéclairé 100 × 80 (au lieu du miroir rond Ø 70)
-  moon(ctx, f1, 5.595, Z1, 1.20, [0], [1.00, 0.80]);
+  moon(ctx, f1, 5.605, Z1, 1.20, [0], [1.00, 0.80]);
   // cabine de douche 140 × 100 : receveur extra-plat, panneau fixe + porte coulissante en verre clair, rail haut et profilés noirs mats
   const zt = 1.36, zp = 1.304, zd = 1.326;
   B('furn1', X0, X1, e, e + 0.025, Z0, zt, 'bnTray'); B('furn1', 5.06, 5.18, e + 0.025, e + 0.0265, 0.62, 0.74, 'bnBlack');
@@ -465,10 +466,10 @@ export function buildBains(ctx) {
     for (const x of [5.70, 6.16]) bx(x - 0.03, x + 0.03, e + 1.975, e + 2.0, zd + 0.004, zd + 0.016, 'bnBlack'); // chariots
     bx(6.135, 6.149, e + 0.78, e + 1.32, zd + 0.042, zd + 0.056, 'bnBlack'); for (const y of [0.84, 1.26]) bx(6.137, 6.147, e + y - 0.006, e + y + 0.006, zd + 0.004, zd + 0.042, 'bnBlack'); // poignée bâton
     d.apply = v => { g.position.x = -0.53 * v * v * (3 - 2 * v); }; d.apply(0); ctx.DOORS.push(d); }
-  showerColumn(f1, M.bnBlack, M.bnBlackDark, 5.595, e, Z0);
-  // sèche-serviettes Atlantic Adélis 500 W blanc (102,7 × 55, pièce d'environ 3,8 m²) sur la cloison du WC, au plus près de la cabine (z 1,445 → 1,995),
-  // de 0,51 à 1,54 m du sol ; la cloison du dressing, côté porte de la cabine, n'offre que 26 cm avant le passage
-  adelis(f1, M, X0, e, 1.72, HP, 1.027);
+  showerColumn(f1, M.bnBlack, M.bnBlackDark, 5.605, e, Z0);
+  // sèche-serviettes Atlantic Adélis 500 W blanc (102,7 × 55, pièce de 3,86 m²) sur la cloison du WC, axe z 2,17 comme sur le plan étage p. 10
+  // (dessiné z 1,92 → 2,42) : z 1,895 → 2,445, de 0,51 à 1,54 m du sol
+  adelis(f1, M, X0, e, 2.17, HP, 1.027);
 
   // --- WC du RDC (x 0,36 → 2,36, z 0,36 → 1,36) : pack WC au sol Roca The Gap Round dos au mur nord, sous la fenêtre (axe z 0,86), dérouleur
   wcRound(f0, M, T, 0, 0.86, 0); rollHolder(f0, M, 0.80, 0.72, T, 0);
@@ -479,8 +480,9 @@ export function buildBains(ctx) {
     mixer(g, M.bnChrome, 0.15, 0.85, 0.105, -HP, 0.82);
     cyl(g, M.bnChrome, 0.014, 0.14, -0.035, 0.70, 0.125); cyl(g, M.bnChrome, 0.028, 0.10, -0.035, 0.60, 0.125, 0, 0, 28); cyl(g, M.bnChrome, 0.014, 0.125, -0.035, 0.58, 0.0625, HP); cyl(g, M.bnChrome, 0.03, 0.008, -0.035, 0.58, 0.004, HP); } // siphon
 
-  // --- WC de l'étage (x 3,93 → 4,83, z 0,36 → 2,11) : pack WC au sol Roca The Gap Round dos au mur est (axe x 4,43), à côté du coffre de décompression
-  wcRound(f1, M, 4.43, e, T, -HP); rollHolder(f1, M, 4.83, e + 0.72, 0.86, -HP);
+  // --- WC de l'étage (x 3,93 → 4,83, z 0,36 → 2,11) : pack WC au sol Roca The Gap Round dos au mur est (axe x 4,38 du plan étage p. 10, cuvette dessinée x 4,20 → 4,56),
+  // à 5 cm du coffre de décompression 22 × 22 (x 3,93 → 4,15)
+  wcRound(f1, M, 4.38, e, T, -HP); rollHolder(f1, M, 4.83, e + 0.72, 0.86, -HP);
   // [perf] sanitaires statiques : petits maillages fusionnés par matériau (un appel de dessin chacun) ; verres et halos restent à part
   if (ctx.mergeStatic) { ctx.mergeStatic(f0.children.slice(n0), f0); ctx.mergeStatic(f1.children.slice(n1), f1); }
 }

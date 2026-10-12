@@ -28,7 +28,8 @@ export function buildOuvrants(ctx) {
     let apply, speed;
     if (o.t === 'garage') {
       // sectionnelle : galets aux joints, guidés par un rail vertical (z = dc), un cintre de rayon R au-dessus du linteau puis un rail horizontal sous le plafond
-      const { y0, y1, a0, a1 } = o, h = (y1 - y0) / 4, dc = 0.255, R = 0.28, Lv = y1 - y0, La = Math.PI * R / 2, uMax = Lv + 0.12;
+      // cintre R 0,24 : rail horizontal (axe +2,36, dessus +2,385) sous le plafond du garage à +2,40 (coupe AA : 2,53 sous plafond depuis −0,13), linteau +2,12
+      const { y0, y1, a0, a1 } = o, h = (y1 - y0) / 4, dc = 0.255, R = 0.24, Lv = y1 - y0, La = Math.PI * R / 2, uMax = Lv + 0.12;
       const P = (u, out) => { if (u <= Lv) return out.set(0, y0 + u, dc); if (u <= Lv + La) { const al = Math.PI - (u - Lv) / R; return out.set(0, y1 + R * Math.sin(al), dc + R + R * Math.cos(al)); } return out.set(0, y1 + R, dc + R + u - Lv - La); };
       const J = [0, 1, 2, 3, 4].map(() => new THREE.Vector3()), piv = o.leaves.map(lf => new THREE.Vector3(0, lf.y0, dc));
       apply = v => {
@@ -47,7 +48,7 @@ export function buildOuvrants(ctx) {
         const geo = new THREE.ExtrudeGeometry(sh, { depth: rb - ra, bevelEnabled: false, curveSegments: 10 });
         geo.applyMatrix4(B.clone().setPosition(Math.max(s * ra, s * rb), 0, 0)).applyMatrix4(F);
         const m = new THREE.Mesh(geo, M.closetRail); m.castShadow = m.receiveShadow = true; groups.rdc.add(m);
-        for (const dd of [1.55, dEnd - 0.12]) LB(face, 'rdc', ra, rb, y1 + R + w, H.rdcCeil, dd, dd + 0.03, 'closetRail');
+        for (const dd of [1.55, dEnd - 0.12]) LB(face, 'rdc', ra, rb, y1 + R + w, H.garageCeil, dd, dd + 0.03, 'closetRail');
       }
     } else {
       // battants (fenêtres, portes-fenêtres du RDC, porte d'entrée) : pivot vertical sur l'arête intérieure du montant côté paumelles, ouverture vers l'intérieur ;

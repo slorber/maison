@@ -1,6 +1,6 @@
 // Aménagement sous l'escalier (demande des clients : « sous l'escalier, fais du rangement sur la 1re partie, puis une banquette
 // pour pouvoir se chausser », photo de référence fournie). Menuiserie sur mesure façon shaker, peinte en blanc :
-// - placard dans la partie basse (x 1,55 → 2,42, toute la profondeur de 0,90 m sous la volée) : cadre de façade affleurant la joue
+// - placard dans la partie basse (x 1,50 → 2,42, toute la profondeur de 0,90 m sous la volée) : cadre de façade affleurant la joue
 //   de l'escalier (z 3,27), 2 portes à cadre mouluré et panneau en retrait dont le haut suit la volée, boutons ronds RAL 7016 ;
 // - joue de séparation à x 2,42, panneau mouluré côté banquette ;
 // - banquette en retrait (x 2,42 → 3,86, adossée à la cloison de la cuisine) là où la hauteur sous la paillasse permet de s'asseoir
@@ -86,8 +86,8 @@ function materials(ctx) {
 export function buildSousEscalier(ctx) {
   A = ctx.A; materials(ctx);
   const W = 'white', G = 'mobGapW', H = 'handle'; // laqué blanc satiné, joints, quincaillerie gris anthracite RAL 7016
-  // volée droite de buildStair (main.js) : 16 hauteurs, giron constant de x 1,31 à 3,91, sous-face de la paillasse sof(x)
-  const rise = ctx.E1 / 16, xs = 1.31, go = (3.91 - xs) / 11, sl = rise / go, k = Math.hypot(1, sl);
+  // volée droite de buildStair (main.js) : 16 hauteurs, giron constant de x 1,26 à 3,91 (jour de la partie basse, emmarchement 90), sous-face de la paillasse sof(x)
+  const rise = ctx.E1 / 16, xs = 1.26, go = (3.91 - xs) / 11, sl = rise / go, k = Math.hypot(1, sl);
   const sof = x => rise * (4 + (x - xs) / go) - 0.19;
   const zj = 3.27, zw = 4.17; // joue de l'escalier au jour (façade), cloison escalier / cuisine (fond)
   const x0 = xs + go; // fin du massif des marches 1 à 5

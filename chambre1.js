@@ -245,7 +245,7 @@ function aeron(x, z, ry) { const m = mtx(x, C.E1, z, ry); for (const p of aeronP
 
 // ---------------------------------------------------------------- chambre 1
 // Bureau 120 × 60 dans l'angle sud-ouest : dos à la cloison de la chambre 2 (nu z 4,17), bout contre la façade sud (nu x 12,54) ;
-// le radiateur (z 2,50 → 3,38 robinet compris) reste dégagé de 19 cm. Portable 15" ouvert (gabarit MacBook 16" ramené à une dalle de 15,3")
+// le radiateur (Ramo 90 du plan, z 2,42 → 3,40 robinet compris) reste dégagé de 17 cm. Portable 15" ouvert (gabarit MacBook 16" ramené à une dalle de 15,3")
 // face à l'Aeron, écran 27" (dalle 16:9 59,8 × 33,6 cm) juste au-dessus (demande client du 12/10), carnet à droite, lampe LED au bout gauche (côté façade).
 function chambre1() {
   const e = C.E1, h = 0.74, K = new Kit('furn1', mtx(11.94, e, 3.87));
@@ -290,7 +290,7 @@ function tvFrame() {
 
 // ---------------------------------------------------------------- bureau de l'étage
 // Bureau 120 × 64 dos à la cloison de la chambre 2 (nu x 8,07) : x 7,43 → 8,07, z 6,14 → 7,34 ; assis face à +x, son bout ouest à 10 cm
-// de la façade du radiateur (mur ouest, x 7,20 → 7,90, saillie jusqu'à z 7,44). Poste centré sur le siège (z 6,65, décalé de 9 cm vers
+// de la façade du radiateur (mur ouest, Ramo 90 du plan x 7,12 → 8,02, saillie jusqu'à z 7,44). Poste centré sur le siège (z 6,65, décalé de 9 cm vers
 // la gauche pour loger l'écran vertical) : MacBook Pro 16" ouvert, écran 32" juste au-dessus, écran 24" en portrait à droite (côté
 // radiateur), tourné de 30° vers le siège, hauts des deux écrans alignés à 1,41 m du sol. Carnet et pot à crayons à gauche ;
 // plus de caisson sous le plateau, ni de lampe d'architecte (sa place est prise par les écrans).
