@@ -1055,22 +1055,28 @@ function buildFurniture() {
 const BND = { A: [-11.53, 12.50], B: [-11.46, 0], C: [19.41, 0], D: [19.52, 13.70] };
 const zWest = x => BND.A[1] + (BND.D[1] - BND.A[1]) * (x - BND.A[0]) / (BND.D[0] - BND.A[0]);
 const xSouth = z => BND.C[0] + (BND.D[0] - BND.C[0]) * z / BND.D[1];
-// points altimétriques (plan de bornage + plan de masse), relatifs au RDC 55,70
+// points altimétriques, relatifs au RDC 55,70, aux positions relevées sur le plan de masse (page 4, 1/200) et le plan altimétrique du géomètre :
+// terrain naturel de la parcelle (bornes A et D comprises), angles de la maison (Castelord), rue des Merlettes branche ouest (S…), branche sud (R…).
+// Branche sud et carrefour : la surface interpolée est celle de la chaussée (le trottoir d'en face est posé 10 cm au-dessus : R6, 54,92, entré à 54,82) ;
+// fit : points dont l'interpolation est recalée (au mm) sur la valeur levée. Branche ouest : profil en travers explicite (RUE, ci-dessous).
 const PTS = [
-  [-10.4, 0.85, -0.15], [-9.9, 6.2, -0.06], [-10.6, 11.7, 0.08], [-11.6, 12.6, 0.37],
-  [17.9, 0.8, -0.76], [17.5, 6.2, -0.54], [1.3, 12.0, -0.21], [10.6, 12.0, -0.36], [18.5, 12.3, -0.46], [19.5, 13.7, -0.50], [19.9, 10.2, -0.75],
-  [0, 0, -0.47], [0, D, -0.29], [L, D, -0.44], [L, 0, -0.65],
-  [-11.0, 13.3, 0.24], [-3.9, 13.0, 0.13], [-3.9, 13.7, 0.03], [-11.0, 14.6, 0.23], [-4.4, 15.5, 0.07], [4.6, 14.4, -0.16], [4.0, 16.0, -0.13], [4.0, 17.3, -0.17], [4.0, 18.3, -0.14],
-  [17.3, 14.6, -0.67], [16.6, 16.0, -0.65], [17.0, 17.4, -0.70], [18.4, 19.8, -0.57], [18.6, 15.5, -0.72], [-12.6, 16.5, 0.18], [-12.5, 18.0, 0.27],
-  [21.4, 0.0, -0.88], [24.7, 0.4, -0.91], [21.9, 9.0, -0.85], [23.6, 8.8, -0.88], [24.6, 8.7, -0.78], [21.0, 14.6, -0.76], [23.9, 16.0, -0.73],
+  [-10.51, 0.87, -0.15], [-10.10, 6.11, -0.06], [-10.23, 11.44, 0.08], [-11.52, 12.50, 0.37], // 55,55 55,64 55,78, borne A 56,07
+  [0.86, 0.24, -0.47], [0.54, 7.51, -0.29], [0.48, 11.85, -0.21], [8.86, 1.57, -0.55], [9.84, 6.52, -0.34], [9.87, 11.90, -0.36], // 55,23 55,41 55,49 55,15 55,36 55,34
+  [18.01, 1.10, -0.76], [18.00, 6.48, -0.54], [17.96, 11.97, -0.46], [19.52, 13.70, -0.50, 1], // 54,94 55,16 55,24, borne D 55,20
+  [0, 0, -0.47], [0, D, -0.29], [L, D, -0.44], [L, 0, -0.65], // TN aux angles de la maison (plan de masse Castelord)
+  [-9.90, 13.04, 0.24], [-11.49, 14.48, 0.23], [-2.86, 13.27, 0.13], [-2.81, 13.53, 0.03], [-3.05, 14.92, 0.07], [4.45, 13.27, -0.06], [4.40, 13.71, -0.16], // S1 à S7
+  [4.73, 16.31, -0.13], [5.26, 17.23, -0.17], [5.77, 18.02, -0.14], [-13.02, 16.45, 0.18], [-14.27, 17.17, 0.27], // S8 à S12
+  [18.04, 14.44, -0.67], [17.70, 16.06, -0.65], [18.11, 17.83, -0.70], [18.42, 17.75, -0.72], // S13 à S16 (S17, 55,13, angle du trottoir d'en face : RUE)
+  [19.86, 10.85, -0.75, 1], [21.77, 0.38, -0.88, 1], [25.11, 1.44, -0.91, 1], [22.64, 10.60, -0.85, 1], [24.49, 10.44, -0.88, 1], [25.36, 10.40, -0.88, 1], // R1 à R6
+  [21.95, 16.71, -0.76, 1], [24.70, 17.68, -0.73, 1], // R7, R8
 ];
+const PTV = PTS.map(p => p[2]); // valeurs entrées dans l'interpolation (recalées pour les points fit)
 let PLANE = [0, 0, 0];
 function fitPlane() {
-  let s = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], r = [0, 0, 0];
-  for (const [x, z, h] of PTS) { const v = [x, z, 1]; for (let i = 0; i < 3; i++) { r[i] += v[i] * h; for (let j = 0; j < 3; j++) s[i][j] += v[i] * v[j]; } }
-  // Cramer
-  const det = m => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-  const d = det(s); PLANE = [0, 1, 2].map(k => det(s.map((row, i) => row.map((v, j) => j === k ? r[i] : v))) / d);
+  // tendance régionale figée : plan ajusté sur le semis de points d'origine (avant recalage sur le plan) ; le terrain lointain et le jardin du voisin est ne bougent pas
+  PLANE = [-0.026991, 0.014562, -0.315343];
+  // recalage de l'interpolation sur les points fit (Gauss-Seidel) : la chaussée passe par les cotes levées
+  for (let it = 0; it < 80; it++) PTS.forEach((p, i) => { if (p[3]) PTV[i] += 0.9 * (p[2] - baseH(p[0], p[1])); });
 }
 const planeAt = (x, z) => PLANE[0] * clamp(x, -45, 45) + PLANE[1] * clamp(z, -35, 40) + PLANE[2];
 // jardin de pluie 14 m² en haricot, plus épais dans l'angle sud-ouest (demande des clients du 11/10/2026), pourtour à 55,20, fond 30 cm plus bas (54,90)
@@ -1087,13 +1093,62 @@ function polyInfo(poly, x, z) {
 }
 function baseH(x, z) {
   let sw = 0, sv = 0;
-  for (const [px, pz, v] of PTS) { const d2 = (x - px) ** 2 + (z - pz) ** 2; const w = 1 / (d2 + 1.5) ** 1.6; sw += w; sv += w * (v - planeAt(px, pz)); }
+  PTS.forEach(([px, pz], i) => { const d2 = (x - px) ** 2 + (z - pz) ** 2; const w = 1 / (d2 + 1.5) ** 1.6; sw += w; sv += w * (PTV[i] - planeAt(px, pz)); });
   return planeAt(x, z) + sv / sw;
+}
+// ---------------------------------------------------------------- rue des Merlettes, branche ouest : profil en travers levé
+// Plan de masse (page 4) et plan altimétrique du géomètre ; décalages o depuis la limite A–D (z = zWest(x) + o), niveaux relatifs au RDC 55,70.
+// Notre côté : trottoir en enrobé (comme celui du voisin nord) de la limite au dos de la bordure, bordure de 15 cm, fil d'eau au pied (trait violet du plan) ;
+// chaussée bombée ; en face : caniveau béton de 30 cm, fil d'eau au pied de la bordure de 17 cm (trait noir du plan), trottoir en enrobé jusqu'aux nus d'en face.
+const pwl = (K, ex = false) => x => { // interpolation linéaire par morceaux ; constante aux bouts, ou prolongée au sud (ex)
+  if (x <= K[0][0]) return K[0][1];
+  for (let i = 1; i < K.length; i++) if (x <= K[i][0]) { const [a, va] = K[i - 1], [b, vb] = K[i]; return va + (vb - va) * (x - a) / (b - a); }
+  const [a, va] = K[K.length - 2], [b, vb] = K[K.length - 1]; return ex ? vb + (vb - va) * (x - b) / (b - a) : vb;
+};
+const RUE = {
+  // tracés : fil d'eau de notre bordure (au nord de A : tireté du plan altimétrique, tenu à 0,45), fil d'eau d'en face, nus d'en face (tireté au nord de −11,3)
+  oG: pwl([[-15.0, 0.45], [-11.52, 0.462], [-9.86, 0.476], [4.44, 0.591], [12.97, 0.684], [18.34, 0.730]]),
+  oW: pwl([[-45, 3.880], [-13.02, 4.004], [5.258, 4.075], [11.904, 4.098], [18.11, 4.188]]),
+  oF: pwl([[-43, 5.48], [-26, 5.36], [-11.3, 5.33], [-9.9, 5.34], [0, 5.39], [5.5, 5.44], [10, 5.48], [15, 5.53], [16.9, 5.55], [17.08, 5.58]]),
+  XR: 18.40, XRW: 18.10, // face sud du retour de notre bordure vers la limite ; fil d'eau du retour de la bordure d'en face (vers le pan coupé du n° 4)
+  PC: [[17.08, 19.18], [19.34, 21.16]], // pan coupé du n° 4, à l'angle des deux branches
+  // niveaux levés : fils d'eau de notre côté (S1, S4, S7, S13) et d'en face (S11, S9, S15), dessus de notre trottoir (borne A, S3, S6 ; au sud : S13 + 0,10),
+  // trottoir d'en face (S12, S10, S17), bombement de la chaussée au-dessus de la corde des deux fils d'eau (S2, S5, tampon S8, S14)
+  FE: pwl([[-9.90, 0.24], [-2.81, 0.03], [4.40, -0.16], [18.04, -0.67]], true),
+  FEW: pwl([[-13.02, 0.18], [5.26, -0.17], [18.11, -0.70], [18.42, -0.72]]), // + grille d'avaloir S16
+  SW: pwl([[-11.52, 0.37], [-2.86, 0.13], [4.45, -0.06], [18.04, -0.57]], true),
+  SWo: pwl([[-14.27, 0.27], [5.77, -0.14], [18.10, -0.57]], true),
+  BOMB: pwl([[-11.49, 0.029], [-3.05, 0.055], [4.73, 0.042], [17.70, 0.020]]),
+};
+RUE.road = (x, o) => { const a = RUE.oG(x), b = RUE.oW(x), u = clamp((o - a) / (b - a), 0, 1); return RUE.FE(x) + (RUE.FEW(x) - RUE.FE(x)) * u + RUE.BOMB(x) * 4 * u * (1 - u); };
+RUE.panO = x => { const [[x0, z0], [x1, z1]] = RUE.PC; return z0 + (z1 - z0) * (x - x0) / (x1 - x0) - zWest(x); };
+RUE.front = x => x <= RUE.PC[0][0] ? RUE.oF(x) : RUE.panO(x); // nu des clôtures d'en face (pan coupé au sud)
+// branche sud, rive d'en face (fonctions de z) : fil d'eau (trait violet du plan, x 24,52 → 24,60, de z 5,75 à 30,8), nu des propriétés (tireté, x 25,48 → 25,54)
+RUE.xFS = pwl([[5.75, 24.52], [13.58, 24.54], [22.71, 24.60], [30.82, 24.58]]);
+RUE.xS6 = z => 25.468 + 0.00339 * z;
+// dessus fini en (x, o) : trottoir et bordure de notre côté, chaussée et caniveau, bordure et trottoir d'en face (au nord des retours)
+RUE.y = (x, o) => { if (o < RUE.oG(x) && x < RUE.XR) return RUE.SW(x); if (o > RUE.oW(x) && x < RUE.XRW) return RUE.SWo(x); return RUE.road(x, o); };
+// sol dans l'emprise de la rue : enveloppe basse et lisse des dessus (rampes sous les bordures), le maillage du terrain reste dessous ;
+// au-delà des murs : raccord au terrain interpolé ; carrefour : surface interpolée des points levés (branche sud)
+function rueGround(x, z, h) {
+  if (x > 19.6) return h;
+  const o = z - zWest(x), oF = RUE.front(x);
+  if (o < -0.6 || o > oF + 2.6) return h;
+  const g = RUE.oG(x), w = RUE.oW(x), fe = RUE.FE(x), few = RUE.FEW(x);
+  const sw = RUE.SW(x) + (fe - RUE.SW(x)) * smooth(17.95, RUE.XR, x), swo = RUE.SWo(x) + (few - RUE.SWo(x)) * smooth(17.6, RUE.XRW, x);
+  let r;
+  if (o < g) r = sw + (fe - sw) * clamp((o - g + 0.45) / 0.35, 0, 1); // au niveau du fil d'eau 10 cm avant le pied de la bordure
+  else if (o <= w) r = RUE.road(x, o);
+  else r = few + (swo - few) * clamp((o - w - 0.08) / 0.32, 0, 1);
+  if (o < 0) r += (h - r) * smooth(0, -0.25, o);
+  else if (o > oF) r += (h - r) * smooth(oF + 0.5, oF + 2.5, o);
+  return x < 18.4 ? r : r + (h - r) * smooth(18.4, 19.6, x);
 }
 // Terrain fini (clients, 11/10/2026) : 55,53 (−0,17) au pied de la maison et sur toute la partie ouest et sud,
 // pente douce jusqu'au pourtour du jardin de pluie à 55,20 (−0,50), palier de 1 m à 55,53 devant la porte-fenêtre sud,
 // descente de garage du seuil du garage (−0,13) au seuil du portail coulissant (−0,80, niveau de la rue)
 const TF = -0.17, TF_RAIN = -0.50;
+const NB_TOP = 0.45; // dessus du muret du voisin nord, de niveau : NGF 56,15 (hauteur inférée : 0,62 au-dessus de notre jardin)
 const driveH = x => -0.13 + (-0.80 + 0.13) * clamp((x - L) / (19.25 - L), 0, 1);
 const surfAllee = x => driveH(x) + 0.025; // dessus fini de l'allée : le gravillon est posé 2,5 cm au-dessus du terrain
 // Allée du garage, jardin et portail coulissant (demandes de Sébastien du 11/10/2026) :
@@ -1127,8 +1182,10 @@ function hAt0(x, z) {
   // voisin est : jardin surélevé derrière son mur de soutènement en limite
   if (z < -0.18) h += 0.85 * smooth(-0.18, -0.4, z) * smooth(-28, -26, x) * (1 - smooth(19.0, 19.3, x));
   h = envGround(x, z, h); // fosse de son allée de garage en sous-sol, le long de la limite (env.js)
-  const dS = Math.min(zWest(x) - z, xSouth(z) - x), dN = x - BND.A[0];
-  if (dS > 0 && z > -0.05 && dN > 0) {
+  h = rueGround(x, z, h); // rue des Merlettes, branche ouest (profil levé)
+  // dN : distance à la limite nord A–B (muret du voisin, 16 cm, côté voisin) ; le terrain fini va jusque sous le muret
+  const dS = Math.min(zWest(x) - z, xSouth(z) - x), dN = x - (BND.B[0] + (BND.A[0] - BND.B[0]) * z / BND.A[1]);
+  if (dS > 0 && z > -0.05 && dN > -0.14) {
     // seuil du portail coulissant et zone de refoulement, jusqu'au nu côté jardin du muret de soutènement (niche du moteur comprise) ;
     // allée jusqu'au nu côté jardin du muret allée / jardin : les ressauts du maillage du terrain restent dans l'épaisseur des murets
     const slide = z < SEUIL.zRet && x > xSouth(z) - (z < SEUIL.zNiche ? SEUIL.tm : SEUIL.tn);
@@ -1139,10 +1196,13 @@ function hAt0(x, z) {
       const dm = Math.hypot(Math.max(0, Math.abs(x - MARCHE.xc) - (MARCHE.x1 - MARCHE.x0) / 2), Math.max(0, z - MARCHE.zB));
       tf = dm > 0 ? tf + (marcheY(x) - tf) * (1 - smooth(0, 0.5, dm)) : marcheY(x) - 0.03;
     }
-    tf += (h - tf) * smooth(-2.5, -7.5, x); // jardin nord : raccord au terrain naturel
-    if (x > -2.6 && x < -0.4) tf += (h - tf) * (1 - smooth(0.2, 2.2, dS)); // abords de l'allée : rampe douce vers le portillon
+    // jardin nord (clients, 12/10/2026) : presque plat à 55,53 jusqu'aux limites nord et ouest (raccord au muret du voisin et à la clôture sur rue), ondulé de ±1 cm
+    if (x < 0) tf += 0.01 * Math.sin(0.83 * x + 0.6) * Math.sin(0.71 * z + 1.9) * smooth(0, -1.0, x);
+    tf += (RUE.SW(x) - 0.03 - tf) * (1 - smooth(0.2, 2.2, dS)) * (1 - smooth(0.55, 1.1, Math.abs(x - (PATH.x0 + PATH.x1) / 2))); // de part et d'autre de l'allée : rampe douce vers le portillon (trottoir)
     const pocket = slide && dS > 0.01; // seuil du portail et poche de refoulement : terrain au niveau du seuil jusqu'à la limite (le raccord au trottoir se fait au nu de la limite)
-    h += (tf - h) * (pocket ? 1 : smooth(0, 0.22, dS)) * smooth(-0.05, 0.05, z) * smooth(0, 0.3, dN);
+    // côté ouest : ressaut trottoir / jardin dans l'épaisseur du muret (20 cm), au nu côté rue si le jardin est plus bas, au nu côté jardin s'il est plus haut
+    const wW = zWest(x) - z <= xSouth(z) - x ? (tf < h ? smooth(0, 0.04, dS) : smooth(0.16, 0.20, dS)) : smooth(0, 0.22, dS);
+    h += (tf - h) * (pocket ? 1 : wW) * smooth(-0.05, 0.05, z) * smooth(-0.14, -0.02, dN);
   }
   return h;
 }
@@ -1206,13 +1266,16 @@ function buildSite() {
   // branche sud : droite le long de la limite C–D jusqu'au cerisier du voisin est, puis virage vers le sud (plan Google, vue aérienne, photos 9 et 11)
   const xq = (z, o) => [xSouth(z) + o, z], K = [27.785, 1.425], R0 = K[0] - xSouth(K[1]); // centre du virage (rayon 5,50 à l'axe), rayon du bord nord
   // pas de trottoir le long de notre clôture sud : la chaussée vient jusqu'au mur (client, 12/10) ; le trottoir ne commence qu'au pilier sud-est, dans l'angle du virage
-  overlayQuad('site', 'asphalt', [xq(K[1], 0), xq(K[1], 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.045, 2, 26);
-  overlayQuad('site', 'asphalt', [xq(K[1], 0.45), xq(K[1], 5.3), xq(zWest(24.8) + 5.3, 5.3), xq(zWest(19.9) + 5.3, 0.45)], 0.045, 6, 26);
-  overlayQuad('site', 'curb', [xq(K[1], 5.3), xq(K[1], 6.4), xq(zWest(25.9), 6.4), xq(zWest(24.8), 5.3)], 0.09, 2, 26);
+  // chaussée calée sur les points levés R1 à R8 (enrobé 3 mm au-dessus de la surface interpolée) ; fil d'eau d'en face à 5,05 de la limite (plan : x 24,52 → 24,60),
+  // trottoir d'en face (10 cm, R6) à partir du lampadaire (z 5,74, début de la bordure au plan) jusqu'au nu du n° 6 : rue.js ; avant, chaussée jusqu'au nu
+  const FAR = z => RUE.xS6(z) - xSouth(z), FS = z => RUE.xFS(z) - xSouth(z), zF = zWest(24.6);
+  overlayQuad('site', 'asphalt', [xq(K[1], 0), xq(K[1], 0.45), xq(zWest(19.9), 0.45), xq(zWest(19.5), 0)], 0.003, 2, 26);
+  overlayQuad('site', 'asphalt', [xq(K[1], 0.45), xq(K[1], FS(K[1])), xq(zF, FS(zF)), xq(zWest(19.9), 0.45)], 0.003, 6, 26);
+  overlayQuad('site', 'asphalt', [xq(K[1], FS(K[1])), xq(K[1], FAR(K[1])), xq(5.74, FAR(5.74)), xq(5.74, FS(5.74))], 0.003, 2, 8);
   { // virage et branche vers le sud jusqu'en x 60 ; o : décalage depuis le bord nord de la rue droite (0 = limite, 0,45 → 5,30 chaussée)
     // côté extérieur, trottoir à partir de notre pilier sud-est jusqu'aux clôtures du voisin (mur sud en x 19,41, plaques en z −7,66) ; côté intérieur, bordure de 1,10 réduite à 0,45
     const tC = Math.asin(K[1] / R0) / (Math.PI / 2); // droit du pilier sud-est de notre clôture (z 0) : début du trottoir
-    const T = [...Array(31).keys()].map(i => i / 30).concat([...Array(16).keys()].map(i => 1 + (i + 1) / 16), Math.atan2(K[1] + 7.62, R0) / (Math.PI / 2), tC, tC + 1e-4).sort((p, q) => p - q); // + angle des clôtures
+    const T = [...Array(31).keys()].map(i => i / 30).concat([...Array(16).keys()].map(i => 1 + (i + 1) / 16), Math.atan2(K[1] + 7.62, R0) / (Math.PI / 2), tC, tC + 1e-4, 0.25, 0.25 + 1e-4).sort((p, q) => p - q); // + angle des clôtures, début du trottoir extérieur
     const at = (t, o) => { if (t > 1) return [K[0] + (t - 1) * (60 - K[0]), K[1] - R0 + o]; const a = t * Math.PI / 2, r = R0 - o; return [K[0] - r * Math.cos(a), K[1] - r * Math.sin(a)]; };
     const out = t => { if (t > 1) return R0 - K[1] - 7.62; const a = t * Math.PI / 2; return R0 - Math.min((K[0] - xSouth(K[1])) / Math.max(Math.cos(a), 1e-6), (K[1] + 7.62) / Math.max(Math.sin(a), 1e-6)); };
     const strip = (mat, lift, o0, o1, nu, TT = T) => {
@@ -1223,12 +1286,19 @@ function buildSite() {
       if (g.attributes.normal.getY(0) < 0) { g.setIndex(idx.map((v, i) => idx[i - (i % 3) + [0, 2, 1][i % 3]])); g.computeVertexNormals(); }
       const m = new THREE.Mesh(g, M[mat]); m.receiveShadow = true; groups.site.add(m);
     };
-    strip('asphalt', 0.045, t => t <= tC ? out(t) : 0.45, () => 5.3, 6);
-    strip('curb', 0.055, out, () => 0.45, 2, T.filter(t => t > tC));
-    strip('curb', 0.09, () => 5.3, t => 6.4 - 0.66 * smooth(0, 1, t), 2);
+    // côté extérieur du virage : pas de bordure au plan au droit du point 54,79 (R3, chaussée) ; trottoir (10 cm) à partir de t = 0,25, nu du n° 6 (6,04) puis 5,74
+    const tF = 0.25, oFar = t => 6.04 - 0.30 * smooth(0, 1, t);
+    strip('asphalt', 0.003, t => t <= tC ? out(t) : 0.45, t => t <= tF ? oFar(t) : 5.10, 6);
+    strip('curb', 0.016, out, () => 0.45, 2, T.filter(t => t > tC));
+    strip('curb', 0.10, () => 5.10, oFar, 2, T.filter(t => t >= tF));
+    { const TT = T.filter(t => t >= tF), P = TT.map(t => at(t, 5.10)); // face de la bordure
+      for (let i = 0; i < P.length - 1; i++) { const [a, b] = [P[i], P[i + 1]], ya = hAt(a[0], a[1]), yb = hAt(b[0], b[1]), dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz);
+        A.quadN('site', 'curb', [[a[0], ya + 0.003, a[1]], [b[0], yb + 0.003, b[1]], [b[0], yb + 0.10, b[1]], [a[0], ya + 0.10, a[1]]], [dz / l, 0, -dx / l]); }
+      const e = [at(tF, 5.10), at(tF, oFar(tF))], ye = e.map(p => hAt(p[0], p[1])); // about nord
+      A.quadN('site', 'curb', [[e[0][0], ye[0] + 0.003, e[0][1]], [e[1][0], ye[1] + 0.003, e[1][1]], [e[1][0], ye[1] + 0.10, e[1][1]], [e[0][0], ye[0] + 0.10, e[0][1]]], [-Math.sin(tF * Math.PI / 2), 0, Math.cos(tF * Math.PI / 2)]); }
   }
   // allée gravillonnée (1,00 m) du portillon à la porte d'entrée, et place de stationnement en gravillon devant le garage
-  overlayQuad('site', 'gravel', [[PATH.x0, PATH.z0], [PATH.x1, PATH.z0], [PATH.x1, zWest(PATH.x1) - 0.02], [PATH.x0, zWest(PATH.x0) - 0.02]], 0.03, 4, 60);
+  overlayQuad('site', 'gravel', [[PATH.x0, PATH.z0], [PATH.x1, PATH.z0], [PATH.x1, zWest(PATH.x1) - 0.03], [PATH.x0, zWest(PATH.x0) - 0.03]], 0.03, 4, 60); // jusqu'au trottoir (seuil du portillon)
   overlayQuad('site', 'gravel', [[PATH.x1, PATH.z0], [PATH.xd, PATH.z0], [PATH.xd, PATH.z1], [PATH.x1, PATH.z1]], 0.03, 2, 4);
   // bordures béton 5 cm de chaque côté, arasées 2 cm au-dessus de l'allée
   const border = (x0, x1, z0, z1) => { const n = Math.max(1, Math.round((z1 - z0) / 0.5)); for (let i = 0; i < n; i++) { const za = z0 + (z1 - z0) * i / n, zb = z0 + (z1 - z0) * (i + 1) / n, t = pathTop((za + zb) / 2);
@@ -1356,14 +1426,16 @@ function hedge(a0, a1, off, h) {
 function buildFences() {
   const g = p => hAt(p[0], p[1]);
   // limite voisine nord : muret surmonté d'un grillage, appartenant au voisin (côté extérieur) ; limite est (mur de soutènement) : env.js
+  // muret et grillage droits et de niveau (clients, 12/10/2026) : dessus horizontal à NB_TOP, fondation sous le point bas de chaque tronçon
   const neighbour = (p0, p1) => {
     const len = dist2(p0, p1), n = Math.max(1, Math.ceil(len / 2.5)); const pts = [], gs = [];
-    for (let i = 0; i <= n; i++) { const p = lerp2(p0, p1, i / n); pts.push(p); gs.push(g(p)); }
-    for (let i = 0; i < n; i++) { sbox('fence', 'oldWall', pts[i], pts[i + 1], -0.16, 0, gs[i] - 0.3, gs[i + 1] - 0.3, 0.75); sbox('fence', 'coping', pts[i], pts[i + 1], -0.18, 0.02, gs[i] + 0.45, gs[i + 1] + 0.45, 0.03); }
-    for (let i = 0; i <= n; i++) { const q = lerp2(p0, p1, clamp((i * len / n + 0.04) / len, 0, 1)); const pp = lerp2(p0, p1, clamp((i * len / n - 0.0) / len, 0, 1)); sbox('fence', 'meshPost', pp, q, -0.10, -0.06, gs[i] + 0.45, gs[i] + 0.45, 1.25); }
-    // panneau de grillage suivant la pente
+    for (let i = 0; i <= n; i++) { const p = lerp2(p0, p1, i / n); pts.push(p); gs.push(Math.min(g(p), g([p[0] - 0.17, p[1]]))); }
+    const yT = NB_TOP;
+    for (let i = 0; i < n; i++) { const yb = Math.min(gs[i], gs[i + 1]) - 0.3; sbox('fence', 'oldWall', pts[i], pts[i + 1], -0.16, 0, yb, yb, yT - yb); sbox('fence', 'coping', pts[i], pts[i + 1], -0.18, 0.02, yT, yT, 0.03); }
+    for (let i = 0; i <= n; i++) { const q = lerp2(p0, p1, clamp((i * len / n + 0.04) / len, 0, 1)); const pp = lerp2(p0, p1, clamp((i * len / n - 0.0) / len, 0, 1)); sbox('fence', 'meshPost', pp, q, -0.10, -0.06, yT, yT, 1.25); }
+    // panneau de grillage, de niveau
     const pos = [], uv = [], idx = []; let acc = 0; const dx = p1[0] - p0[0], dz = p1[1] - p0[1], l = Math.hypot(dx, dz); const nx = dz / l, nz = -dx / l;
-    for (let i = 0; i <= n; i++) { if (i) acc += dist2(pts[i - 1], pts[i]); const x = pts[i][0] - nx * 0.08, z = pts[i][1] - nz * 0.08; pos.push(x, gs[i] + 0.50, z, x, gs[i] + 1.68, z); uv.push(acc, 0, acc, 1.18); if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 3, a, a + 3, a + 1); } }
+    for (let i = 0; i <= n; i++) { if (i) acc += dist2(pts[i - 1], pts[i]); const x = pts[i][0] - nx * 0.08, z = pts[i][1] - nz * 0.08; pos.push(x, yT + 0.05, z, x, yT + 1.23, z); uv.push(acc, 0, acc, 1.18); if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 3, a, a + 3, a + 1); } }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
     groups.fence.add(new THREE.Mesh(geo, M.mesh));
   };
@@ -1373,9 +1445,10 @@ function buildFences() {
   // piliers 40 × 40, portillon 1,00 m et portail coulissant 3,50 m en alu 7016 hauteur 2,00 m. Le tout suit la pente.
   const runW = [BND.A, BND.D], runS = [BND.D, BND.C];
   const at = (run, s) => lerp2(run[0], run[1], s / dist2(run[0], run[1]));
+  const atIn = (run, s) => { const p = at(run, s), [a, b] = run, l = dist2(a, b); return [p[0] + (b[1] - a[1]) / l * 0.45, p[1] - (b[0] - a[0]) / l * 0.45]; }; // côté jardin, 45 cm derrière la limite
   const pillar = (run, s) => {
-    const p0 = at(run, s - 0.20), p1 = at(run, s + 0.20), gc = g(at(run, s));
-    sbox('fence', 'enduit', p0, p1, 0, 0.40, gc - 0.35, gc - 0.35, 2.39);
+    const p0 = at(run, s - 0.20), p1 = at(run, s + 0.20), gc = g(at(run, s)), yb = Math.min(gc, g(atIn(run, s))) - 0.35; // fondé sous le plus bas du trottoir et du jardin
+    sbox('fence', 'enduit', p0, p1, 0, 0.40, yb, yb, gc + 2.04 - yb);
     sbox('fence', 'coping', at(run, s - 0.24), at(run, s + 0.24), -0.04, 0.44, gc + 2.04, gc + 2.04, 0.04);
     sbox('fence', 'coping', at(run, s - 0.17), at(run, s + 0.17), 0.03, 0.37, gc + 2.08, gc + 2.08, 0.02);
     return gc;
@@ -1383,6 +1456,8 @@ function buildFences() {
   const panel = (run, s0, s1, ga, gb) => { // entre faces de piliers ; ga, gb : niveaux du terrain aux deux bouts
     const p0 = at(run, s0), p1 = at(run, s1);
     sbox('fence', 'enduit', p0, p1, 0.0, 0.20, ga - 0.35, gb - 0.35, 1.15);
+    { const yb = Math.min(g(atIn(run, s0)), g(atIn(run, s1)), ga, gb) - 0.25, yt = Math.max(ga, gb) - 0.30; // soubassement : le jardin est jusqu'à 54 cm sous le trottoir (muret de soutènement)
+      if (yt > yb) sbox('fence', 'enduit', p0, p1, 0.005, 0.195, yb, yb, yt - yb); }
     sbox('fence', 'coping', p0, p1, -0.02, 0.22, ga + 0.80, gb + 0.80, 0.035);
     for (let k = 0; k < 6; k++) sbox('fence', 'fenceAlu', p0, p1, 0.08, 0.115, ga + 0.838 + k * 0.1936, gb + 0.838 + k * 0.1936, 0.1906);
     sbox('fence', 'fenceAlu', p0, p1, 0.075, 0.12, ga + 1.995, gb + 1.995, 0.012); // lisse haute
@@ -1420,6 +1495,9 @@ function buildFences() {
   const gp = sp.map(s => pillar(runW, s));
   const gAt = (s) => { for (let i = 0; i < sp.length - 1; i++) if (s <= sp[i + 1]) return gp[i] + (gp[i + 1] - gp[i]) * (s - sp[i]) / (sp[i + 1] - sp[i]); return gp[gp.length - 1]; };
   for (const [s0, s1] of [[0.40, 9.13], [10.93, 20.60], [21.00, LW - 0.40]]) panel(runW, s0, s1, gAt(s0), gAt(s1));
+  { const c = [atIn(runW, 0.40), atIn(runW, LW - 0.40)].map(p => [p[0], p[1]]), k = 0.203 / 0.45, q = (p, s) => { const a = at(runW, s); return [a[0] + (p[0] - a[0]) * k, a[1] + (p[1] - a[1]) * k]; };
+    // pelouse le long du muret ouest côté jardin (le maillage du terrain, au pas de 20 cm, y creuserait une rigole)
+    overlayQuad('site', 'grass', [q(c[0], 0.40), q(c[1], LW - 0.40), c[1], c[0]], -0.006, Math.ceil(LW / 0.25), 2); }
   // portillon : vantail sur gonds côté pilier nord (s 9,53), ouverture de 90° vers l'intérieur de la parcelle ; serrure côté pilier sud (s 10,53)
   { const s0 = 9.53, s1 = 10.53; let yb = 0;
     const lf = leaf('portillon', atT(runW, s0 + 0.01, 0.13), acc => { yb = gate(runW, s0, s1, false, 0, null, 'leaf', acc); });
@@ -1524,7 +1602,7 @@ const DOORS = []; // éléments ouvrants cliquables : { g (groupe pivot), meshes
 function ctx() {
   return { A, M, TEX, groups, scene, camera, controls, renderer, get composer() { return composer; }, get gtao() { return gtao; }, labelRenderer,
     state, VIEWS, setView, applyVisibility, applyLighting, updateSun, hooks, DOORS, roomLights, labels, requestRender, mergeStatic, get fast() { return fast; },
-    hAt, zWest, xSouth, BND, L, D, T, SH, H, E1, std, makeTex, pixelNoise, rng, clamp, smooth, lerp2, sbox, hipRoof, tree, hedge, wall, LB, OPEN, FACE };
+    hAt, zWest, xSouth, BND, RUE, L, D, T, SH, H, E1, std, makeTex, pixelNoise, rng, clamp, smooth, lerp2, sbox, hipRoof, tree, hedge, wall, LB, OPEN, FACE };
 }
 let renderer, scene, camera, controls, sun, hemi, sky, pmrem, envRT, composer, gtao, labelRenderer;
 // [perf] rendu à la demande : rien n'est dessiné tant que la caméra est immobile et que rien ne change. En mouvement (orbite, balade,

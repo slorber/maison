@@ -641,13 +641,15 @@ function wallLine(layer, mat, cap, pts, t0, t1, h) { // mur enduit suivant le te
 }
 const seg = (p0, p1, step) => { const n = Math.max(1, Math.ceil(Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / step)); return Array.from({ length: n + 1 }, (_, i) => C.lerp2(p0, p1, i / n)); };
 function pier(x, z, h, mat, cap, s = 0.2) { const g = C.hAt(x, z); C.A.box('site', x - s, x + s, g - 0.3, g + h, z - s, z + s, mat); C.A.box('site', x - s - 0.04, x + s + 0.04, g + h, g + h + 0.06, z - s - 0.04, z + s + 0.04, cap); }
-function hedgeRow(pts, w, h, seed) { // haie taillée par tronçons de 2 m, hauteur légèrement variable
-  const r = C.rng(seed);
-  for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[i], p1 = pts[i + 1], g0 = C.hAt(p0[0], p0[1]), g1 = C.hAt(p1[0], p1[1]), hh = h * (0.93 + r() * 0.14), dw = (r() - 0.5) * 0.15; C.sbox('site', 'hedge', p0, p1, -w / 2 - dw, w / 2 + dw, g0 - 0.15, g1 - 0.15, hh + 0.15); }
+function hedgeRow(pts, w, h, seed, flat = false) { // haie taillée par tronçons de 2 m, hauteur légèrement variable ; flat : dessus horizontal (h au-dessus du point haut)
+  const r = C.rng(seed), yT = flat ? Math.max(...pts.map(p => C.hAt(p[0], p[1]))) + h : 0;
+  for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[i], p1 = pts[i + 1], g0 = C.hAt(p0[0], p0[1]), g1 = C.hAt(p1[0], p1[1]), hh = h * (0.93 + r() * 0.14), dw = (r() - 0.5) * (flat ? 0.04 : 0.15);
+    if (flat) { const yb = Math.min(g0, g1) - 0.15; C.sbox('site', 'hedge', p0, p1, -w / 2 - dw, w / 2 + dw, yb, yb, yT - yb); }
+    else C.sbox('site', 'hedge', p0, p1, -w / 2 - dw, w / 2 + dw, g0 - 0.15, g1 - 0.15, hh + 0.15); }
 }
 function streetFronts() {
   matsOuest();
-  const { zWest, xSouth, A, hAt, BND } = C;
+  const { zWest, xSouth, A, hAt, BND, RUE } = C;
   // muret à chaperon surmonté d'une grille à barreaux noirs, par tronçons horizontaux (redans) ; l'intérieur de la propriété est à droite du sens de parcours
   const murGrille = (pts, hw, hr, mat) => { for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i], p1 = pts[i + 1], g0 = hAt(p0[0], p0[1]), g1 = hAt(p1[0], p1[1]), gb = Math.min(g0, g1) - 0.3, top = Math.max(g0, g1) + hw, l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
@@ -662,19 +664,20 @@ function streetFronts() {
     for (const y of [g + 0.04, g + hp - 0.03]) C.sbox('site', mf, p0, p1, -0.025, 0.025, y, y, 0.05);
   };
 
-  // ---- en face, rue des Merlettes (côté ouest), du sud au nord, nu sur rue au dos du trottoir (photos 6, 7, 12 à 14, 5, 17)
-  const W = (x, o = 0) => [x, zWest(x) + 6.42 + o], gW = x => hAt(x, zWest(x) + 6.6), pil = (x, mat, h = 1.95, s = 0.21, cap = 'coping') => pier(x, zWest(x) + 6.42 + s, h, mat, cap, s);
-  // n° 4 (angle de la rue des Fauvettes) : muret en crépi blanc à chaperon gris et grille à barreaux noirs, retour sur la rue des Fauvettes, massif d'arbustes derrière
-  const xc = 19.75, cW = W(xc);
-  murGrille(seg([xc, 34], cW, 2.4), 0.72, 0.95, 'envRough'); murGrille(seg(cW, W(7.81), 2.4), 0.72, 0.95, 'envRough');
-  hedgeRow(seg(W(19.0, 1.0), W(8.4, 1.0), 2), 1.1, 1.9, 81); hedgeRow(seg([xc - 1.0, 33], [xc - 1.0, cW[1] + 1.0], 2), 1.1, 1.9, 82);
+  // ---- en face, rue des Merlettes (côté ouest), du sud au nord, nu sur rue au dos du trottoir (nu relevé au plan de masse, RUE.oF ; ouvrages : photos 6, 7, 12 à 14, 5, 17)
+  const zF = x => zWest(x) + RUE.oF(x), W = (x, o = 0) => [x, zF(x) + o], gW = x => RUE.SWo(x), pil = (x, mat, h = 1.95, s = 0.21, cap = 'coping') => pier(x, zF(x) + s, h, mat, cap, s);
+  // n° 4 (angle de la rue des Fauvettes) : muret en crépi blanc à chaperon gris et grille à barreaux noirs, pan coupé à l'angle (plan de masse : (17,08 ; 19,18) → (19,34 ; 21,16)),
+  // retour sur la rue des Fauvettes parallèle à la limite C–D, massif d'arbustes derrière
+  const [pc0, pc1] = RUE.PC, s4 = [pc1[0] + (xSouth(34) - xSouth(pc1[1])), 34];
+  murGrille(seg(s4, pc1, 2.4), 0.72, 0.95, 'envRough'); murGrille(seg(pc1, pc0, 2.4), 0.72, 0.95, 'envRough'); murGrille(seg(pc0, W(7.81), 2.4), 0.72, 0.95, 'envRough');
+  hedgeRow(seg(W(16.2, 1.0), W(8.4, 1.0), 2), 1.1, 1.9, 81); hedgeRow(seg([s4[0] - 1.0, 33], [pc1[0] - 1.0, pc1[1] + 0.2], 2), 1.1, 1.9, 82);
   // piliers en crépi blanc à couvertine grise ; portillon (soubassement blanc, barreaux noirs, photo 14 d'oct. 2026), boîte aux lettres verte sur tablette dans
   // une niche (muret, compteur, barreaudage noir au-dessus), portail noir à 2 vantaux (soubassement plein, barreaux à pointes)
   for (const x of [7.6, 6.09, 4.89, 1.59]) pil(x, 'envRough');
   { const g = gW(6.84); vantail(W(7.39, 0.1), W(6.3, 0.1), g, 1.3, 1.72, 'white'); }
   { const g = Math.max(gW(5.88), gW(5.1)), yt = g + 0.85; C.sbox('site', 'envRough', W(5.88), W(5.1), 0, 0.3, g - 0.3, g - 0.3, 1.15); C.sbox('site', 'coping', W(5.88), W(5.1), -0.05, 0.32, yt, yt, 0.05);
-    A.box('site', 5.62, 5.34, g + 0.12, g + 0.55, zWest(5.48) + 6.415, zWest(5.48) + 6.43, 'appui');
-    vantail(W(5.88, 0.27), W(5.1, 0.27), yt, 0.5, 0.9, 'blackMatte'); A.box('site', 5.31, 5.67, yt + 0.05, yt + 0.33, zWest(5.49) + 6.45, zWest(5.49) + 6.66, 'envGreen'); }
+    A.box('site', 5.62, 5.34, g + 0.12, g + 0.55, zF(5.48) - 0.005, zF(5.48) + 0.01, 'appui');
+    vantail(W(5.88, 0.27), W(5.1, 0.27), yt, 0.5, 0.9, 'blackMatte'); A.box('site', 5.31, 5.67, yt + 0.05, yt + 0.33, zF(5.49) + 0.03, zF(5.49) + 0.24, 'envGreen'); }
   { const g = Math.max(gW(4.68), gW(1.8)); vantail(W(4.68, 0.1), W(3.24, 0.1), g, 1.3, 1.75, 'blackMatte'); vantail(W(3.24, 0.1), W(1.8, 0.1), g, 1.3, 1.75, 'blackMatte'); }
   // maison rose : mur haut enduit crème à chaperon, haie de lauriers derrière ; pilier, portillon vert, pilier, trumeau (compteur, boîte aux lettres), portail vert, pilier
   wallLine('site', 'envCream', 'coping', seg(W(1.38), W(-9.2), 1.6), 0, 0.2, 1.85);
@@ -682,27 +685,27 @@ function streetFronts() {
   for (const x of [-9.4, -10.8, -14.5]) pil(x, 'envCream', 1.95, 0.2);
   { const g = gW(-10.1); vantail(W(-9.6, 0.1), W(-10.6, 0.1), g, 1.6, 1.6, 'envGreen', 'envGreen'); }
   { const g = gW(-11.4); C.sbox('site', 'envCream', W(-11.0), W(-12.1), 0, 0.22, g - 0.3, g - 0.3, 1.85); C.sbox('site', 'coping', W(-11.0), W(-12.1), -0.03, 0.25, g + 1.55, g + 1.55, 0.05);
-    A.box('site', -11.25, -11.65, g + 0.5, g + 1.0, zWest(-11.45) + 6.41, zWest(-11.45) + 6.43, 'appui'); A.box('site', -11.75, -12.0, g + 1.05, g + 1.35, zWest(-11.9) + 6.39, zWest(-11.9) + 6.43, 'envGreen'); }
+    A.box('site', -11.25, -11.65, g + 0.5, g + 1.0, zF(-11.45) - 0.01, zF(-11.45) + 0.01, 'appui'); A.box('site', -11.75, -12.0, g + 1.05, g + 1.35, zF(-11.9) - 0.03, zF(-11.9) + 0.01, 'envGreen'); }
   { const g = Math.max(gW(-12.1), gW(-14.3)); vantail(W(-12.1, 0.1), W(-13.2, 0.1), g, 1.6, 1.6, 'envGreen', 'envGreen'); vantail(W(-13.2, 0.1), W(-14.3, 0.1), g, 1.6, 1.6, 'envGreen', 'envGreen'); }
   // plus au nord : muret bas et grillage vert sur poteaux
   { const pts = seg(W(-14.7), W(-24), 2.4); wallLine('site', 'envCream', 'coping', pts, 0, 0.2, 0.3);
     for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], ga = hAt(a[0], a[1]) + 0.35, gb = hAt(b[0], b[1]) + 0.35; A.quadN('site', 'mesh', [[a[0], ga, a[1] + 0.1], [b[0], gb, b[1] + 0.1], [b[0], gb + 1.2, b[1] + 0.1], [a[0], ga + 1.2, a[1] + 0.1]], [0, 0, -1]); A.box('site', a[0] - 0.025, a[0] + 0.025, ga - 0.05, ga + 1.25, a[1] + 0.075, a[1] + 0.125, 'meshPost'); } }
 
-  // ---- voisin nord, sur rue (photos 4, 5, 17) : muret enduit blanc à chaperon, grillage simple torsion vert doublé d'un brise-vue vert foncé, poteaux verts
+  // ---- voisin nord, sur rue (photos 4, 5, 17 ; client, 12/10/2026) : muret enduit blanc à chaperon posé sur le trottoir (enrobé), grillage simple torsion vert ajouré
+  // (on voit au travers : pas de brise-vue), poteaux verts
   const pn = seg([-30, zWest(-30)], BND.A, 2.5);
   wallLine('site', 'envWhiteN', 'coping', pn, 0, 0.2, 0.55);
   for (let i = 0; i < pn.length - 1; i++) { const a = pn[i], b = pn[i + 1], ga = hAt(a[0], a[1]) + 0.6, gb = hAt(b[0], b[1]) + 0.6, za = a[1] - 0.1, zb = b[1] - 0.1;
     A.quadN('site', 'mesh', [[a[0], ga, za + 0.01], [b[0], gb, zb + 0.01], [b[0], gb + 1.22, zb + 0.01], [a[0], ga + 1.22, za + 0.01]], [0, 0, 1]);
-    A.quadN('site', 'envScreen', [[a[0], ga + 0.02, za - 0.01], [b[0], gb + 0.02, zb - 0.01], [b[0], gb + 1.12, zb - 0.01], [a[0], ga + 1.12, za - 0.01]], [0, 0, 1]);
     A.box('site', a[0] - 0.025, a[0] + 0.025, ga - 0.05, ga + 1.25, za - 0.035, za + 0.015, 'meshPost'); }
-  // haie haute du voisin nord derrière le muret de limite (photos 4, 16 à 18), et entre son jardin et la maison de maître (photo 4)
-  hedgeRow(seg([-12.15, 0.1], [-12.15, 12.2], 2), 0.85, 2.35, 75);
+  // haie haute du voisin nord derrière le muret de limite (photos 4, 16 à 18), droite et de niveau comme le muret (clients, 12/10/2026), et entre son jardin et la maison de maître (photo 4)
+  hedgeRow(seg([-12.15, 0.1], [-12.15, 12.2], 2), 0.85, 2.35, 75, true);
   hedgeRow(seg([-17.4, 0.55], [-12.6, 0.55], 2), 0.8, 2.2, 76);
 
   // ---- au sud du sentier de Derrière le Gué, n° 6 (photos 8 à 10, 15) : muret crème à chaperon et grille noire à lances le long du sentier, haie derrière ;
   // façade est sur la partie nord–sud du sentier (bord à z = −1, à l'écart du virage) : pilier d'angle, portail noir à 2 vantaux, pilier à gyrophare orange,
   // muret et grille, pilier du n° 6, portillon noir, pilier
-  const xl = z => xSouth(z) + 6.42, zE = -1.0, xE = xl(zE), pS = (x, z) => pier(x, z, 1.85, 'envCream', 'coping', 0.2);
+  const xl = z => RUE.xS6(z), zE = -1.0, xE = xl(zE), pS = (x, z) => pier(x, z, 1.85, 'envCream', 'coping', 0.2); // nu sur la rue : tireté du plan de masse (x 25,48 → 25,54)
   murGrille(seg([xl(zE + 0.4), zE + 0.4], [xl(30), 30], 2.4), 0.85, 0.85, 'envCream');
   hedgeRow(seg([xl(1.2) + 1.0, 1.2], [xl(29.5) + 1.0, 29.5], 2), 0.9, 1.9, 84);
   for (const x of [xE + 0.2, 29.7, 38.2, 40.0]) pS(x, zE + 0.2);

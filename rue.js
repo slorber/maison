@@ -1,20 +1,15 @@
 // Rue des Merlettes (limite ouest du terrain) et son débouché sur la rue des Fauvettes, à l'angle sud-ouest : profil en travers,
-// bordures, caniveaux, trottoir, berme, grilles et tampons, panneaux, lampadaires, poteau électrique, bacs à couvercle jaune.
-// Relevé sur les photos du 11/10/2026 (12, 13, 18 : du carrefour vers le nord ; 14 : du terrain vers l'ouest ; 15, 16 : de la rue vers le terrain ;
-// 17 : vers le nord) et Street View 2021 (5 à 8) ; cotes déduites par perspective (œil à 1,60 m) : ±0,3 m en travers, ±1 m le long de la rue.
+// bordures, caniveaux, trottoirs, grilles et tampons, panneaux, lampadaires, poteau électrique, bacs à couvercle jaune.
+// Tracés, niveaux et mobilier : plan de masse (page 4, 1/200) et plan altimétrique du géomètre (profil RUE de main.js : fils d'eau, bordures,
+// nus d'en face, NGF levés) ; matériaux et ouvrages non cotés : photos du 11/10/2026 et du client (12/10/2026), Street View 2021.
 // Appelé après buildEnvironment, avant A.build(groups) : nappes et bordures dans les seaux A, mobilier fusionné en un seul maillage (atlas).
 import * as THREE from 'three';
 
-let C;
-// profil en travers, décalage o depuis la limite ouest (z = zWest(x) + o) : berme 0,79, bordure T2 de 15 (vue 15 cm), chaussée 3,40 en enrobé,
-// caniveau béton de 30, bordure de 17 (vue 11 cm), trottoir 1,79 jusque sous les murs d'en face (nu à 6,50, streetFronts)
-const PR = { berme: 0.79, bE: 0.94, can: 4.34, bW: 4.64, tr: 4.81, fond: 6.6 };
-// niveaux au-dessus du terrain hAt : chaussée à 0,04 comme avant (sous l'enrobé de la rue des Fauvettes à 0,045), caniveau au-dessus des deux
-const LV = { road: 0.04, canR: 0.052, canM: 0.047, canB: 0.055, bW: 0.165, tr: 0.155, bE: 0.19, bermeB: 0.17, bermeL: 0.06 };
-const X0 = -80, XR = 19.62; // XR : nu sud du retour de la bordure est (angle sud-ouest du terrain, photos 13 et 18)
-const FN = { face: 0.42, dos: 0.25, can: 0.72, fond: -0.55 }; // rue des Fauvettes, rive nord à l'ouest du carrefour : décalages depuis xSouth(z)
-const XWc = 19.98; // nu sud de la bordure ouest au carrefour (retour vers l'ouest, 0,35 m plus au sud que XR, photo 12)
-const PAVE = 6.8; // trottoir ouest : enrobé au sud (devant le muret à grille du n° 4), pavés au nord (photos 6, 15, 17)
+let C, R; // R : profil de la branche ouest (C.RUE)
+const X0 = -80;
+// rue des Fauvettes, rive nord à l'ouest du carrefour (au-delà du plan, photos 7, 12) : décalages depuis xSouth(z) ; trottoir jusqu'au mur sud du n° 4 (−0,24, pan coupé)
+const FN = { face: 0.42, dos: 0.25, can: 0.72, fond: -0.24, z0: 21.16 };
+const BAT = [1.59, 4.89]; // bateau en pavés devant le portail du n° 4 (entre ses piliers) : seul tronçon pavé du trottoir d'en face (client, 12/10/2026)
 
 // ---------------------------------------------------------------- petites opérations vectorielles
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -24,7 +19,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const unit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 const zo = (x, o) => C.zWest(x) + o; // z d'un point de la rue
-const yo = (x, o, l) => C.hAt(x, zo(x, o)) + l; // niveau d'un point de la rue
+const fx = v => typeof v === 'function' ? v : () => v;
 
 // ---------------------------------------------------------------- nappes drapées (seaux A, UV en mètres)
 // f(u, v) → [x, y, z] ; nu × nv quadrilatères ; normale orientée selon hint (dessus : [0, 1, 0], faces vues : direction extérieure)
@@ -36,19 +31,22 @@ function sheet(mat, f, nu, nv, hint) {
     C.A.quadN('site', mat, [a, b, c, d], n);
   }
 }
-// bande le long de la rue des Merlettes : x de xa à xb, décalage oa → ob, niveau la → lb (si oa = ob : face verticale)
-const mer = (xa, xb, oa, ob, la, lb) => (u, v) => { const x = xa + (xb - xa) * u, z = zo(x, oa + (ob - oa) * v); return [x, C.hAt(x, z) + la + (lb - la) * v, z]; };
-// bande le long de la rue des Fauvettes (rive nord, à l'ouest du carrefour) : z de za à zb, décalage fa → fb depuis xSouth(z)
-const fau = (za, zb, fa, fb, la, lb) => (u, v) => { const z = za + (zb - za) * u, x = C.xSouth(z) + fa + (fb - fa) * v; return [x, C.hAt(x, z) + la + (lb - la) * v, z]; };
+// bande le long de la branche ouest : x de xa à xb, décalages oa(x) → ob(x), niveau absolu Y(x, o)
+const band = (xa, xb, oa, ob, Y) => { const A = fx(oa), B = fx(ob); return (u, v) => { const x = xa + (xb - xa) * u, o = A(x) + (B(x) - A(x)) * v; return [x, Y(x, o), zo(x, o)]; }; };
+// face verticale le long de la branche ouest, au décalage of(x), du niveau y0(x) à y1(x)
+const vband = (xa, xb, of, y0, y1) => (u, v) => { const x = xa + (xb - xa) * u, y = y0(x) + (y1(x) - y0(x)) * v; return [x, y, zo(x, fx(of)(x))]; };
+// bande le long de la branche sud ou de la rue des Fauvettes : z de za à zb, x de xa(z) à xb(z), niveau hAt + l (drapé sur la surface interpolée des points levés)
+const fau = (za, zb, xa, xb, la, lb = la) => { const A = fx(xa), B = fx(xb); return (u, v) => { const z = za + (zb - za) * u, x = A(z) + (B(z) - A(z)) * v; return [x, C.hAt(x, z) + la + (lb - la) * v, z]; }; };
+const xs = f => z => C.xSouth(z) + f; // abscisse à f de la limite C–D (prolongée)
 
-// bordure : face vue (fond de la face au niveau lf), chanfrein de 2,5 cm, dessus au niveau lt, dos optionnel (pied au niveau lb) ; s = sens face → dos
-function kerbM(xa, xb, oF, oB, lf, lt, lb, nu, mt) {
-  const s = Math.sign(oB - oF), hz = [0, 0, -s];
-  sheet('rueBord', mer(xa, xb, oF, oF, lf, lt - 0.02), nu, 1, hz);
-  sheet(mt, mer(xa, xb, oF, oF + s * 0.025, lt - 0.02, lt), nu, 1, [0, 1, 0]);
-  sheet(mt, mer(xa, xb, oF + s * 0.025, oB, lt, lt), nu, 1, [0, 1, 0]);
-  if (lb !== null) sheet('rueBord', mer(xa, xb, oB, oB, lb, lt), nu, 1, [0, 0, s]);
+// bordure de la branche ouest : face au décalage oF (pied au niveau yF), chanfrein de 2,5 cm, dessus au niveau yT jusqu'au décalage oB
+function kerbW(xa, xb, oF, oB, yF, yT, nu) {
+  const F = fx(oF), Bk = fx(oB), s = Math.sign(Bk(xa) - F(xa)), ch = (x, o) => yT(x) - 0.02 * clamp(1 - s * (o - F(x)) / 0.025, 0, 1);
+  sheet('rueBord', vband(xa, xb, F, yF, x => yT(x) - 0.02), nu, 1, [0, 0, -s]);
+  sheet('rueBord', band(xa, xb, F, x => F(x) + s * 0.025, ch), nu, 1, [0, 1, 0]);
+  sheet('rueBord', band(xa, xb, x => F(x) + s * 0.025, Bk, x => yT(x)), nu, 1, [0, 1, 0]);
 }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---------------------------------------------------------------- maillage du mobilier (atlas 4 × 4 cases de 256 px, couleurs par sommet)
 const mk = () => ({ pos: [], nor: [], uv: [], col: [], idx: [] });
@@ -94,16 +92,16 @@ function vrect(c, ex, w, h, n, r) {
   const L = add(c, mul(ex, -w / 2)), R = add(c, mul(ex, w / 2));
   poly([[L[0], L[1] - h / 2, L[2]], [R[0], R[1] - h / 2, R[2]], [R[0], R[1] + h / 2, R[2]], [L[0], L[1] + h / 2, L[2]]], n, [[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]]);
 }
-// disque texturé posé sur le terrain (tampons) : chaque sommet à hAt + l, chant de hauteur e
-function hdisc(x, z, l, rad, r, e, n = 24) {
+// disque texturé posé sur le terrain (tampons) : chaque sommet au niveau lev + l (lev : hAt, ou dessus d'un trottoir), chant de hauteur e
+function hdisc(x, z, l, rad, r, e, n = 24, lev = C.hAt) {
   const uc = (r[0] + r[2]) / 2, vc = (r[1] + r[3]) / 2, du = (r[2] - r[0]) / 2, dv = (r[3] - r[1]) / 2, pts = [], uvs = [];
-  for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI, px = x + rad * Math.cos(a), pz = z + rad * Math.sin(a); pts.push([px, C.hAt(px, pz) + l, pz]); uvs.push([uc + du * Math.cos(a), vc - dv * Math.sin(a)]); }
+  for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI, px = x + rad * Math.cos(a), pz = z + rad * Math.sin(a); pts.push([px, lev(px, pz) + l, pz]); uvs.push([uc + du * Math.cos(a), vc - dv * Math.sin(a)]); }
   poly(pts, [0, 1, 0], uvs);
   for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n], m = unit([(p[0] + q[0]) / 2 - x, 0, (p[2] + q[2]) / 2 - z]); poly([[p[0], p[1] - e, p[2]], [q[0], q[1] - e, q[2]], q, p], m, null, K.iron); }
 }
-// plaque rectangulaire texturée posée sur le terrain (grilles, tampon carré, plaque de chambre) : coins à hAt + l, chants de hauteur e
-function plate(c, ax, hx, hz, l, r, e) {
-  const az = [-ax[1], ax[0]], P = (sx, sz) => { const px = c[0] + sx * hx * ax[0] + sz * hz * az[0], pz = c[1] + sx * hx * ax[1] + sz * hz * az[1]; return [px, C.hAt(px, pz) + l, pz]; };
+// plaque rectangulaire texturée posée sur le terrain (grilles, tampon carré, plaque de chambre) : coins à lev + l, chants de hauteur e
+function plate(c, ax, hx, hz, l, r, e, lev = C.hAt) {
+  const az = [-ax[1], ax[0]], P = (sx, sz) => { const px = c[0] + sx * hx * ax[0] + sz * hz * az[0], pz = c[1] + sx * hx * ax[1] + sz * hz * az[1]; return [px, lev(px, pz) + l, pz]; };
   const q = [P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)]; poly(q, [0, 1, 0], [[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]]);
   for (let i = 0; i < 4; i++) { const p = q[i], k = q[(i + 1) % 4], m = unit([(p[0] + k[0]) / 2 - c[0], 0, (p[2] + k[2]) / 2 - c[1]]); poly([[p[0], p[1] - e, p[2]], [k[0], k[1] - e, k[2]], k, p], m, null, K.iron); }
 }
@@ -131,12 +129,6 @@ function buildMaterials() {
     }
     g.restore(); const img = g.getImageData(0, 0, s, s), d = img.data, r = rng(911); for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * 18; d[i] += n; d[i + 1] += n; d[i + 2] += n; } g.putImageData(img, 0, 0);
   }), roughness: 0.9 });
-  // berme : herbe sèche, terre, quelques plantes vertes (photos 15, 16, 17)
-  M.rueBerme = std({ map: makeTex(512, 2.0, (g, s) => {
-    pixelNoise(g, s, '#87795a', 0.10, 0.14, 5, 921); const r = rng(922);
-    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(95,75,55,${0.15 + r() * 0.2})`; g.beginPath(); g.ellipse(r() * s, r() * s, 8 + r() * 30, 5 + r() * 15, r() * 3, 0, 7); g.fill(); }
-    for (let i = 0; i < 5000; i++) { const x = r() * s, y = r() * s, t = r(); g.strokeStyle = t < 0.7 ? `rgba(${170 + r() * 40},${150 + r() * 35},${100 + r() * 30},0.55)` : `rgba(${80 + r() * 30},${100 + r() * 30},${50},0.5)`; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 8, y + (r() - 0.5) * 8); g.stroke(); }
-  }), roughness: 1 });
   M.rueAtlas = std({ map: makeTex(1024, 1, drawAtlas), vertexColors: true, roughness: 0.6, metalness: 0.12 });
   M.rueDiff = std({ color: '#f4f1e8', roughness: 0.3, emissive: '#fff2d2', emissiveIntensity: 0.25 });
   K = Object.fromEntries(Object.entries({ white: '#ffffff', iron: '#2c2824', pole: '#26292c', galva: '#8d9396', concrete: '#b9b4a8', wire: '#141414', binBody: '#464a4e', binLid: '#e3b51b', rubber: '#121212', brown: '#5b3a26' }).map(([k, v]) => [k, new THREE.Color(v)]));
@@ -179,66 +171,74 @@ function drawAtlas(g) {
 }
 
 // ---------------------------------------------------------------- profil en travers et carrefour (nappes et bordures)
+// branche ouest (profil RUE, niveaux absolus) : notre trottoir en enrobé de la limite au dos de la bordure (15 cm), chaussée bombée, caniveau béton de 30 cm,
+// bordure de 17 cm, trottoir d'en face en enrobé jusqu'aux nus (pavés au seul bateau du n° 4) ; retours des deux bordures à l'angle (plan : x 18,40 et 18,10) ;
+// carrefour et branche sud drapés sur la surface interpolée des points levés
 function profile() {
-  const nu = Math.round((XR - X0) / 1.0), xWc = XWc - (FN.face - FN.dos); // xWc : dos de la bordure de la rive nord des Fauvettes au carrefour
-  // chaussée en enrobé, de la bordure est au caniveau, puis débouché sur le carrefour (jusqu'à 26,0 : les photos 12, 13, 18 sont prises de l'enrobé à ~5 m au sud de la grille)
-  sheet('asphalt', mer(X0, XR, PR.bE, PR.can + 0.05, LV.road, LV.road), nu, 3, [0, 1, 0]); // + 0,05 sous le caniveau : pas de jour à la jonction
-  sheet('asphalt', mer(XR, XWc, 0, PR.can + 0.05, LV.road, LV.road), 1, 5, [0, 1, 0]);
-  sheet('asphalt', mer(XWc, 26.0, 0, PR.fond, LV.road, LV.road), 6, 8, [0, 1, 0]);
-  // côté est (notre terrain) : berme enherbée en pente douce vers la limite, bordure haute, retour de 0,95 m vers l'est à l'angle sud-ouest
-  sheet('rueBerme', mer(X0, XR - 0.15, 0, PR.berme, LV.bermeL, LV.bermeB), nu, 2, [0, 1, 0]);
-  sheet('rueBerme', mer(X0, XR - 0.15, 0, 0, -0.02, LV.bermeL), nu, 1, [0, 0, -1]);
-  kerbM(X0, XR, PR.bE, PR.berme, LV.road, LV.bE, LV.bermeB, nu, 'rueBord');
-  sheet('rueBordZ', (u, v) => { const x = XR - 0.15 + 0.15 * v, z = zo(x, PR.berme * (1 - u)); return [x, C.hAt(x, z) + LV.bE, z]; }, 2, 1, [0, 1, 0]); // dessus du retour
-  sheet('rueBord', (u, v) => { const z = zo(XR, PR.bE * (1 - u)); return [XR, C.hAt(XR, z) + LV.road + (LV.bE - LV.road) * v, z]; }, 2, 1, [1, 0, 0]); // face sud
-  sheet('rueBord', (u, v) => { const x = XR - 0.15 + 0.15 * u, z = zo(x, 0); return [x, C.hAt(x, z) - 0.02 + (LV.bE + 0.02) * v, z]; }, 1, 1, [0, 0, -1]); // about est
-  // côté ouest : caniveau béton (légèrement en V), bordure, trottoir (enrobé au sud, pavés au nord), fermeture sous les murs
-  sheet('rueBord', mer(X0, XWc, PR.can, PR.can + 0.15, LV.canR, LV.canM), nu, 1, [0, 1, 0]);
-  sheet('rueBord', mer(X0, XWc, PR.can + 0.15, PR.bW, LV.canM, LV.canB), nu, 1, [0, 1, 0]);
-  kerbM(X0, XWc, PR.bW, PR.tr, LV.canB, LV.bW, null, nu, 'rueBord');
-  sheet('rueBord', (u, v) => { const z = zo(XWc, PR.bW + (PR.tr - PR.bW) * u); return [XWc, C.hAt(XWc, z) + LV.canB + (LV.bW - LV.canB) * v, z]; }, 1, 1, [1, 0, 0]); // about sud au carrefour
-  sheet('ruePave', mer(X0, PAVE, PR.tr, PR.fond, LV.tr, LV.tr), Math.round((PAVE - X0) / 1.0), 2, [0, 1, 0]);
-  sheet('asphalt', mer(PAVE, xWc, PR.tr, PR.fond, LV.tr, LV.tr), Math.round((xWc - PAVE) / 1.0), 2, [0, 1, 0]);
-  sheet('asphalt', mer(3.3, 3.7, PR.tr, PR.fond, LV.tr + 0.003, LV.tr + 0.003), 1, 2, [0, 1, 0]); // tranchée rebouchée en enrobé en travers des pavés (photo 17)
-  sheet('rueBord', mer(X0, xWc, PR.fond, PR.fond, -0.02, LV.tr), nu, 1, [0, 0, 1]);
-  // rive nord de la rue des Fauvettes à l'ouest du carrefour, devant le n° 4 (photos 7, 12) : caniveau, bordure, trottoir de 0,80 en enrobé
-  const za = zo(XWc, PR.can), zb = zo(XWc, PR.tr), zc = zo(19.4, PR.fond), zE = 60, nz = Math.round((zE - za) / 1.0);
-  sheet('rueBordZ', fau(za, zE, FN.can, FN.can - 0.15, LV.canR, LV.canM), nz, 1, [0, 1, 0]);
-  sheet('rueBordZ', fau(za, zE, FN.can - 0.15, FN.face, LV.canM, LV.canB), nz, 1, [0, 1, 0]);
-  sheet('rueBord', fau(zb, zE, FN.face, FN.face, LV.canB, LV.bW - 0.02), nz, 1, [1, 0, 0]);
-  sheet('rueBordZ', fau(zb, zE, FN.face, FN.face - 0.025, LV.bW - 0.02, LV.bW), nz, 1, [0, 1, 0]);
-  sheet('rueBordZ', fau(zb, zE, FN.face - 0.025, FN.dos, LV.bW, LV.bW), nz, 1, [0, 1, 0]);
-  sheet('asphalt', fau(zc, zE, FN.dos, FN.fond, LV.tr, LV.tr), nz, 1, [0, 1, 0]);
-  sheet('rueBord', fau(zc, zE, FN.fond, FN.fond, -0.02, LV.tr), nz, 1, [-1, 0, 0]);
+  const up = [0, 1, 0], XR = R.XR, XRW = R.XRW, P0 = R.PC[0][0], nu = Math.round((XR - X0) / 1.0);
+  const SW = x => R.SW(x), SWo = x => R.SWo(x), oG = x => R.oG(x), oW = x => R.oW(x), front = x => R.front(x);
+  // notre côté : trottoir, bordure, retour de la bordure vers la limite (face sud en XR)
+  sheet('asphalt', band(X0, XR - 0.15, -0.03, x => oG(x) - 0.15, SW), nu, 1, up); // 3 cm sous le muret : seuil du portillon
+  kerbW(X0, XR, oG, x => oG(x) - 0.15, x => R.FE(x) - 0.01, SW, nu);
+  sheet('rueBordZ', band(XR - 0.15, XR, 0, x => oG(x) - 0.15, SW), 1, 2, up);
+  sheet('rueBord', (u, v) => { const o = R.oG(XR) * u, z = zo(XR, o), g = C.hAt(XR + 0.01, z) - 0.01; return [XR, g + (SW(XR) - 0.02 - g) * v, z]; }, 3, 1, [1, 0, 0]);
+  // chaussée, caniveau, bordure d'en face, retour de la bordure vers le pan coupé du n° 4 (fil d'eau en XRW)
+  sheet('asphalt', band(X0, XR, oG, x => oW(x) - 0.30, (x, o) => R.road(x, o) + 0.003), nu, 6, up);
+  sheet('rueBord', band(X0, XRW, x => oW(x) - 0.30, oW, (x, o) => R.road(x, o) + 0.004), nu, 2, up);
+  kerbW(X0, XRW, oW, x => oW(x) + 0.17, x => R.FEW(x) - 0.01, SWo, nu);
+  sheet('rueBordZ', band(XRW - 0.17, XRW, x => oW(x) + 0.17, front, SWo), 1, 4, up);
+  sheet('rueBord', (u, v) => { const o = R.oW(XRW) + (front(XRW) - R.oW(XRW)) * u, z = zo(XRW, o), g = C.hAt(XRW + 0.01, z) - 0.01; return [XRW, g + (SWo(XRW) - g) * v, z]; }, 4, 1, [1, 0, 0]);
+  // trottoir d'en face : enrobé, pavés en chevrons au bateau du n° 4 (tranchée rebouchée en enrobé en travers des pavés, photo 17), fermeture sous les murs
+  const tr = (mat, xa, xb, l = 0) => sheet(mat, band(xa, xb, x => oW(x) + 0.17, front, x => SWo(x) + l), Math.max(1, Math.round((xb - xa) / 1.0)), 2, up);
+  tr('asphalt', X0, BAT[0]); tr('ruePave', BAT[0], BAT[1]); tr('asphalt', BAT[1], P0); tr('asphalt', P0, XRW - 0.17); tr('asphalt', 3.3, 3.7, 0.003);
+  sheet('rueBord', vband(X0, P0, front, x => SWo(x) - 0.25, SWo), nu, 1, [0, 0, 1]);
+  // carrefour : entre les retours, puis jusqu'au fil d'eau d'en face de la branche sud (RUE.xFS) et au pan coupé du n° 4 ; branche sud vers l'ouest (rue des Fauvettes)
+  const zPC = x => R.PC[0][1] + (R.PC[1][1] - R.PC[0][1]) * (x - P0) / (R.PC[1][0] - P0);
+  sheet('asphalt', band(XRW, XR, x => oW(x) - 0.30, front, (x, o) => C.hAt(x, zo(x, o)) + 0.003), 1, 6, up);
+  sheet('asphalt', (u, v) => { const x0 = XR + (24.62 - XR) * u, za = C.zWest(x0), zb = x0 < R.PC[1][0] ? zPC(x0) : FN.z0, z = za + (zb - za) * v, x = Math.min(x0, R.xFS(z)); return [x, C.hAt(x, z) + 0.003, z]; }, 26, 10, up);
+  const zE = 60, nz = Math.round((zE - FN.z0) / 1.0);
+  sheet('asphalt', fau(FN.z0, zE, xs(FN.can), R.xFS, 0.003), nz, 8, up);
+  // rive nord des Fauvettes (au-delà du plan, photos 7, 12) : caniveau, bordure (vue 10 cm), trottoir en enrobé jusqu'au mur sud du n° 4, about contre le pan coupé
+  sheet('rueBordZ', fau(FN.z0, zE, xs(FN.can), xs(FN.face), 0.004), nz, 2, up);
+  sheet('rueBord', (u, v) => { const z = FN.z0 + (zE - FN.z0) * u, x = C.xSouth(z) + FN.face, g = C.hAt(x, z); return [x, g + 0.08 * v, z]; }, nz, 1, [1, 0, 0]);
+  sheet('rueBordZ', fau(FN.z0, zE, xs(FN.face), xs(FN.face - 0.025), 0.08, 0.10), nz, 1, up);
+  sheet('rueBordZ', fau(FN.z0, zE, xs(FN.face - 0.025), xs(FN.dos), 0.10), nz, 1, up);
+  sheet('asphalt', fau(FN.z0, zE, xs(FN.dos), xs(FN.fond), 0.10), nz, 1, up);
+  sheet('rueBord', (u, v) => { const x = C.xSouth(FN.z0) + FN.fond + (FN.face - FN.fond) * u, g = C.hAt(x, FN.z0); return [x, g + 0.10 * v, FN.z0]; }, 2, 1, [0, 0, -1]);
+  // branche sud, rive d'en face : bordure (vue 10 cm, R5 / R6) au fil d'eau du plan, trottoir jusqu'au nu des propriétés (n° 6), à partir du lampadaire (z 5,74)
+  const zS = 5.74, ns = Math.round((zE - zS) / 1.0);
+  sheet('rueBord', (u, v) => { const z = zS + (zE - zS) * u, x = R.xFS(z), g = C.hAt(x, z); return [x, g + 0.10 * v, z]; }, ns, 1, [-1, 0, 0]);
+  sheet('curb', fau(zS, zE, R.xFS, R.xS6, 0.10), ns, 2, up);
+  sheet('rueBord', (u, v) => { const x = R.xFS(zS) + (R.xS6(zS) - R.xFS(zS)) * u, g = C.hAt(x, zS); return [x, g + 0.10 * v, zS]; }, 2, 1, [0, 0, -1]);
 }
 
-// ---------------------------------------------------------------- eaux pluviales et réseaux : grilles, tampons, bouches à clé, chambre
+// ---------------------------------------------------------------- eaux pluviales et réseaux : grilles, tampons, bouches à clé, chambre (positions du plan de masse)
 function covers() {
-  const LJ = 0.058; // au carrefour, au-dessus de l'enrobé de la rue des Fauvettes (0,045) et de la chaussée (0,04)
-  // caniveau à grille en travers du débouché, du coin de la bordure est au caniveau ouest (photos 12, 13, 18), 7 tronçons de 0,49 m, largeur 0,20
-  { const pE = [XR + 0.10, zo(XR + 0.10, PR.bE)], pW = [XWc + 0.10, zo(XWc + 0.10, PR.can)], d = [pW[0] - pE[0], pW[1] - pE[1]], len = Math.hypot(d[0], d[1]), ax = [d[0] / len, d[1] / len], n = 7;
-    for (let i = 0; i < n; i++) plate([pE[0] + d[0] * (i + 0.5) / n, pE[1] + d[1] * (i + 0.5) / n], ax, len / n / 2, 0.10, LJ, cell(3), 0.04); }
-  // grille d'avaloir dans le caniveau de la rive nord des Fauvettes, à l'angle du trottoir ouest (photos 12, 18 ; Street View 2021, photo 7)
-  { const z = zo(XWc, 4.72); plate([C.xSouth(z) + FN.face + 0.15, z], [0, 1], 0.25, 0.15, LJ + 0.004, cell(4), 0.04); }
-  // tampon d'assainissement Ø 0,80 à studs concentriques au carrefour, 1,8 m au sud de la grille (photos 12, 18)
-  { const x = 21.65; hdisc(x, zo(x, 1.46), LJ, 0.40, cell(1), 0.04, 28); }
-  // deux bouches à clé Ø 0,17 au carrefour (photos 12, 18)
-  for (const [x, o] of [[21.46, 3.15], [22.16, 3.28]]) hdisc(x, zo(x, o), LJ, 0.085, cell(7), 0.03, 12);
-  // tampon Ø 0,74 à ondes dans la chaussée, à 0,9 m du caniveau ouest, en face du n° 4 (photo 17, aussi visible sur 12, 13, 15)
-  { const x = 8.0; hdisc(x, zo(x, 3.46), LV.road + 0.009, 0.37, cell(2), 0.03, 28); }
-  // tampon carré de 0,45 sur le trottoir ouest, devant le portillon du n° 4 (Street View 2021, photos 6, 7)
-  { const x = 7.8; plate([x, zo(x, 6.2)], [1, 0], 0.225, 0.225, LV.tr + 0.008, cell(5), 0.03); }
-  // plaque striée de chambre de tirage 0,70 × 0,40 dans la berme, au ras du dos de la bordure, au nord du lampadaire nord (photo 16)
-  { const x = LAMPS[1][0] - 1.1, o = 0.59, l = LV.bermeL + (LV.bermeB - LV.bermeL) * o / PR.berme; plate([x, zo(x, o)], [0.99926, 0.0386], 0.35, 0.20, l + 0.014, cell(6), 0.04); }
+  const LJ = 0.005; // au-dessus de l'enrobé (0,003)
+  const onSide = l => (x, z) => R.y(x, z - C.zWest(x)) + l; // dessus des trottoirs (niveaux absolus du profil)
+  // caniveau à grille en travers du débouché (plan : 0,22 × 2,91, de notre fil d'eau au fil d'eau d'en face), 6 tronçons
+  { const pE = [18.46, 14.465], pW = [18.37, 17.375], d = [pW[0] - pE[0], pW[1] - pE[1]], len = Math.hypot(d[0], d[1]), ax = [d[0] / len, d[1] / len], n = 6;
+    for (let i = 0; i < n; i++) plate([pE[0] + d[0] * (i + 0.5) / n, pE[1] + d[1] * (i + 0.5) / n], ax, len / n / 2, 0.11, LJ, cell(3), 0.04); }
+  // grille d'avaloir au bout du caniveau d'en face (plan : 0,40 × 0,23)
+  plate([18.42, 17.755], [1, 0], 0.20, 0.115, LJ, cell(4), 0.04);
+  // tampons d'assainissement (plan) : carrefour (Ø 0,80 à studs concentriques, photos 12, 18), branche sud, branche ouest au nord ; tampon de chaussée S8 (Ø 0,74 à ondes, photo 17)
+  hdisc(20.43, 14.92, LJ, 0.40, cell(1), 0.04, 28);
+  for (const [x, z] of [[22.30, 1.31], [23.22, 2.18], [-17.21, 15.40], [4.73, 16.31]]) hdisc(x, z, LJ, 0.37, cell(2), 0.03, 28);
+  // bouches à clé Ø 0,17 (plan : E au carrefour, branche ouest)
+  for (const [x, z] of [[19.89, 16.49], [20.59, 16.66], [5.48, 15.66], [-14.03, 14.51]]) hdisc(x, z, LJ, 0.085, cell(7), 0.03, 12);
+  // tampon carré de 0,45 sur le trottoir d'en face, devant le portillon du n° 4 (point S10, 55,56)
+  { const x = 5.77; plate([x, zo(x, 4.85)], [1, 0], 0.225, 0.225, 0, cell(5), 0.03, onSide(0.008)); }
+  // chambre de tirage France Télécom L1T 0,49 × 0,38 (plan : x −11,10 → −10,61, de la limite au dos de la bordure) : sur notre trottoir, à son niveau, contre notre clôture
+  { const x = -10.855, u = [1, 0.03872], l = Math.hypot(u[0], u[1]); plate([x, zo(x, 0.14)], [u[0] / l, u[1] / l], 0.245, 0.19, 0, cell(6), 0.04, onSide(0.006)); }
 }
 
 // ---------------------------------------------------------------- panneaux à l'angle sud-ouest du terrain
-// poteau noir dans la berme, à 1,8 m au nord du retour de bordure et 0,15 m de la limite (photos 12, 13, 18) ; panneau C12 « sens unique » de 0,55
+// poteau noir sur notre trottoir (plan de masse : x 17,51, à 0,23 de la limite) ; panneau C12 « sens unique » de 0,55
 // (bas à 2,92 m) tourné vers le carrefour (face au sud, 20° vers l'ouest : vu de face sur la photo 12) ; dessous, plaque de rue brune 0,60 × 0,34 au nord du poteau,
 // dans le plan de la rue, lisible des deux côtés (photo 8 ; plaque vue de biais sur 12, 13, 18) ; tailles et hauteurs mesurées sur la photo 12
-const SIGN = [17.8, 0.15];
+const SIGN = [17.51, 0.23];
 function signs() {
-  const [x, o] = SIGN, z = zo(x, o), y0 = C.hAt(x, z) + LV.bermeL + (LV.bermeB - LV.bermeL) * o / PR.berme;
+  const [x, o] = SIGN, z = zo(x, o), y0 = R.y(x, o);
   cyl(x, z, y0 - 0.05, y0 + 3.45, 0.035, 0.035, 10, K.pole, true);
   const a = 20 * Math.PI / 180, n = [Math.cos(a), 0, Math.sin(a)], ex = [Math.sin(a), 0, -Math.cos(a)], c = [x + n[0] * 0.05, y0 + 3.195, z + n[2] * 0.05];
   vrect(c, ex, 0.55, 0.55, n, cell(8)); vrect(add(c, mul(n, -0.012)), mul(ex, -1), 0.55, 0.55, mul(n, -1), cell(9));
@@ -253,11 +253,13 @@ function signs() {
 
 // ---------------------------------------------------------------- lampadaires : fût fin anthracite, manchon, fourche en Y dans le plan de la rue,
 // tête annulaire plate Ø 0,58 à 5,45 m (photos 12, 13, 14, 15, 16 : fourche vue ouverte depuis l'ouest, fermée depuis le sud)
-// au sud, en face du muret à grille du n° 4 (≈ 10,5 m au nord de la grille du carrefour, photos 12, 13, 14) ; au nord, à l'angle nord-ouest du terrain (photo 16)
-const LAMPS = [[9.5, 0.5], [-11.0, 0.5]];
+// positions du plan de masse : branche ouest, sur notre trottoir (au nord : x −9,77, à 0,155 de la limite, presque contre la clôture ; au sud : x 9,28, à 0,30) ;
+// branche sud, sur le trottoir d'en face (x 25,11 ; z 5,74 et x 25,19 ; z 23,31), fourche dans le plan de la branche sud
+const LAMPS_W = [[-9.77, 0.155], [9.28, 0.30]], LAMPS_S = [[25.11, 5.74], [25.19, 23.31]];
 function lamps() {
-  for (const [x, o] of LAMPS) {
-    const z = zo(x, o), y0 = C.hAt(x, z) + LV.bermeL + (LV.bermeB - LV.bermeL) * o / PR.berme, P = (dx, y) => [x + dx, y0 + y, z];
+  const L = LAMPS_W.map(([x, o]) => [x, zo(x, o), R.y(x, o), 0]).concat(LAMPS_S.map(([x, z]) => [x, z, C.hAt(x, z) + 0.10, 1]));
+  for (const [x, z, y0, rot] of L) {
+    const P = (d, y) => rot ? [x, y0 + y, z + d] : [x + d, y0 + y, z];
     cyl(x, z, y0 - 0.05, y0 + 0.25, 0.075, 0.075, 12, K.pole, false);
     cyl(x, z, y0 + 0.25, y0 + 4.58, 0.062, 0.046, 12, K.pole, false);
     cyl(x, z, y0 + 4.58, y0 + 4.68, 0.05, 0.068, 12, K.pole, false); cyl(x, z, y0 + 4.68, y0 + 4.81, 0.068, 0.04, 12, K.pole, true);
@@ -267,12 +269,12 @@ function lamps() {
   }
 }
 
-// ---------------------------------------------------------------- poteau électrique béton (réseau aérien), côté est, au nord du voisin nord
-// (photos 5, 12, 13, 17 : poteau gris à l'extrémité de la façade du voisin nord, bord est de la chaussée) ; câbles vers l'ouest (au-dessus des maisons
+// ---------------------------------------------------------------- poteau électrique béton (réseau aérien), côté est, au nord du voisin nord (hors plan)
+// (photos 5, 12, 13, 17 : poteau gris à l'extrémité de la façade du voisin nord, au bord de la chaussée, posé sur le trottoir) ; câbles vers l'ouest (au-dessus des maisons
 // d'en face) et branchement sur la façade nord du voisin nord (photos 5, 12)
-const POLE = [-28.0, 0.45];
+const POLE = [-28.0, 0.15];
 function pole() {
-  const [x, o] = POLE, z = zo(x, o), y0 = C.hAt(x, z) + LV.bermeL + (LV.bermeB - LV.bermeL) * o / PR.berme, H = 8.5;
+  const [x, o] = POLE, z = zo(x, o), y0 = R.y(x, o), H = 8.5;
   cyl(x, z, y0 - 0.1, y0 + H, 0.14, 0.085, 8, K.concrete, true);
   tube([x, y0 + 8.15, z - 0.55], [x, y0 + 8.15, z + 0.55], 0.03, 6, K.galva); tube([x + 0.09, y0 + 7.75, z - 0.25], [x + 0.09, y0 + 7.75, z + 0.25], 0.025, 6, K.galva);
   for (const dz of [-0.45, 0, 0.45]) cyl(x, z + dz, y0 + 8.18, y0 + 8.30, 0.035, 0.025, 6, K.wire, true);
@@ -285,10 +287,10 @@ function pole() {
 
 // ---------------------------------------------------------------- bacs roulants 240 L à couvercle jaune sur le trottoir ouest (photos 12, 13, 14)
 // devant le portail du n° 4, juste au nord du tampon carré du portillon (photo 13), et plus au nord devant le mur crème ; roues et poignée côté sud (photo 12)
-const BINS = [[7.2, 5.8], [-8.5, 5.9]];
+const BINS = [7.2, -8.5]; // contre les murs d'en face (nu à RUE.oF)
 function bins() {
-  for (const [x, o] of BINS) {
-    const z = zo(x, o), y0 = C.hAt(x, z) + LV.tr, P = (dx, dz, y) => [x + dx, y0 + y, z + dz];
+  for (const x of BINS) {
+    const o = R.oF(x) - 0.35, z = zo(x, o), y0 = R.y(x, o), P = (dx, dz, y) => [x + dx, y0 + y, z + dz];
     const b0 = [P(-0.30, -0.25, 0.05), P(0.30, -0.25, 0.05), P(0.30, 0.25, 0.05), P(-0.30, 0.25, 0.05)], b1 = [P(-0.36, -0.29, 1.0), P(0.36, -0.29, 1.0), P(0.36, 0.29, 1.0), P(-0.36, 0.29, 1.0)];
     for (let i = 0; i < 4; i++) { const j = (i + 1) % 4, q = [b0[i], b0[j], b1[j], b1[i]], m = mul(add(add(q[0], q[1]), add(q[2], q[3])), 0.25), c = [x, m[1], z]; poly(q, unit([m[0] - c[0], 0.08, m[2] - c[2]]), null, K.binBody); }
     poly(b0, [0, -1, 0], null, K.binBody);
@@ -300,7 +302,7 @@ function bins() {
 
 // ---------------------------------------------------------------- point d'entrée
 export function buildRue(ctx) {
-  C = ctx;
+  C = ctx; R = ctx.RUE;
   buildMaterials();
   profile(); covers(); signs(); lamps(); pole(); bins();
   for (const [g, mat, sh] of [[GA, 'rueAtlas', true], [GL, 'rueDiff', false]]) {
