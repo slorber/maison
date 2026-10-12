@@ -8,8 +8,10 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const DEG = Math.PI / 180, UP = new THREE.Vector3(0, 1, 0);
-const EYE = 1.60, EYE_WALK = 1.62, R_BODY = 0.22, CUT = 1.25, SHIFT_MAX = 30 * DEG, CS = 0.5;
-const LS_KEY = 'merlettes-optique';
+const EYE = 1.60, R_BODY = 0.22, CUT = 1.25, SHIFT_MAX = 30 * DEG, CS = 0.5;
+const LS_KEY = 'merlettes-optique', LS_EYE = 'merlettes-oeil';
+// visite à hauteur d'homme : yeux à 1,75 m par défaut, réglables de 1,00 à 2,00 m (demande client du 12/10)
+const EYE_MIN = 1.0, EYE_MAX = 2.0, EYE_DEF = 1.75;
 // optiques : h = champ horizontal (°) mesuré sur la partie de l'écran non couverte par le panneau ; « classique » = 64° vertical, regard non redressé
 const OPTICS = {
   oeil: { label: 'Œil humain (75°)', h: 75 },
@@ -52,6 +54,8 @@ export function initNav(ctx) {
   const _v = new THREE.Vector3(), _t = new THREE.Vector3();
   let optic = 'oeil', openMode = false, snapping = false;
   try { const o = localStorage.getItem(LS_KEY); if (o && OPTICS[o]) optic = o; } catch (e) { /* stockage indisponible */ }
+  let eyeH = EYE_DEF;
+  try { const v = parseFloat(localStorage.getItem(LS_EYE)); if (v >= EYE_MIN && v <= EYE_MAX) eyeH = v; } catch (e) { /* stockage indisponible */ }
 
   // ------------------------------------------------------------ vues des pièces (œil à 1,60 m) ; vues ouvertes calculées au clic
   for (const r of ROOMS) {
@@ -174,17 +178,17 @@ export function initNav(ctx) {
   function updateDoor(now) {
     // portes intérieures (fermées par défaut) : le promeneur ouvre celle qu'il approche, une seule fois à l'entrée dans la zone (1,25 m, sortie à 1,60 m),
     // sans jamais la refermer ; refermée au clic tout près, elle ne se rouvre plus d'elle-même (avant : rouverte à l'image suivante, le vantail tressautait)
-    // tant que le promeneur n'est pas ressorti de la zone. Placards et ouvrants (kind) : au clic seulement.
-    if (W.on) for (const d of DOORS || []) {
+    // tant que le promeneur n'est pas ressorti de la zone. Placards et ouvrants (kind) : au clic seulement. Visite libre : on traverse sans rien ouvrir.
+    if (pied()) for (const d of DOORS || []) {
       if (d.kind) continue; const c = navC(d), r = Math.hypot(c.x - W.x, c.z - W.z), lv = Math.abs(c.y - (W.feet + 1.0)) < 1.0;
       if (d._navIn) { if (r > 1.6 || !lv) d._navIn = false; } else if (r < 1.25 && lv) { d._navIn = true; d.target = 1; }
     }
     if (!DOOR) { // porte d'entrée ouvrable au clic (ouvrants.js) : on l'ouvre une fois à l'approche du promeneur
-      const near = W.on && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4;
+      const near = pied() && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4;
       if (near && !W.entryOpened) { const d = (DOORS || []).find(e => e.kind === 'entry'); if (d) d.target = 1; }
       W.entryOpened = near; return;
     } const dt = Math.min(0.1, (now - (DOOR.t || now)) / 1000); DOOR.t = now;
-    const goal = W.on && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4 ? 88 * DEG : 0; if (Math.abs(goal - DOOR.a) < 1e-4) return;
+    const goal = pied() && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4 ? 88 * DEG : 0; if (Math.abs(goal - DOOR.a) < 1e-4) return;
     DOOR.a += THREE.MathUtils.clamp(goal - DOOR.a, -120 * DEG * dt, 120 * DEG * dt); const a = DOOR.a, c = Math.cos(a), s = Math.sin(a);
     DOOR.pivot.rotation.y = a; ctx.requestRender?.(); // [perf] rendu à la demande : le vantail bouge sans que la caméra bouge
     for (const v of DOOR.verts) {
@@ -294,8 +298,15 @@ export function initNav(ctx) {
   const groundAt = (x, z, feet) => { let f = floorAt(x, z, feet + 0.45); if (!inFootprint(x, z)) f = Math.max(f, hAt(x, z)); return isFinite(f) ? f : feet; }; // seuils dans l'épaisseur des murs : pas de plancher, on garde le niveau
 
   // ------------------------------------------------------------ balade au clavier
-  const W = { on: false, x: 0, z: 0, feet: 0, feetS: 0, dir: new THREE.Vector3(1, 0, 0), v: 0, vt: 0, last: 0, c0: 0, blend: null };
-  const keys = { up: false, down: false, left: false, right: false, shift: false };
+  // deux modes (demande client du 12/10) : « pied » = visite à hauteur d'homme (sol, murs, portes ouvertes à l'approche) ;
+  // « libre » = vol dans la direction du regard, montée et descente, sans collision ni ouverture de porte (y : hauteur de l'œil)
+  const W = { on: false, mode: 'pied', x: 0, y: 0, z: 0, feet: 0, feetS: 0, dir: new THREE.Vector3(1, 0, 0), v: 0, vt: 0, vy: 0, last: 0, c0: 0, blend: null };
+  const keys = { up: false, down: false, left: false, right: false, shift: false, rise: false, fall: false };
+  const pied = () => W.on && W.mode !== 'libre';
+  const eyeY = () => W.mode === 'libre' ? W.y : W.feetS + eyeH;
+  const FLY = { x0: -60, x1: 80, z0: -60, z1: 70, y0: -3, y1: 40 }; // boîte de la visite libre
+  function flyMove(dx, dy, dz) { W.x = THREE.MathUtils.clamp(W.x + dx, FLY.x0, FLY.x1); W.y = THREE.MathUtils.clamp(W.y + dy, FLY.y0, FLY.y1); W.z = THREE.MathUtils.clamp(W.z + dz, FLY.z0, FLY.z1); }
+  const insideNow = () => inFootprint(W.x, W.z) && (W.mode !== 'libre' || (W.y > -0.5 && W.y < E1 + 3.2));
   function tryMove(dx, dz) {
     const x = W.x + dx, z = W.z + dz; if (x < -11.3 || x > 19.3 || z < -0.5 || z > 13.5) return false;
     const f = groundAt(x, z, W.feet); if (!isFinite(f) || f < W.feet - 0.5) return false; // pas de chute de plus de 50 cm (garde-corps implicite)
@@ -323,6 +334,10 @@ export function initNav(ctx) {
     const turnIn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0), moveIn = (keys.up ? 1 : 0) - (keys.down ? 1 : 0), k = 1 - Math.exp(-dt * 9);
     W.vt += (turnIn * (keys.shift ? 2.4 : 1.6) - W.vt) * k; W.v += (moveIn * (keys.shift ? 4.5 : 2.4) - W.v) * k; // marche 2,4 m/s (Maj : 4,5), demande client
     if (Math.abs(W.vt) > 1e-4) W.dir.applyAxisAngle(UP, W.vt * dt);
+    if (W.mode === 'libre') { // vol : avance selon le regard (pente comprise), montée et descente, aucun obstacle
+      const riseIn = (keys.rise ? 1 : 0) - (keys.fall ? 1 : 0); W.vy += (riseIn * (keys.shift ? 3.5 : 1.6) - W.vy) * k;
+      flyMove(W.dir.x * W.v * dt, W.dir.y * W.v * dt + W.vy * dt, W.dir.z * W.v * dt); return;
+    }
     const s = W.v * dt; if (Math.abs(s) > 1e-5) { const n = Math.ceil(Math.abs(s) / 0.04); for (let i = 0; i < n; i++) if (!moveStep(s / n)) { W.v *= 0.5; break; } }
     W.feetS += (W.feet - W.feetS) * (1 - Math.exp(-dt * 12));
   }
@@ -333,16 +348,28 @@ export function initNav(ctx) {
       if (isFinite(f) && Math.abs(f - W.feet) < 0.3 && clearance(x, z, f) >= R_BODY) { W.x = x; W.z = z; W.feet = W.feetS = f; W.c0 = R_BODY; return; }
     }
   }
-  function startWalk(from) {
-    if (!C) buildColliders(); updateDynamic();
+  function startWalk(from, mode = W.mode) {
     const p0 = camera.position.clone(), d0 = camera.getWorldDirection(new THREE.Vector3());
+    if (mode === 'libre') { // visite libre : on part de la caméra telle qu'elle est (position et regard)
+      W.mode = 'libre'; W.x = p0.x; W.y = p0.y; W.z = p0.z; flyMove(0, 0, 0);
+      W.dir.copy(controls.target).sub(p0); if (W.dir.lengthSq() < 1e-8) W.dir.copy(d0); W.dir.normalize();
+      W.v = W.vt = W.vy = 0; W.blend = null;
+      VIEWS.__walk = { p: p0.toArray(), t: p0.clone().addScaledVector(W.dir, 0.6).toArray(), mode: 'ext' };
+      setView('__walk', true); W.on = true; W.last = performance.now();
+      camera.near = 0.05; camera.updateProjectionMatrix();
+      controls.minDistance = 0.1; controls.maxPolarAngle = Math.PI; controls.enableZoom = false; controls.enablePan = false;
+      state.inside = insideNow(); updateSun(true); syncUI(); return;
+    }
+    W.mode = 'pied';
+    if (!C) buildColliders(); updateDynamic();
     if (from === 'camera') {
       W.x = p0.x; W.z = p0.z; W.dir.copy(controls.target).sub(p0); if (W.dir.lengthSq() < 1e-8) W.dir.copy(d0); W.dir.normalize();
-      let f = groundAt(p0.x, p0.z, p0.y - EYE); if (!isFinite(f)) f = p0.y - EYE; W.feet = f;
+      const e0 = state.lastView === '__walk' ? eyeH : EYE; // vue de pièce : œil à 1,60 ; reprise d'une visite : hauteur réglée
+      let f = groundAt(p0.x, p0.z, p0.y - e0); if (!isFinite(f)) f = p0.y - e0; W.feet = f;
     } else if (RM[from]) { const r = RM[from]; W.x = r.p[0]; W.z = r.p[1]; W.dir.set(r.t[0] - r.p[0], 0, r.t[1] - r.p[1]).normalize(); W.feet = floorOf(r); }
     else { W.x = -2.5; W.z = 2.27; W.dir.set(1, -0.06, 0).normalize(); W.feet = hAt(W.x, W.z); }
-    W.feetS = W.feet; W.v = W.vt = 0; unstick();
-    const eye = new THREE.Vector3(W.x, W.feetS + EYE_WALK, W.z);
+    W.feetS = W.feet; W.v = W.vt = W.vy = 0; unstick();
+    const eye = new THREE.Vector3(W.x, W.feetS + eyeH, W.z);
     VIEWS.__walk = { p: eye.toArray(), t: eye.clone().addScaledVector(W.dir, 0.6).toArray(), mode: 'ext' };
     setView('__walk', true); W.on = true; W.last = performance.now();
     camera.near = 0.05; camera.fov = 64; camera.updateProjectionMatrix();
@@ -355,13 +382,13 @@ export function initNav(ctx) {
   function walkPre(now) {
     const dt = THREE.MathUtils.clamp((now - W.last) / 1000, 0, 0.1); W.last = now; // pas plafonné à 0,1 s (machines lentes), découpé en sous-pas de 4 cm
     updateDynamic(); physics(dt);
-    const ins = inFootprint(W.x, W.z); if (ins !== state.inside) { state.inside = ins; updateSun(true); }
-    _v.set(W.x, W.feetS + EYE_WALK, W.z); camera.position.copy(_v); controls.target.copy(_v).addScaledVector(W.dir, 0.6);
+    const ins = insideNow(); if (ins !== state.inside) { state.inside = ins; updateSun(true); }
+    _v.set(W.x, eyeY(), W.z); camera.position.copy(_v); controls.target.copy(_v).addScaledVector(W.dir, 0.6);
   }
   function walkPost(now) {
     // regard à la souris : OrbitControls a fait tourner la caméra autour de la cible (0,6 m devant) ; on garde la nouvelle direction, l'œil reste en place
     if (!W.blend) { _t.copy(controls.target).sub(camera.position); if (_t.lengthSq() > 1e-8) W.dir.copy(_t.normalize()); }
-    const eye = _v.set(W.x, W.feetS + EYE_WALK, W.z); let dir = W.dir;
+    const eye = _v.set(W.x, eyeY(), W.z); let dir = W.dir;
     if (W.blend) {
       const k = THREE.MathUtils.clamp((now - W.blend.t0) / 1100, 0, 1), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       eye.lerpVectors(W.blend.p0, eye, e); dir = _t.copy(W.blend.d0).lerp(W.dir, e).normalize(); if (k >= 1) W.blend = null;
@@ -369,7 +396,7 @@ export function initNav(ctx) {
     camera.position.copy(eye); controls.target.copy(eye).addScaledVector(dir, 0.6); camera.lookAt(controls.target);
   }
   // simulation sans rendu (essais) : pas fixes de 1/30 s
-  function simulate(sec, k = {}) { const keep = { ...keys }; Object.assign(keys, { up: false, down: false, left: false, right: false, shift: false }, k); for (let t = 0; t < sec; t += 1 / 30) physics(1 / 30); W.feetS = W.feet; Object.assign(keys, keep); return { x: +W.x.toFixed(3), z: +W.z.toFixed(3), feet: +W.feet.toFixed(3) }; }
+  function simulate(sec, k = {}) { const keep = { ...keys }; Object.assign(keys, { up: false, down: false, left: false, right: false, shift: false, rise: false, fall: false }, k); for (let t = 0; t < sec; t += 1 / 30) physics(1 / 30); W.feetS = W.feet; Object.assign(keys, keep); return { x: +W.x.toFixed(3), y: +eyeY().toFixed(3), z: +W.z.toFixed(3), feet: +W.feet.toFixed(3) }; }
 
   // ------------------------------------------------------------ optiques : regard redressé (verticales droites) + décentrement, panoramique Panini par post-traitement
   function levelCamera() { // supprime l'inclinaison (jusqu'à 30°) et la rend par décentrement vertical de l'objectif
@@ -442,18 +469,25 @@ export function initNav(ctx) {
   const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
   const chips = lv => ROOMS.filter(r => r.lv === lv).map(r => `<button type="button" data-view="p_${r.k}" data-room="${r.k}" title="${r.n}${r.s ? ' · ' + r.s : ''}">${r.n}</button>`).join('');
   const secV = el(`<section><h2>Visite intérieure</h2>
-    <div class="chips"><button type="button" data-walk aria-pressed="false" title="Entrer par la porte et se promener avec les flèches du clavier">Balade au clavier</button></div>
+    <div class="chips"><button type="button" data-walk="pied" aria-pressed="false" title="Repartir devant la porte d'entrée et se promener à hauteur d'homme avec les flèches du clavier">Visite à hauteur d'homme</button><button type="button" data-walk="libre" aria-pressed="false" title="Voler dans la direction du regard depuis la vue actuelle, monter et descendre, traverser murs et portes">Visite libre</button></div>
+    <div class="row" style="margin-top:10px;grid-template-columns:72px 1fr auto" title="Hauteur des yeux pendant la visite à hauteur d'homme (1,00 à 2,00 m)"><label for="nav-eye">Yeux</label><input id="nav-eye" type="range" min="${EYE_MIN}" max="${EYE_MAX}" step="0.05"><output id="nav-eye-v" for="nav-eye" style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums"></output></div>
     <div class="row" style="margin-top:10px"><label for="nav-optic">Optique</label><select id="nav-optic" title="Champ de vision des vues à hauteur d'œil">${Object.entries(OPTICS).map(([k, o]) => `<option value="${k}">${o.label}</option>`).join('')}</select></div>
     <div class="toggles"><label title="Pièce vue d'en haut, murs coupés à hauteur d'allège"><input id="nav-open" type="checkbox"><span>Vue ouverte</span></label><label title="Personnages de 1,75 m pour l'échelle"><input id="nav-silh" type="checkbox"><span>Silhouettes 1,75 m</span></label></div></section>`);
   const sec0 = el(`<section><h2>Pièces du rez-de-chaussée</h2><div class="chips">${chips(0)}</div></section>`);
   const sec1 = el(`<section><h2>Pièces de l'étage</h2><div class="chips">${chips(1)}</div></section>`);
   const old = document.querySelector('#panel [data-view="i_sejour"]')?.closest('section');
   if (old) old.replaceWith(secV, sec0, sec1); else { const body = document.querySelector('#panel .body'); body && body.prepend(secV, sec0, sec1); }
-  const walkBtn = secV.querySelector('[data-walk]'), opticSel = secV.querySelector('#nav-optic'), openEl = secV.querySelector('#nav-open'), silhEl = secV.querySelector('#nav-silh');
+  const walkBtns = [...secV.querySelectorAll('[data-walk]')], eyeEl = secV.querySelector('#nav-eye'), eyeOut = secV.querySelector('#nav-eye-v'), opticSel = secV.querySelector('#nav-optic'), openEl = secV.querySelector('#nav-open'), silhEl = secV.querySelector('#nav-silh');
   opticSel.value = optic;
   opticSel.addEventListener('change', () => { optic = opticSel.value; try { localStorage.setItem(LS_KEY, optic); } catch (e) { /* stockage indisponible */ } });
   silhEl.addEventListener('change', () => { silh.visible = silhEl.checked; updateSilh(); });
-  walkBtn.addEventListener('click', () => startWalk('door'));
+  for (const b of walkBtns) b.addEventListener('click', () => b.dataset.walk === 'libre' ? startWalk('camera', 'libre') : startWalk('door', 'pied'));
+  const showEye = () => { eyeOut.textContent = eyeH.toFixed(2).replace('.', ',') + ' m'; };
+  eyeEl.value = eyeH; showEye();
+  eyeEl.addEventListener('input', () => {
+    eyeH = THREE.MathUtils.clamp(parseFloat(eyeEl.value) || EYE_DEF, EYE_MIN, EYE_MAX); showEye(); ctx.requestRender?.();
+    try { localStorage.setItem(LS_EYE, String(eyeH)); } catch (e) { /* stockage indisponible */ }
+  });
   for (const b of [...sec0.querySelectorAll('[data-room]'), ...sec1.querySelectorAll('[data-room]')]) b.addEventListener('click', () => goRoom(b.dataset.room));
   function goRoom(k, instant) {
     if (W.on) stopWalk();
@@ -467,10 +501,12 @@ export function initNav(ctx) {
   });
   const hint = document.getElementById('hint'), hint0 = hint ? hint.textContent : '';
   function syncUI() {
-    walkBtn.setAttribute('aria-pressed', W.on ? 'true' : 'false');
+    for (const b of walkBtns) b.setAttribute('aria-pressed', W.on && W.mode === b.dataset.walk ? 'true' : 'false');
     const lv = state.lastView || ''; const k = lv.startsWith('o_') ? lv.slice(2) : null;
     if (k) document.querySelectorAll('#panel [data-room]').forEach(b => b.setAttribute('aria-pressed', b.dataset.room === k ? 'true' : 'false'));
-    if (hint) hint.textContent = W.on ? '↑ ↓ : avancer, reculer · ← → : tourner · 2 doigts ← → : pas de côté · Maj : plus vite · Glisser : regarder autour · Clic : ouvrir une porte · Échap : arrêter' : hint0 + ' · Flèches : se promener';
+    if (hint) hint.textContent = !W.on ? hint0 + ' · Flèches : se promener'
+      : W.mode === 'libre' ? '↑ ↓ : avancer, reculer dans la direction du regard · ← → : tourner · E ou Pg↑ : monter · A ou Pg↓ : descendre · 2 doigts ← → : de côté · Maj : plus vite · Glisser : regarder autour · Échap : arrêter'
+      : '↑ ↓ : avancer, reculer · ← → : tourner · 2 doigts ← → : pas de côté · Maj : plus vite · Glisser : regarder autour · Clic : ouvrir une porte · Échap : arrêter';
   }
   syncUI();
   // la capture d'image doit passer par la même chaîne de rendu (panoramique) et ne pas tenir compte du panneau
@@ -483,17 +519,19 @@ export function initNav(ctx) {
 
   // ------------------------------------------------------------ clavier : flèches = marche (démarre depuis la vue d'intérieur en cours, sinon devant la porte)
   const KEYMAP = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+  const FLYMAP = { PageUp: 'rise', PageDown: 'fall', e: 'rise', E: 'rise', a: 'fall', A: 'fall' }; // visite libre seulement (A et E : clavier AZERTY, à gauche et à droite du Z)
   const typing = t => t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
   window.addEventListener('keydown', e => {
     if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
     keys.shift = e.shiftKey;
     if (e.key === 'Escape' && W.on) { stopWalk(); return; }
+    if (W.on && W.mode === 'libre' && FLYMAP[e.key]) { e.preventDefault(); keys[FLYMAP[e.key]] = true; return; }
     const k = KEYMAP[e.key]; if (!k) return;
     e.preventDefault(); keys[k] = true;
     const lv = state.lastView || '';
     if (!W.on) startWalk(lv === '__walk' || (state.inside && state.mode === 'ext') ? 'camera' : (lv.startsWith('o_') && RM[lv.slice(2)] ? lv.slice(2) : 'door'));
   });
-  window.addEventListener('keyup', e => { const k = KEYMAP[e.key]; if (k) keys[k] = false; keys.shift = e.shiftKey; });
+  window.addEventListener('keyup', e => { const k = KEYMAP[e.key] || FLYMAP[e.key]; if (k) keys[k] = false; keys.shift = e.shiftKey; });
   window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
   // ------------------------------------------------------------ trackpad : glisser à deux doigts vers la gauche ou la droite = travelling latéral, orientation conservée
@@ -503,7 +541,8 @@ export function initNav(ctx) {
     if (e.target !== renderer.domElement || e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
     e.preventDefault(); e.stopPropagation(); // avant OrbitControls (phase de capture) : pas de zoom parasite
     const dx = e.deltaX * (e.deltaMode === 1 ? 16 : 1);
-    if (W.on) {
+    if (W.on && W.mode === 'libre') { const hl = Math.hypot(W.dir.x, W.dir.z), s = dx * 0.006; if (hl > 1e-6) flyMove(-W.dir.z / hl * s, 0, W.dir.x / hl * s); }
+    else if (W.on) {
       const hl = Math.hypot(W.dir.x, W.dir.z), s = dx * 0.006, n = Math.ceil(Math.abs(s) / 0.04);
       if (hl > 1e-6) for (let i = 0; i < n; i++) if (!tryMove(-W.dir.z / hl * s / n, W.dir.x / hl * s / n)) break;
     } else {
@@ -515,6 +554,6 @@ export function initNav(ctx) {
   }, { capture: true, passive: false });
 
   // accès pour les essais (scripts de rendu)
-  window.__nav = { W, keys, ROOMS, startWalk, stopWalk, goRoom, simulate, clearance: (x, z, f) => clearance(x, z, f), floorAt: (x, z, t) => floorAt(x, z, t), setOptic: o => { optic = o; opticSel.value = o; }, setOpen: v => { openEl.checked = openMode = v; }, silh, place: (x, z, dx, dz, f = 0) => { if (!C) buildColliders(); W.x = x; W.z = z; W.dir.set(dx, 0, dz).normalize(); W.feet = W.feetS = groundAt(x, z, f); W.c0 = clearance(x, z, W.feet); },
+  window.__nav = { W, keys, ROOMS, startWalk, eye: v => { if (v !== undefined) { eyeH = v; eyeEl.value = v; showEye(); } return eyeH; }, stopWalk, goRoom, simulate, clearance: (x, z, f) => clearance(x, z, f), floorAt: (x, z, t) => floorAt(x, z, t), setOptic: o => { optic = o; opticSel.value = o; }, setOpen: v => { openEl.checked = openMode = v; }, silh, place: (x, z, dx, dz, f = 0) => { if (!C) buildColliders(); W.x = x; W.z = z; W.dir.set(dx, 0, dz).normalize(); W.feet = W.feetS = groundAt(x, z, f); W.c0 = clearance(x, z, W.feet); },
     nearest: (x, z, f) => { let b = null; for (let t = 0; t < C.kind.length; t++) { const o = t * 15, T = C.T, k = C.kind[t]; if (k === 2 || T[o + 12] < f + (k === 1 ? 0.15 : 0.40) || T[o + 11] > f + 1.85) continue; const d = triD(x, z, T[o], T[o + 2], T[o + 3], T[o + 5], T[o + 6], T[o + 8]); if (!b || d < b.d) b = { d, g: C.gv[C.grp[t]].name, tri: Array.from(T.slice(o, o + 9)).map(v => +v.toFixed(3)) }; } return b; } };
 }
