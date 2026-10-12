@@ -1637,7 +1637,7 @@ function precompileInterior() {
   let p; try { roomLights.forEach(l => { l.visible = true; }); p = renderer.compileAsync(scene, camera); } catch (e) { p = null; } finally { roomLights.forEach((l, i) => { l.visible = vis[i]; }); }
   if (p) p.then(() => requestRender(false), () => {});
 }
-const state = { mode: 'ext', roof: true, furn: true, fence: true, pergola: true, volets: false, ao: true, month: 6, hour: 16.5, envI: 0.07, lampI: 7, inside: false };
+const state = { mode: 'ext', roof: true, furn: true, fence: true, pergola: true, volets: false, ao: true, month: 6, hour: 16.5, sunSpeed: 0, envI: 0.07, lampI: 7, inside: false };
 const labels = { rdc: [], r1: [] };
 
 function init() {
@@ -1735,7 +1735,12 @@ function sunDir(month, hour) {
 }
 let envTimer = null;
 function updateSun(deferEnv) {
-  const { el, v } = sunDir(state.month, state.hour);
+  placeSun(); applyLighting();
+  clearTimeout(envTimer); envTimer = setTimeout(updateEnv, deferEnv ? 250 : 0);
+}
+// [perf] partie légère de updateSun (uniformes et intensités seulement), appelée à chaque image pendant l'animation du soleil
+function placeSun() {
+  const { el, az, v } = sunDir(state.month, state.hour);
   const elc = Math.max(el, -0.05);
   const d = new THREE.Vector3(v.x, Math.sin(elc), v.z).normalize();
   sky.material.uniforms.sunPosition.value.copy(d);
@@ -1744,11 +1749,25 @@ function updateSun(deferEnv) {
   sun.intensity = 5 * k; sun.color.setHSL(0.09, 0.6 * (1 - k) + 0.1, 0.55 + 0.4 * k);
   hemi.intensity = 0.15 + 0.45 * clamp(Math.sin(elc) * 4 + 0.3, 0, 1);
   renderer.toneMappingExposure = (0.62 + 0.36 * clamp(Math.sin(elc) * 4 + 0.2, 0, 1)) * (state.inside ? 0.92 : 1);
-  scene.fog.color.setHSL(0.58, 0.18, 0.55 + 0.25 * k);
+  // soleil sous l'horizon : brume du lointain amenée au bleu nuit de l'horizon du ciel (sinon bande claire sous le ciel noir, la nuit) ; de jour, inchangée
+  const nt = clamp(1 + elc / 0.05, 0, 1); scene.fog.color.setHSL(0.58 + 0.077 * (1 - nt), 0.18 + 0.476 * (1 - nt), (0.55 + 0.25 * k) * (0.0144 + 0.9856 * nt ** 2.4));
   const e = document.getElementById('sun-info');
-  if (e) { const az = sunDir(state.month, state.hour).az * 180 / Math.PI; e.textContent = `hauteur ${Math.round(el * 180 / Math.PI)}°, azimut ${Math.round(az)}° (${cardinal(az)})`; }
-  applyLighting();
-  clearTimeout(envTimer); envTimer = setTimeout(updateEnv, deferEnv ? 250 : 0);
+  if (e) { const a = az * 180 / Math.PI, t = `hauteur ${Math.round(el * 180 / Math.PI)}°, azimut ${Math.round(a)}° (${cardinal(a)})`; if (e.textContent !== t) e.textContent = t; }
+  return { el, d, k };
+}
+// animation du soleil (curseur « Animation ») : une journée de 24 h en 10 s à la vitesse 1, en 10 s / v en dessous, sur le mois choisi ;
+// l'heure repart de 0 h après 23 h 59, le curseur de l'heure suit, et la reprend là où on la pose (animation suspendue pendant qu'on le tire)
+const SUN_DAY = 10, shD = new THREE.Vector3(); let sunHold = false, sunNight = false, showHour = null;
+function animateSun(dt) {
+  if (!(state.sunSpeed > 0) || sunHold || !(dt > 0)) return false;
+  state.hour = (state.hour + 24 * state.sunSpeed * dt / SUN_DAY) % 24; if (showHour) showHour();
+  const { el, d, k } = placeSun();
+  // [perf] carte d'ombre recalculée soleil levé seulement, dès qu'il a tourné de 0,05° (à chaque image à vitesse moyenne ou rapide, moins souvent au ralenti)
+  if (k > 0 && d.dot(shD) < 0.9999996) { shD.copy(d); shadowDirty = true; }
+  // ambiance (PMREM) régénérée par paliers de 2 % quand elle varie (soleil entre 0 et 20° de hauteur), pas à chaque image
+  const g = envGain(el); if (Math.abs(g - envK) > 0.02 || (g !== envK && (g === 1 || g === 0.55))) { clearTimeout(envTimer); updateEnv(); }
+  // [perf] nuit (soleil à plus de 3° sous l'horizon) : ciel, lumières et exposition figés, rien à redessiner
+  const night = el <= -0.05, was = sunNight; sunNight = night; return !(night && was);
 }
 function applyLighting() {
   const m = state.mode, inside = state.inside;
@@ -1772,17 +1791,22 @@ function syncRalEnv() {
   for (const k of RAL_MATS) { const m = M[k]; if (!m) continue; if (m.envMap !== envRT.texture) { m.envMap = envRT.texture; m.needsUpdate = true; } m.envMapIntensity = envLevel() * (state.inside ? 1.5 : 2.6); }
 }
 function cardinal(a) { return ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(((a % 360) + 360) % 360 / 45) % 8]; }
+const envGain = el => 0.55 + 0.45 * clamp(Math.sin(el) * 3, 0, 1);
+let envScene = null, envK = -1;
 function updateEnv() {
   // ambiance d'éclairage neutre (dégradé ciel gris-bleu clair / horizon / sol) plutôt que le ciel physique très bleu :
   // sans ça le gris 7016 et les façades à l'ombre virent au bleu marine
-  const s2 = new THREE.Scene(), el = sunDir(state.month, state.hour).el, k = 0.55 + 0.45 * clamp(Math.sin(el) * 3, 0, 1);
-  const mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: { k: { value: k } },
-    vertexShader: 'varying vec3 vd; void main(){ vd = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform float k; varying vec3 vd; void main(){ float y = vd.y; vec3 top = vec3(0.50, 0.56, 0.64), hor = vec3(0.80, 0.80, 0.78), gnd = vec3(0.30, 0.29, 0.26);' +
-      ' vec3 c = y > 0.0 ? mix(hor, top, pow(y, 0.6)) : mix(hor, gnd, pow(-y, 0.4)); gl_FragColor = vec4(c * k, 1.0); }' });
-  s2.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), mat));
-  if (envRT) envRT.dispose(); envRT = pmrem.fromScene(s2, 0, 0.1, 2000); scene.environment = envRT.texture; scene.environmentIntensity = envLevel(); syncRalEnv();
-  mat.dispose(); requestRender(false);
+  // (scène créée une fois : seule l'intensité k change ; avant, sphère et matériau neufs à chaque appel, sphère jamais libérée)
+  if (!envScene) {
+    const mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: { k: { value: 1 } },
+      vertexShader: 'varying vec3 vd; void main(){ vd = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform float k; varying vec3 vd; void main(){ float y = vd.y; vec3 top = vec3(0.50, 0.56, 0.64), hor = vec3(0.80, 0.80, 0.78), gnd = vec3(0.30, 0.29, 0.26);' +
+        ' vec3 c = y > 0.0 ? mix(hor, top, pow(y, 0.6)) : mix(hor, gnd, pow(-y, 0.4)); gl_FragColor = vec4(c * k, 1.0); }' });
+    envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), mat));
+  }
+  envScene.children[0].material.uniforms.k.value = envK = envGain(sunDir(state.month, state.hour).el);
+  if (envRT) envRT.dispose(); envRT = pmrem.fromScene(envScene, 0, 0.1, 2000); scene.environment = envRT.texture; scene.environmentIntensity = envLevel(); syncRalEnv();
+  requestRender(false);
 }
 
 // ---------------------------------------------------------------- vues
@@ -1829,8 +1853,9 @@ function applyVisibility() {
 }
 
 function tick(now) {
-  const dt = Math.min(0.05, (now - (tick.last ?? now)) / 1000); tick.last = now;
+  const dt0 = (now - (tick.last ?? now)) / 1000, dt = Math.min(0.05, dt0); tick.last = now;
   let active = animateDoors(dt); if (active) shadowDirty = true; // un ouvrant qui bouge change les ombres
+  if (animateSun(Math.min(dt0, 0.25))) active = true; // soleil animé (temps réel : 10 s par jour même à moins de 20 images/s) : images allégées en continu, image pleine qualité à l'arrêt
   if (anim) {
     const k = clamp((now - anim.t0) / 1200, 0, 1); const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     camera.position.lerpVectors(anim.p0, anim.p1, e); controls.target.lerpVectors(anim.q0, anim.q1, e);
@@ -1864,10 +1889,18 @@ function bindUI() {
     s.value = finish.P; s.addEventListener('change', () => setParquet(s.value)); }
   const mo = document.getElementById('month'), hr = document.getElementById('hour'), hl = document.getElementById('hour-label');
   mo.value = String(state.month); hr.value = String(state.hour);
-  const fmt = h => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+  const fmt = h => { const m = Math.floor(h * 60 + 1e-6); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; }; // minutes entières : l'animation donne des heures quelconques (plus de « 13 h 60 »)
   hl.textContent = fmt(state.hour);
+  showHour = () => { const q = Math.round(state.hour * 4) / 4, t = fmt(state.hour); if (+hr.value !== q) hr.value = q; if (hl.textContent !== t) hl.textContent = t; };
   mo.addEventListener('change', () => { state.month = +mo.value; updateSun(true); });
   hr.addEventListener('input', () => { state.hour = +hr.value; hl.textContent = fmt(state.hour); updateSun(true); });
+  hr.addEventListener('pointerdown', () => { sunHold = true; });
+  for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, () => { sunHold = false; }); hr.addEventListener('change', () => { sunHold = false; });
+  // vitesse de l'animation du soleil : 0 = arrêtée, 1 = une journée en 10 s (durée d'une journée = 10 s / v)
+  const sp = document.getElementById('sun-speed'), sl = document.getElementById('sun-speed-label');
+  const fmtSp = v => { if (!(v > 0)) return 'désactivée'; const s = SUN_DAY / v, r = Math.round(s); return '1 j = ' + (s < 59.95 ? String(+s.toFixed(1)).replace('.', ',') + ' s' : `${Math.floor(r / 60)} min ${String(r % 60).padStart(2, '0')} s`); };
+  sp.value = String(state.sunSpeed); sl.textContent = fmtSp(state.sunSpeed);
+  sp.addEventListener('input', () => { const was = state.sunSpeed > 0; state.sunSpeed = +sp.value; sl.textContent = fmtSp(state.sunSpeed); if (was && !(state.sunSpeed > 0)) updateSun(true); }); // à l'arrêt : ombres et ambiance exactes, image pleine qualité
   // clic sur une porte intérieure, le portail ou le portillon : ouverture / fermeture (les murs et clôtures visibles masquent les ouvrants situés derrière)
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), cvs = renderer.domElement; let down = null, lastHover = 0;
   const doorAt = ev => { const r = cvs.getBoundingClientRect(); ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -1902,7 +1935,7 @@ function bindUI() {
   document.getElementById('shot-close').addEventListener('click', () => { document.getElementById('shot').hidden = true; });
   const panel = document.getElementById('panel'); document.getElementById('collapse').addEventListener('click', () => { const c = panel.classList.toggle('collapsed'); document.getElementById('collapse').setAttribute('aria-expanded', c ? 'false' : 'true'); });
   if (matchMedia('(max-width: 700px)').matches) { panel.classList.add('collapsed'); document.getElementById('collapse').setAttribute('aria-expanded', 'false'); }
-  window.__maquette = { M, groups, DOORS, setView, state, applyVisibility, updateSun, setTile, setParquet, hAt, get composer() { return composer; }, get gtao() { return gtao; }, scene: () => scene, renderer: () => renderer, sun: () => sun, camera: () => camera, controls: () => controls,
+  window.__maquette = { M, groups, DOORS, setView, state, applyVisibility, updateSun, animateSun, setTile, setParquet, hAt, get composer() { return composer; }, get gtao() { return gtao; }, scene: () => scene, renderer: () => renderer, sun: () => sun, camera: () => camera, controls: () => controls,
     requestRender, perf: PERF, get fast() { return fast; } };
 }
 

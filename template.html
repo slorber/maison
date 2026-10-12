@@ -48,6 +48,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 select { width: 100%; min-width: 0; padding: 5px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); font: 12.5px var(--font-body); }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .hourrow { display: flex; justify-content: space-between; font: 12px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.hourrow.anim { margin-top: 10px; }
 .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12.5px; }
 .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .toggles input { accent-color: var(--accent); }
@@ -122,8 +123,10 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
       <div class="row"><label for="month">Mois</label>
         <select id="month"><option value="1">Janvier</option><option value="2">Février</option><option value="3">Mars</option><option value="4">Avril</option><option value="5">Mai</option><option value="6">Juin</option><option value="7">Juillet</option><option value="8">Août</option><option value="9">Septembre</option><option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option></select></div>
       <label for="hour" class="hourrow"><span>Heure</span><span id="hour-label"></span></label>
-      <input id="hour" type="range" min="6" max="22" step="0.25">
+      <input id="hour" type="range" min="0" max="24" step="0.25">
       <div class="hourrow"><span id="sun-info"></span></div>
+      <label for="sun-speed" class="hourrow anim" title="Fait défiler les 24 heures du mois choisi : 0 = arrêt, à fond = une journée en 10 secondes"><span>Animation</span><span id="sun-speed-label"></span></label>
+      <input id="sun-speed" type="range" min="0" max="1" step="0.01" value="0">
     </section>
     <section>
       <h2>Affichage</h2>
