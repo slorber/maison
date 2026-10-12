@@ -381,8 +381,8 @@ function garage() {
 function entree() { new Kit('furn0').soft('mobDoormat', 0.40, 0.95, 0, 0.009, 1.92, 2.62, 0.003); } // tapis-brosse coco devant la porte
 
 // ---------------------------------------------------------------- chambres
-// Lit 160 × 200 : pieds chêne, sommier tapissier, tête de lit capitonnée à côtes, matelas, couette drapée (revers), oreillers, coussin, plaid ;
-// chevets chêne (tiroir, niche) avec lampe à abat-jour
+// Lit 160 ou 180 × 200 : pieds chêne, sommier tapissier, tête de lit capitonnée à côtes, matelas, couette drapée (revers), oreillers, coussin, plaid ;
+// chevets chêne (tiroir, niche) avec lampe à abat-jour, à 15 cm de chaque côté du lit (demande client du 12/10)
 function nightstand(K, a, b, c, d, withBook) {
   for (const x of [a + 0.035, b - 0.035]) for (const z of [c + 0.035, d - 0.035]) K.rod('mobOak', [x, 0, z], [x, 0.20, z], 0.010, 10, 0.014);
   K.soft('mobOak', a, b, 0.475, 0.50, c, d, 0.006); K.box('mobOak', a, b, 0.20, 0.222, c, d - 0.004);
@@ -399,7 +399,7 @@ function bed(x0, x1, z0, z1, pal) {
   for (const x of [x0 + 0.10, x1 - 0.10]) for (const z of [z0 + 0.20, z1 - 0.10]) K.rod('mobOak', [x, 0, z], [x, 0.09, z], 0.018, 12, 0.022);
   K.soft('mobFab', x0, x1, 0.09, 0.34, z0 + 0.07, z1, 0.03, { nI: [3, 1, 4], c: pal.frame });
   K.soft('mobFab', x0 - 0.05, x1 + 0.05, 0.06, 1.10, z0, z0 + 0.03, 0.012, { c: pal.frame });
-  const n = 6, cw = (W + 0.10) / n; for (let i = 0; i < n; i++) { const a = x0 - 0.05 + i * cw; K.soft('mobFab', a + 0.002, a + cw - 0.002, 0.30, 1.10, z0 + 0.02, z0 + 0.09, 0.035, { nA: 2, nI: [1, 4, 1], def: puff(0.25, 'z'), c: pal.frame }); }
+  const n = Math.round((W + 0.10) / 0.28), cw = (W + 0.10) / n; for (let i = 0; i < n; i++) { const a = x0 - 0.05 + i * cw; K.soft('mobFab', a + 0.002, a + cw - 0.002, 0.30, 1.10, z0 + 0.02, z0 + 0.09, 0.035, { nA: 2, nI: [1, 4, 1], def: puff(0.25, 'z'), c: pal.frame }); }
   const mx0 = x0 + 0.02, mx1 = x1 - 0.02, mz0 = z0 + 0.09, mz1 = z1 - 0.02, mt = 0.56;
   K.soft('mobFab', mx0, mx1, 0.34, mt, mz0, mz1, 0.05, { nI: [3, 1, 4], def: puff(0.04), c: '#f4f2ee' });
   // couette drapée sur les côtés et au pied, revers et plaid drapés par-dessus (même centre de pli)
@@ -413,13 +413,14 @@ function bed(x0, x1, z0, z1, pal) {
     K.g('mobFab', g, xc, mt + th + t2 / 2, (zA + zB) / 2, 0, 0, 0, { c }); };
   sheet(dz0, dz0 + 0.30, 0.035, 0.10, pal.duvet); sheet(z1 - 0.62, z1 - 0.20, 0.022, 0.16, pal.throw);
   const pg = softBox(0.64, 0.15, 0.44, 0.07, { nI: [4, 1, 3], def: pillow(0.3) });
-  for (const x of [x0 + 0.43, x1 - 0.43]) K.g('mobFab', pg, x, mt + 0.17, z0 + 0.30, x < xc ? 0.04 : -0.04, 0.75, 0, { c: '#f7f6f3' });
+  for (const x of [x0 + W / 4 + 0.03, x1 - W / 4 - 0.03]) K.g('mobFab', pg, x, mt + 0.17, z0 + 0.30, x < xc ? 0.04 : -0.04, 0.75, 0, { c: '#f7f6f3' });
   K.g('mobFab', softBox(0.46, 0.12, 0.30, 0.06, { nI: [4, 1, 3], def: pillow(0.35) }), xc, mt + 0.14, z0 + 0.52, 0, 0.55, 0, { c: pal.cush });
-  nightstand(K, x0 - 0.50, x0 - 0.05, z0, z0 + 0.40, 1); nightstand(K, x1 + 0.05, x1 + 0.50, z0, z0 + 0.40, 0);
+  nightstand(K, x0 - 0.60, x0 - 0.15, z0, z0 + 0.40, 1); nightstand(K, x1 + 0.15, x1 + 0.60, z0, z0 + 0.40, 0);
 }
 function bedrooms() {
   const T = C.T;
-  bed(9.85, 11.45, T, 2.36, { frame: '#b5a792', duvet: '#f1eee8', throw: '#b38f69', cush: '#8c9a88' }); // chambre 1
+  // chambre 1 (parentale) : king size 180, centré entre la façade des placards (x 9,10) et la façade sud (nu x 12,54) : 82 cm libres de chaque côté
+  bed(9.92, 11.72, T, 2.36, { frame: '#b5a792', duvet: '#f1eee8', throw: '#b38f69', cush: '#8c9a88' });
   bed(9.90, 11.50, 4.24, 6.24, { frame: '#8e99a2', duvet: '#e8eaeb', throw: '#536375', cush: '#c9a46a' }); // chambre 2
   bed(1.20, 2.80, 4.24, 6.24, { frame: '#a6ad93', duvet: '#eee8dc', throw: '#c4876a', cush: '#e2cfae' }); // chambre 3
 }

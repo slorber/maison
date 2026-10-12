@@ -366,6 +366,10 @@ export function initNav(ctx) {
       W.x = p0.x; W.z = p0.z; W.dir.copy(controls.target).sub(p0); if (W.dir.lengthSq() < 1e-8) W.dir.copy(d0); W.dir.normalize();
       const e0 = state.lastView === '__walk' ? eyeH : EYE; // vue de pièce : œil à 1,60 ; reprise d'une visite : hauteur réglée
       let f = groundAt(p0.x, p0.z, p0.y - e0); if (!isFinite(f)) f = p0.y - e0; W.feet = f;
+    } else if (from === 'fly') { // visite libre → hauteur d'homme : on se pose à la verticale de l'endroit où l'on est (demande client du 12/10)
+      const fp = inFootprint(W.x, W.z); W.x = THREE.MathUtils.clamp(W.x, -11.2, 19.2); W.z = THREE.MathUtils.clamp(W.z, -0.4, 13.4);
+      W.dir.y = 0; if (W.dir.lengthSq() < 1e-6) W.dir.set(1, 0, 0); W.dir.normalize();
+      W.feet = groundAt(W.x, W.z, fp ? (W.y >= E1 + 0.3 ? E1 : 0) : hAt(W.x, W.z)); // dans la maison : étage d'après la hauteur de vol (au-dessus du toit : étage) ; dehors : terrain
     } else if (RM[from]) { const r = RM[from]; W.x = r.p[0]; W.z = r.p[1]; W.dir.set(r.t[0] - r.p[0], 0, r.t[1] - r.p[1]).normalize(); W.feet = floorOf(r); }
     else { W.x = -2.5; W.z = 2.27; W.dir.set(1, -0.06, 0).normalize(); W.feet = hAt(W.x, W.z); }
     W.feetS = W.feet; W.v = W.vt = W.vy = 0; unstick();
@@ -469,7 +473,7 @@ export function initNav(ctx) {
   const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
   const chips = lv => ROOMS.filter(r => r.lv === lv).map(r => `<button type="button" data-view="p_${r.k}" data-room="${r.k}" title="${r.n}${r.s ? ' · ' + r.s : ''}">${r.n}</button>`).join('');
   const secV = el(`<section><h2>Visite intérieure</h2>
-    <div class="chips"><button type="button" data-walk="pied" aria-pressed="false" title="Repartir devant la porte d'entrée et se promener à hauteur d'homme avec les flèches du clavier">Visite à hauteur d'homme</button><button type="button" data-walk="libre" aria-pressed="false" title="Voler dans la direction du regard depuis la vue actuelle, monter et descendre, traverser murs et portes">Visite libre</button></div>
+    <div class="chips"><button type="button" data-walk="pied" aria-pressed="false" title="Se promener à hauteur d'homme avec les flèches du clavier : depuis la visite libre, on se pose là où l'on est ; sinon départ devant la porte d'entrée">Visite à hauteur d'homme</button><button type="button" data-walk="libre" aria-pressed="false" title="Voler dans la direction du regard depuis la vue actuelle, monter et descendre, traverser murs et portes">Visite libre</button></div>
     <div class="row" style="margin-top:10px;grid-template-columns:72px 1fr auto" title="Hauteur des yeux pendant la visite à hauteur d'homme (1,00 à 2,00 m)"><label for="nav-eye">Yeux</label><input id="nav-eye" type="range" min="${EYE_MIN}" max="${EYE_MAX}" step="0.05"><output id="nav-eye-v" for="nav-eye" style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums"></output></div>
     <div class="row" style="margin-top:10px"><label for="nav-optic">Optique</label><select id="nav-optic" title="Champ de vision des vues à hauteur d'œil">${Object.entries(OPTICS).map(([k, o]) => `<option value="${k}">${o.label}</option>`).join('')}</select></div>
     <div class="toggles"><label title="Pièce vue d'en haut, murs coupés à hauteur d'allège"><input id="nav-open" type="checkbox"><span>Vue ouverte</span></label><label title="Personnages de 1,75 m pour l'échelle"><input id="nav-silh" type="checkbox"><span>Silhouettes 1,75 m</span></label></div></section>`);
@@ -481,7 +485,7 @@ export function initNav(ctx) {
   opticSel.value = optic;
   opticSel.addEventListener('change', () => { optic = opticSel.value; try { localStorage.setItem(LS_KEY, optic); } catch (e) { /* stockage indisponible */ } });
   silhEl.addEventListener('change', () => { silh.visible = silhEl.checked; updateSilh(); });
-  for (const b of walkBtns) b.addEventListener('click', () => b.dataset.walk === 'libre' ? startWalk('camera', 'libre') : startWalk('door', 'pied'));
+  for (const b of walkBtns) b.addEventListener('click', () => b.dataset.walk === 'libre' ? startWalk('camera', 'libre') : startWalk(W.on && W.mode === 'libre' ? 'fly' : 'door', 'pied'));
   const showEye = () => { eyeOut.textContent = eyeH.toFixed(2).replace('.', ',') + ' m'; };
   eyeEl.value = eyeH; showEye();
   eyeEl.addEventListener('input', () => {

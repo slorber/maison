@@ -245,22 +245,26 @@ function aeron(x, z, ry) { const m = mtx(x, C.E1, z, ry); for (const p of aeronP
 
 // ---------------------------------------------------------------- chambre 1
 // Bureau 120 × 60 dans l'angle sud-ouest : dos à la cloison de la chambre 2 (nu z 4,17), bout contre la façade sud (nu x 12,54) ;
-// le radiateur (z 2,50 → 3,38 robinet compris) reste dégagé de 19 cm. Lampe LED, portable fermé, carnet.
+// le radiateur (z 2,50 → 3,38 robinet compris) reste dégagé de 19 cm. Portable 15" ouvert (gabarit MacBook 16" ramené à une dalle de 15,3")
+// face à l'Aeron, écran 27" (dalle 16:9 59,8 × 33,6 cm) juste au-dessus (demande client du 12/10), carnet à droite, lampe LED au bout gauche (côté façade).
 function chambre1() {
   const e = C.E1, h = 0.74, K = new Kit('furn1', mtx(11.94, e, 3.87));
   desk(K, 1.20, 0.60, h);
-  K.soft('mobGrey', -0.21, 0.11, h, h + 0.009, -0.13, 0.09, 0.004, { nA: 2 }); K.soft('mobGrey', -0.208, 0.108, h + 0.009, h + 0.016, -0.128, 0.088, 0.003, { nA: 2 }); // portable fermé
+  const sx = -0.04, s15 = 15.3 / 16.2; // poste centré sur l'Aeron (x 11,90)
+  macbook(new Kit('furn1', K.m(sx, h, -0.30 + 0.085 + 0.2481 * s15 / 2).multiply(new THREE.Matrix4().makeScale(s15, s15, s15)))); // base à 8,5 cm du chant avant
+  monitor(new Kit('furn1', K.m(sx, h, 0.15)), 0.598, 0.336, 0.236, 0.006, 0.016, 0.24, 0.18); // 27" : bas du cadre 6 mm au-dessus du haut de l'écran du portable
   K.box('mobPaint', -0.44, -0.29, h, h + 0.012, -0.12, 0.09, { c: '#3f5e6e' }); K.box('mobPaint', -0.437, -0.293, h + 0.012, h + 0.014, -0.117, 0.087, { c: '#ebe5d8' }); // carnet
   // lampe de bureau LED noire : socle rond, fût, barre lumineuse orientée vers le plan
-  K.g('blackMatte', new THREE.CylinderGeometry(0.06, 0.066, 0.014, 24), 0.42, h + 0.007, 0.17); K.rod('blackMatte', [0.42, h + 0.014, 0.17], [0.42, h + 0.43, 0.17], 0.0065, 10);
-  K.soft('blackMatte', 0.09, 0.44, h + 0.418, h + 0.436, 0.155, 0.185, 0.006, { nA: 2 }); K.box('mobLed', 0.11, 0.41, h + 0.416, h + 0.418, 0.16, 0.18);
+  // (barre tournée vers l'avant du plateau, à droite de l'écran 27")
+  K.g('blackMatte', new THREE.CylinderGeometry(0.06, 0.066, 0.014, 24), 0.50, h + 0.007, 0.19); K.rod('blackMatte', [0.50, h + 0.014, 0.19], [0.50, h + 0.43, 0.19], 0.0065, 10);
+  K.soft('blackMatte', 0.485, 0.515, h + 0.418, h + 0.436, -0.14, 0.205, 0.006, { nA: 2 }); K.box('mobLed', 0.49, 0.51, h + 0.416, h + 0.418, -0.12, 0.185);
   aeron(11.90, 3.46, 0); // rangé sous le bureau, droit : assise engagée de 13 cm, manchettes des accoudoirs juste devant la ceinture du plateau
   tvFrame();
 }
 // Valet de chambre chromé (photo du client, ~1,07 m) dans l'angle de la chambre parentale entre la porte du dressing et le retour du palier,
 // tourné vers le lit : cintre en arc de 58 cm, barre à pantalon de 42 cm à 0,56 m, deux montants plats 22 × 12, entretoise, socle rond Ø 38
 function valet() {
-  const xc = 8.76, zc = 2.80, K = new Kit('furn1', mtx(xc, C.E1, zc, Math.atan2(10.65 - xc, 1.36 - zc))); // repère local : face vers +z
+  const xc = 8.76, zc = 2.80, K = new Kit('furn1', mtx(xc, C.E1, zc, Math.atan2(10.82 - xc, 1.36 - zc))); // repère local : face vers +z
   K.g('mobChrome', new THREE.CylinderGeometry(0.19, 0.19, 0.018, 40), 0.04, 0.009, 0);
   K.g('mobChrome', new THREE.CylinderGeometry(0.165, 0.178, 0.012, 40), 0.04, 0.024, 0);
   K.box('mobChrome', -0.011, 0.011, 0.03, 1.055, -0.006, 0.006); // montant principal (cintre)
@@ -273,9 +277,9 @@ function valet() {
   K.g('mobChrome', new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: 0.012, bevelEnabled: false }), 0, 0, -0.006); // cintre en arc
 }
 // TV 55" façon Samsung The Frame (LS03 : 1238 × 709 × 24,9 mm, dalle 54,6" mate) en cadre noir, fixation murale extra-plate (4 mm du mur) ;
-// centrée sur l'axe du lit (x 10,65), centre à 1,40 m du sol, face au lit (vers −z). Écran en mode Art (œuvre et passe-partout).
+// centrée sur l'axe du lit king size (x 10,82, suit le lit), centre à 1,40 m du sol, face au lit (vers −z). Écran en mode Art (œuvre et passe-partout).
 function tvFrame() {
-  const K = new Kit('furn1'), zw = 4.17 - 0.004, xc = 10.65, yc = C.E1 + 1.40, W = 1.238, H = 0.709, D = 0.0249, sw = 1.209, sh = 0.680, zf = zw - D;
+  const K = new Kit('furn1'), zw = 4.17 - 0.004, xc = 10.82, yc = C.E1 + 1.40, W = 1.238, H = 0.709, D = 0.0249, sw = 1.209, sh = 0.680, zf = zw - D;
   K.box('blackMatte', xc - W / 2 + 0.01, xc + W / 2 - 0.01, yc - H / 2 + 0.01, yc + H / 2 - 0.01, zf + 0.004, zw); // boîtier
   // cadre rapporté noir : quatre baguettes de 14,5 mm à arêtes adoucies, 3 mm en saillie sur la dalle
   const fw = (W - sw) / 2, fh = (H - sh) / 2, z0 = zf - 0.003, z1 = zf + 0.008;

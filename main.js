@@ -270,6 +270,9 @@ function buildMaterials() {
   M.leaf = std({ color: '#4f7a35', roughness: 0.9 });
   M.leaf2 = std({ color: '#6c8f3e', roughness: 0.9 });
   M.flower = std({ color: '#7d5fa6', roughness: 0.8 });
+  // plantes hautes du jardin de pluie : joncs, calamagrostis (feuillage, épis paille), massettes (épis bruns), salicaires (épis pourpres), iris des marais (fleurs jaunes)
+  M.reed = std({ color: '#4d6e3a', roughness: 0.85, side: THREE.DoubleSide }); M.reed2 = std({ color: '#71894a', roughness: 0.85, side: THREE.DoubleSide });
+  M.plume = std({ color: '#cdb98e', roughness: 0.95 }); M.typha = std({ color: '#5a3b22', roughness: 0.9 }); M.lythrum = std({ color: '#b44c94', roughness: 0.8 }); M.iris = std({ color: '#e6c534', roughness: 0.7 });
   M.foliage = std({ vertexColors: true, roughness: 0.85 });
   M.trunk = std({ color: '#6a5641', roughness: 1 });
   M.door = std({ color: '#f5f4f0', roughness: 0.5 });
@@ -1049,7 +1052,7 @@ function fitPlane() {
   const d = det(s); PLANE = [0, 1, 2].map(k => det(s.map((row, i) => row.map((v, j) => j === k ? r[i] : v))) / d);
 }
 const planeAt = (x, z) => PLANE[0] * clamp(x, -45, 45) + PLANE[1] * clamp(z, -35, 40) + PLANE[2];
-// jardin de pluie 14 m² en haricot, plus épais dans l'angle sud-ouest (demande des clients du 11/10/2026), pourtour à 55,20
+// jardin de pluie 14 m² en haricot, plus épais dans l'angle sud-ouest (demande des clients du 11/10/2026), pourtour à 55,20, fond 30 cm plus bas (54,90)
 const RAIN = [[18.35, 5.3], [18.35, 6.25], [18.35, 7.2], [18.35, 8.15], [18.35, 9.1], [18.35, 10.05], [18.35, 11.0], [18.34, 11.21], [18.3, 11.41], [18.23, 11.61], [18.14, 11.8], [18.02, 11.97], [17.88, 12.13], [17.72, 12.27], [17.55, 12.39], [17.36, 12.48], [17.16, 12.55], [16.96, 12.59], [16.75, 12.6], [16.39, 12.6], [16.03, 12.6], [15.68, 12.6], [15.32, 12.6], [14.96, 12.6], [14.6, 12.6], [14.42, 12.56], [14.26, 12.46], [14.16, 12.31], [14.12, 12.12], [14.16, 11.94], [14.26, 11.79], [14.42, 11.69], [14.6, 11.65], [14.84, 11.57], [15.08, 11.46], [15.3, 11.33], [15.51, 11.17], [15.71, 10.99], [15.9, 10.79], [16.08, 10.56], [16.25, 10.3], [16.4, 10.02], [16.55, 9.72], [16.68, 9.39], [16.81, 9.03], [16.92, 8.65], [17.02, 8.25], [17.11, 7.82], [17.19, 7.36], [17.26, 6.89], [17.32, 6.38], [17.36, 5.85], [17.4, 5.3], [17.44, 5.12], [17.54, 4.96], [17.69, 4.86], [17.88, 4.83], [18.06, 4.86], [18.21, 4.96], [18.31, 5.12]]; // haricot de 14 m², plus épais dans l'angle sud-ouest
 function polyInfo(poly, x, z) {
   let inside = false, dmin = 1e9;
@@ -1082,17 +1085,18 @@ const surfAllee = x => driveH(x) + 0.025; // dessus fini de l'allée : le gravil
 //   à pente constante de 6,5 % (+0,03 au nu de la façade, −0,33 au bout), sans suivre le terrain : 10 cm au moins au-dessus du sol
 //   le plus haut de part et d'autre (allée près de la maison, pelouse ensuite), 18 cm au plus ; c'est le pied qui s'adapte au sol ;
 // - marche dans le muret : passage de 0,80 m centré à 2,00 m de la façade sud, contremarche au nu côté allée (aucun débord sur le gravillon),
-//   giron de 25 cm (épaisseur du muret + 10 cm côté jardin) au niveau de la pelouse, parallèle au chaperon, 10 cm sous le dessus du muret.
+//   giron de 25 cm (épaisseur du muret + 10 cm côté jardin) au niveau de la pelouse, presque à plat (2 % vers le portail, juste pour l'eau ;
+//   choix du client du 12/10), 10 cm sous le dessus du muret au milieu du passage.
 const MUR = { z: 3.77, e: 0.15, y0: 0.03, k: -0.065 };
 const murY = x => MUR.y0 + MUR.k * (x - L); // dessus du muret allée / jardin (sous le chaperon de 3 cm)
 const SEUIL = { t0: 0.20, t1: 0.62, tn: 0.80, tm: 0.98, zRet: 8.00, zNiche: 4.45 }; // profondeurs t depuis la limite sud ; zNiche : bout de la niche (s 9,25)
 const MARCHE = { x0: L + 1.60, x1: L + 2.40, zB: MUR.z + 0.25, dJ: 0.10 };
 MARCHE.xc = (MARCHE.x0 + MARCHE.x1) / 2;
-// dessus du giron, parallèle au chaperon : contremarche de 10 cm côté maison à 13 cm côté portail au-dessus du gravillon (l'allée descend de 10,5 %)
-const marcheY = x => murY(x) - MARCHE.dJ;
+// dessus du giron, pente de 2 % vers le portail : contremarche de 8 cm côté maison à 15 cm côté portail au-dessus du gravillon (l'allée descend de 10,5 %)
+const marcheY = x => murY(MARCHE.xc) - MARCHE.dJ - 0.02 * (x - MARCHE.xc);
 function gardenH(x, z) {
   const ri = polyInfo(RAIN, x, z);
-  if (ri.inside) return TF_RAIN - 0.18 * smooth(0, 0.6, ri.d);
+  if (ri.inside) return TF_RAIN - 0.30 * smooth(0, 0.40, ri.d); // cuvette d'infiltration : fond 30 cm sous le pourtour (demande client du 12/10), talus de 40 cm
   const h = TF_RAIN + (TF - TF_RAIN) * smooth(0, 3.4, ri.d);
   const dH = Math.hypot(Math.max(-x, 0, x - L), Math.max(-z, 0, z - D));
   return h + (TF - h) * (1 - smooth(1.0, 1.5, dH));
@@ -1149,12 +1153,13 @@ function overlayQuad(layer, mat, c, lift, nu, nv) { // c : [[x,z]x4] p00 p10 p11
   const n = g.attributes.normal; if (n.count && n.getY(0) < 0) { g.setIndex(idx.map((v, i) => idx[i - (i % 3) + [0, 2, 1][i % 3]])); g.computeVertexNormals(); }
   const m = new THREE.Mesh(g, M[mat]); m.receiveShadow = true; groups[layer].add(m); return m;
 }
-function overlayPoly(layer, mat, poly, lift, res) { // polygone quelconque, découpé sur une grille fine
+function overlayPoly(layer, mat, poly, lift, res, snap = false) { // polygone quelconque, découpé sur une grille fine ; snap : sommets extérieurs ramenés sur le contour (bord lisse, sans dents de scie)
   const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
   const nx = Math.ceil((x1 - x0) / res), nz = Math.ceil((z1 - z0) / res);
   const pos = [], uv = [], idx = []; const id = new Map();
-  const vtx = (i, j) => { const k = i + ',' + j; if (id.has(k)) return id.get(k); const x = x0 + i * res, z = z0 + j * res; pos.push(x, hAt(x, z) + lift, z); uv.push(x, -z); id.set(k, pos.length / 3 - 1); return id.get(k); };
+  const near = (x, z) => { let b = null, bd = 1e9; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [ax, az] = poly[j], [bx, bz] = poly[i], dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))), px = ax + t * dx, pz = az + t * dz, d = (px - x) ** 2 + (pz - z) ** 2; if (d < bd) { bd = d; b = [px, pz]; } } return b; };
+  const vtx = (i, j) => { const k = i + ',' + j; if (id.has(k)) return id.get(k); let x = x0 + i * res, z = z0 + j * res; if (snap && !polyInfo(poly, x, z).inside) [x, z] = near(x, z); pos.push(x, hAt(x, z) + lift, z); uv.push(x, -z); id.set(k, pos.length / 3 - 1); return id.get(k); };
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
     const cx = x0 + (i + 0.5) * res, cz = z0 + (j + 0.5) * res;
     if (!polyInfo(poly, cx, cz).inside) continue;
@@ -1170,8 +1175,10 @@ function buildSite() {
   for (const [size, seg, drop] of [[600, 150, 0.08], [72, 360, 0.01]]) {
     const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2); g.translate(4, 0, 5);
     const p = g.attributes.position; const uv = g.attributes.uv;
-    // maillage du lointain (mailles de 4 m) abaissé autour de la fosse du voisin est, et de 60 cm sous l'emprise du maillage fin : sinon, dans les creux (poche du portail, jardin de pluie), il le traverse
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), sous = size > 100 && Math.abs(x - 4) < 35 && Math.abs(z - 5) < 35; p.setY(i, (seg === 150 ? envGround(x, z, hAt(x, z), 4.5) : hAt(x, z)) - drop - (sous ? 0.6 : 0)); uv.setXY(i, x, -z); }
+    // maillage du lointain (mailles de 4 m) abaissé autour de la fosse du voisin est, et de 80 cm sous l'emprise du maillage fin : sinon, dans les creux (poche du portail, jardin de pluie), il le traverse ;
+    // maillage fin (pas de 20 cm) : 7 cm sous le paillage dans la cuvette du jardin de pluie, dont les cordes des talus raides perceraient le paillage
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), sous = size > 100 && Math.abs(x - 4) < 35 && Math.abs(z - 5) < 35; const pluie = seg === 360 && x > 14 && x < 18.4 && z > 4.7 && z < 12.7 && polyInfo(RAIN, x, z).inside;
+      p.setY(i, (seg === 150 ? envGround(x, z, hAt(x, z), 4.5) : hAt(x, z)) - drop - (sous ? 0.8 : 0) - (pluie ? 0.07 : 0)); uv.setXY(i, x, -z); }
     g.computeVertexNormals(); const ground = new THREE.Mesh(g, M.grass); ground.receiveShadow = true; groups.site.add(ground);
   }
   // rue des Merlettes, branche ouest le long de la limite A–D (profil, bordures, trottoir, carrefour, mobilier) : rue.js ; rue des Fauvettes, branche sud le long de C–D
@@ -1217,7 +1224,7 @@ function buildSite() {
     const rg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.004, 24), M.inox); rg.position.set(-0.45, 2.419, 2.27); groups.rdc.add(rg); }
   overlayQuad('site', 'gravel', [[L + 0.002, 0.03], [xSouth(0.03) - SEUIL.t1, 0.03], [xSouth(MUR.z) - SEUIL.t1, MUR.z], [L + 0.002, MUR.z]], 0.025, 26, 16); // jusqu'au muret et au seuil du portail
   // jardin de pluie : fond paillé et plantations (vivaces, graminées), regard de surverse
-  overlayPoly('site', 'mulch', RAIN, 0.03, 0.1);
+  overlayPoly('site', 'mulch', RAIN, 0.03, 0.1, true);
   TUFT = new THREE.ConeGeometry(0.025, 0.5, 4); BUSH = new THREE.IcosahedronGeometry(0.22, 1); const r = rng(7); TUFT_G = new THREE.Group();
   let placed = 0;
   for (let i = 0; i < 3000 && placed < 130; i++) {
@@ -1226,6 +1233,13 @@ function buildSite() {
     if (Math.hypot(x - 17.45, z - 11.6) < 0.45) continue;
     grassTuft(x, z, 0.6 + r() * 0.8, r); placed++;
   }
+  // plantes hautes (demande client du 12/10 : « des fleurs qui montent plus, comme les roseaux ») : touffes dans le fond et le bas des talus, plus serrées dans l'angle
+  { const kinds = ['jonc', 'jonc', 'jonc', 'calamagrostis', 'calamagrostis', 'massette', 'massette', 'salicaire', 'salicaire', 'iris', 'iris']; let n = 0;
+    for (let i = 0; i < 4000 && n < 46; i++) {
+      const x = 14.1 + r() * 4.3, z = 4.8 + r() * 7.8, pi = polyInfo(RAIN, x, z);
+      if (!pi.inside || pi.d < 0.2 || Math.hypot(x - 17.45, z - 11.6) < 0.5) continue;
+      tallPlant(x, z, kinds[Math.floor(r() * kinds.length)], r); n++;
+    } }
   mergeStatic([TUFT_G], groups.site); TUFT_G = null; // [perf] ~860 maillages → 4
   { const y = hAt(17.45, 11.6); A.box('site', 17.20, 17.70, y - 0.1, y + 0.02, 11.35, 11.85, 'concrete'); A.box('site', 17.24, 17.66, y + 0.02, y + 0.03, 11.39, 11.81, 'grille'); }
   // arbre à planter (jardin nord, plan de masse)
@@ -1276,6 +1290,33 @@ function tree(x, z, s) {
   const crown = new THREE.Mesh(mergeGeometries(geos), M.foliage); crown.castShadow = true; crown.receiveShadow = true; groups.site.add(crown);
 }
 let TUFT, BUSH, TUFT_G; // [perf] TUFT_G : groupe provisoire des touffes, fusionné à la fin de la plantation
+let TP; // géométries des plantes hautes (base à l'origine, hauteur 1)
+// plante haute du jardin de pluie, en touffe de tiges et de feuilles inclinées vers l'extérieur ; épis ou fleurs au sommet des tiges
+function tallPlant(x, z, kind, r) {
+  const y = hAt(x, z), G = TUFT_G || groups.site;
+  TP ||= { leaf: new THREE.ConeGeometry(0.009, 1, 3).translate(0, 0.5, 0), blade: new THREE.ConeGeometry(0.024, 1, 3).translate(0, 0.5, 0),
+    head: new THREE.CylinderGeometry(0.014, 0.014, 0.12, 6), plume: new THREE.ConeGeometry(0.018, 0.26, 5), spike: new THREE.ConeGeometry(0.026, 0.30, 6), bloom: new THREE.IcosahedronGeometry(0.035, 0) };
+  const add = (geo, mat, px, py, pz, rx, rz, sx, sy, sz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.rotation.set(rx, r() * 3, rz); m.scale.set(sx, sy, sz); m.castShadow = true; G.add(m); return m; };
+  // tige ou feuille de hauteur h penchée de lean vers a ; renvoie le point à la fraction t de sa hauteur
+  const stem = (geo, mat, h, lean, w = 1, sz = w) => {
+    const a = r() * Math.PI * 2, rr = r() * 0.09, px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr, rx = Math.sin(a) * lean, rz = -Math.cos(a) * lean;
+    const m = add(geo, mat, px, y - 0.02, pz, rx, rz, w, h, sz); m.rotation.y = 0;
+    return t => new THREE.Vector3(0, h * t, 0).applyEuler(m.rotation).add(m.position);
+  };
+  const H = { jonc: 1.15, calamagrostis: 0.85, massette: 1.0, salicaire: 1.05, iris: 0.8 }[kind] * (0.85 + r() * 0.35);
+  if (kind === 'iris') {
+    for (let i = 0; i < 9; i++) stem(TP.blade, r() < 0.5 ? M.reed : M.reed2, H * (0.65 + r() * 0.4), 0.05 + r() * 0.2, 1, 0.25);
+    for (let i = 0; i < 2; i++) { const p = stem(TP.leaf, M.reed2, H * 1.05, 0.08)(1); add(TP.bloom, M.iris, p.x, p.y, p.z, 0, 0, 1, 0.8, 1); }
+    return;
+  }
+  for (let i = 0; i < 16; i++) stem(TP.leaf, r() < 0.5 ? M.reed : M.reed2, H * (0.55 + r() * 0.45), 0.06 + r() * 0.24);
+  const ns = kind === 'jonc' ? 0 : kind === 'calamagrostis' ? 7 : 4;
+  for (let i = 0; i < ns; i++) {
+    const hs = kind === 'calamagrostis' ? H * 1.7 : H * (1.05 + r() * 0.15), at = stem(TP.leaf, kind === 'calamagrostis' ? M.plume : M.reed2, hs, 0.03 + r() * 0.08, 0.7);
+    const p = at(kind === 'massette' ? 0.86 : 0.88), mat = kind === 'calamagrostis' ? M.plume : kind === 'massette' ? M.typha : M.lythrum;
+    add(kind === 'calamagrostis' ? TP.plume : kind === 'massette' ? TP.head : TP.spike, mat, p.x, p.y, p.z, 0, 0, 1, 1, 1);
+  }
+}
 function grassTuft(x, z, s, r) {
   const y = hAt(x, z), G = TUFT_G || groups.site;
   for (let i = 0; i < 6; i++) { const c = new THREE.Mesh(TUFT, r() < 0.5 ? M.leaf2 : M.leaf); c.scale.setScalar(s * (0.7 + r() * 0.5)); c.position.set(x + (r() - 0.5) * 0.15, y + 0.2 * s, z + (r() - 0.5) * 0.15); c.rotation.set((r() - 0.5) * 0.7, r() * 3, (r() - 0.5) * 0.7); c.castShadow = true; G.add(c); }

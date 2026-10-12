@@ -452,13 +452,19 @@ export function buildBains(ctx) {
   const zt = 1.36, zp = 1.304, zd = 1.326;
   B('furn1', X0, X1, e, e + 0.025, Z0, zt, 'bnTray'); B('furn1', 5.06, 5.18, e + 0.025, e + 0.0265, 0.62, 0.74, 'bnBlack');
   B('furn1', X0 + 0.02, 5.70, e + 0.045, e + 2.0, zp - 0.004, zp + 0.004, 'glassShower'); // panneau fixe
-  B('furn1', 5.62, X1 - 0.025, e + 0.035, e + 1.985, zd - 0.004, zd + 0.004, 'glassShower'); // porte coulissante
   B('furn1', X0, X0 + 0.02, e + 0.025, e + 2.0, zp - 0.012, zp + 0.012, 'bnBlack'); B('furn1', X1 - 0.02, X1, e + 0.025, e + 2.0, zd - 0.012, zd + 0.012, 'bnBlack'); // profilés muraux
   B('furn1', X0 + 0.02, 5.70, e + 0.025, e + 0.045, zp - 0.008, zp + 0.008, 'bnBlack'); B('furn1', 5.688, 5.70, e + 0.045, e + 2.0, zp - 0.007, zp + 0.007, 'bnBlack'); // profilés du fixe
-  for (const x of [5.62, X1 - 0.037]) B('furn1', x, x + 0.012, e + 0.035, e + 1.985, zd - 0.007, zd + 0.007, 'bnBlack'); // montants de porte
   B('furn1', X0, X1, e + 2.0, e + 2.04, zp - 0.016, zd + 0.016, 'bnBlack'); // rail haut
-  for (const x of [5.70, 6.16]) B('furn1', x - 0.03, x + 0.03, e + 1.975, e + 2.0, zd + 0.004, zd + 0.016, 'bnBlack'); // chariots
-  B('furn1', 6.135, 6.149, e + 0.78, e + 1.32, zd + 0.042, zd + 0.056, 'bnBlack'); for (const y of [0.84, 1.26]) B('furn1', 6.137, 6.147, e + y - 0.006, e + y + 0.006, zd + 0.004, zd + 0.042, 'bnBlack'); // poignée bâton
+  // porte coulissante (vitre, montants, chariots, poignée bâton) : groupe mobile déclaré dans ctx.DOORS, clic : ouvrir / fermer (demande client du 12/10) ;
+  // elle glisse de 53 cm vers le nord devant le panneau fixe (passage libre de 53 cm), hors fusion ; obstacle dynamique pour la balade, jamais ouverte d'elle-même
+  { const g = new THREE.Group(), d = { g, meshes: [], open: 0, target: 0, speed: 0.9, kind: 'douche' }; g.name = "porte de douche de la salle d'eau"; g.userData.noMerge = true; f1.add(g);
+    const bx = (x0, x1, y0, y1, z0, z1, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), M[mat]); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      m.castShadow = !M[mat].transparent; m.receiveShadow = true; m.userData.door = d; g.add(m); d.meshes.push(m); };
+    bx(5.62, X1 - 0.025, e + 0.035, e + 1.985, zd - 0.004, zd + 0.004, 'glassShower'); // vitre
+    for (const x of [5.62, X1 - 0.037]) bx(x, x + 0.012, e + 0.035, e + 1.985, zd - 0.007, zd + 0.007, 'bnBlack'); // montants de porte
+    for (const x of [5.70, 6.16]) bx(x - 0.03, x + 0.03, e + 1.975, e + 2.0, zd + 0.004, zd + 0.016, 'bnBlack'); // chariots
+    bx(6.135, 6.149, e + 0.78, e + 1.32, zd + 0.042, zd + 0.056, 'bnBlack'); for (const y of [0.84, 1.26]) bx(6.137, 6.147, e + y - 0.006, e + y + 0.006, zd + 0.004, zd + 0.042, 'bnBlack'); // poignée bâton
+    d.apply = v => { g.position.x = -0.53 * v * v * (3 - 2 * v); }; d.apply(0); ctx.DOORS.push(d); }
   showerColumn(f1, M.bnBlack, M.bnBlackDark, 5.595, e, Z0);
   // sèche-serviettes Atlantic Adélis 500 W blanc (102,7 × 55, pièce d'environ 3,8 m²) sur la cloison du WC, au plus près de la cabine (z 1,445 → 1,995),
   // de 0,51 à 1,54 m du sol ; la cloison du dressing, côté porte de la cabine, n'offre que 26 cm avant le passage
