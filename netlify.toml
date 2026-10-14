@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
 
 # page entièrement autonome (JS et textures inline) : pas de cache long sur l'index
 [[headers]]

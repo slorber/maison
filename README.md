@@ -20,7 +20,7 @@ npm run build        # out/ puis dist/index.html
 
 ## Déploiement Netlify
 
-`netlify.toml` est prêt : commande `npm run build`, dossier publié `dist`, Node 20.
+`netlify.toml` est prêt : commande `npm run build`, dossier publié `dist`, Node 24.
 Relier le dépôt à Netlify (Add new site → Import an existing project → GitHub) suffit ; chaque push sur `main` publie le site,
 chaque branche ou pull request a sa propre préversion, et chaque déploiement garde une URL permanente.
 
