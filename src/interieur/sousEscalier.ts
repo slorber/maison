@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Ctx, Vec3 } from '../types';
+import { RISE, GO, ZS, ZF, XM, soffitY } from '../maison/traceEscalier';
 
 const LY = 'furn0';
 let A;
@@ -87,11 +88,11 @@ function materials(ctx) {
 export function buildSousEscalier(ctx: Ctx) {
   A = ctx.A; materials(ctx);
   const W = 'white', G = 'mobGapW', H = 'handle'; // laqué blanc satiné, joints, quincaillerie gris anthracite RAL 7016
-  // volée droite de buildStair (main.js) : 16 hauteurs, giron constant de x 1,26 à 3,91 (jour de la partie basse, emmarchement 90), sous-face de la paillasse sof(x)
-  const rise = ctx.E1 / 16, xs = 1.26, go = (3.91 - xs) / 11, sl = rise / go, k = Math.hypot(1, sl);
-  const sof = x => rise * (4 + (x - xs) / go) - 0.19;
-  const zj = 3.27, zw = 4.17; // joue de l'escalier au jour (façade), cloison escalier / cuisine (fond)
-  const x0 = xs + go; // fin du massif des marches 1 à 5
+  // volée droite de buildStair (traceEscalier.ts) : 16 hauteurs, giron constant de la dernière balancée à l'arrivée (x 3,91), sous-face de la paillasse sof(x)
+  const rise = RISE, sl = rise / GO, k = Math.hypot(1, sl);
+  const sof = soffitY;
+  const zj = ZS, zw = ZF; // joue de l'escalier au jour (façade), cloison escalier / cuisine (fond)
+  const x0 = XM; // fin du massif des marches balancées
   const xp = 2.42; // joue de séparation, côté banquette : sof(xp) = 1,37 m
   const xb = 3.86; // about de la cloison : bout de la banquette
 
