@@ -2,6 +2,7 @@
 // menuiserie(), entryDoor() et garageDoor() rangent chaque vantail dans un calque propre (o.leaves, géométrie en coordonnées monde) ;
 // ici chaque calque est accroché à un groupe mobile, puis déclaré dans DOORS (le clic de bindUI bascule d.target, animateDoors appelle d.apply).
 import * as THREE from 'three';
+import type { Ctx } from '../types';
 
 const cl = t => t < 0 ? 0 : t > 1 ? 1 : t, ez = t => { t = cl(t); return t * t * (3 - 2 * t); };
 const AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0), _p = new THREE.Vector3(), _q = new THREE.Vector3();
@@ -18,7 +19,7 @@ function rig(parent, F, Fi, lf) {
 // rotation de mov d'un angle a autour de l'axe ax passant par p (repère de façade)
 function turn(mov, ax, a, p) { mov.quaternion.setFromAxisAngle(ax, a); mov.position.copy(p).sub(_p.copy(p).applyQuaternion(mov.quaternion)); }
 
-export function buildOuvrants(ctx) {
+export function buildOuvrants(ctx: Ctx) {
   const { OPEN, FACE, groups, state, LB, H, M } = ctx;
   for (const face of Object.keys(OPEN)) for (const o of OPEN[face]) {
     if (!o.leaves || !o.leaves.length) continue;
@@ -67,7 +68,7 @@ export function buildOuvrants(ctx) {
   }
 }
 
-export function initOuvrants(ctx) {
+export function initOuvrants(ctx: Ctx) {
   const { OPEN, groups, DOORS } = ctx;
   for (const face of Object.keys(OPEN)) for (const o of OPEN[face]) {
     const d = o.ouv; if (!d) continue;

@@ -6,6 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx } from '../types';
 
 const DEG = Math.PI / 180, UP = new THREE.Vector3(0, 1, 0);
 const EYE = 1.60, R_BODY = 0.22, CUT = 1.25, SHIFT_MAX = 30 * DEG, CS = 0.5;
@@ -47,7 +48,11 @@ const FIGURES = [[9.55, 4.75, 0, 120], [1.30, 6.10, 0, 180], [11.95, 2.90, 1, 20
 const LAYER_KIND = { rdc: 0, r1: 0, skinU: 0, skinR: 0, slab1: 2, furn0: 1, furn1: 1, fence: 1 };
 const CLIP_LAYERS = ['rdc', 'r1', 'skinU', 'skinR', 'volets0', 'volets1'];
 
-export function initNav(ctx) {
+// état de la visite : position (pieds feet, lissés feetS), regard dir, vitesses, transition blend
+interface Walker { on: boolean; mode: string; x: number; y: number; z: number; feet: number; feetS: number; dir: THREE.Vector3; v: number; vt: number; vy: number;
+  last: number; c0: number; blend: any; entryOpened?: boolean }
+
+export function initNav(ctx: Ctx) {
   const { camera, controls, renderer, scene, state, VIEWS, setView, updateSun, groups, hooks, DOORS, hAt, E1 } = ctx;
   const floorOf = r => r.f ?? (r.lv ? E1 : 0);
   const inFootprint = (x, z) => x > 0 && x < ctx.L && z > 0 && z < ctx.D;
@@ -170,7 +175,7 @@ export function initNav(ctx) {
     return { pivot, hinge, verts, a: 0, t: 0 };
   }
   // centre et rayon (plan) d'un ouvrant, calculés une fois
-  function navC(d, ms) {
+  function navC(d, ms?) {
     if (d._navC) return d._navC; if (!ms) { ms = d.meshes && d.meshes.length ? d.meshes : []; if (!ms.length && d.g) d.g.traverse(o => { if (o.isMesh) ms.push(o); }); }
     const bb = new THREE.Box3(); for (const o of ms) { o.updateWorldMatrix(true, false); bb.expandByObject(o); }
     return (d._navC = bb.isEmpty() ? { x: 0, y: 0, z: 0, r: 1e9 } : { x: (bb.min.x + bb.max.x) / 2, y: (bb.min.y + bb.max.y) / 2, z: (bb.min.z + bb.max.z) / 2, r: Math.hypot(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2 });
@@ -300,7 +305,7 @@ export function initNav(ctx) {
   // ------------------------------------------------------------ balade au clavier
   // deux modes (demande client du 12/10) : « pied » = visite à hauteur d'homme (sol, murs, portes ouvertes à l'approche) ;
   // « libre » = vol dans la direction du regard, montée et descente, sans collision ni ouverture de porte (y : hauteur de l'œil)
-  const W = { on: false, mode: 'pied', x: 0, y: 0, z: 0, feet: 0, feetS: 0, dir: new THREE.Vector3(1, 0, 0), v: 0, vt: 0, vy: 0, last: 0, c0: 0, blend: null };
+  const W: Walker = { on: false, mode: 'pied', x: 0, y: 0, z: 0, feet: 0, feetS: 0, dir: new THREE.Vector3(1, 0, 0), v: 0, vt: 0, vy: 0, last: 0, c0: 0, blend: null };
   const keys = { up: false, down: false, left: false, right: false, shift: false, rise: false, fall: false };
   const pied = () => W.on && W.mode !== 'libre';
   const eyeY = () => W.mode === 'libre' ? W.y : W.feetS + eyeH;
@@ -425,7 +430,7 @@ export function initNav(ctx) {
         gl_FragColor = vec4(0.25 * (tap(p - e) + tap(p + e) + tap(p + vec2(e.x, -e.y)) + tap(p + vec2(-e.x, e.y))), 1.0); }`,
     depthTest: false, depthWrite: false, toneMapped: false,
   }));
-  const U = quad.material.uniforms;
+  const U = (quad.material as THREE.ShaderMaterial).uniforms;
   let pc = null; // chaîne privée (sans occlusion ambiante) : rendu → sortie (tons + sRGB) dans une cible, puis remappage Panini à l'écran
   function applyPano(sh, fi) {
     const Wv = fi.W - fi.pr, av = Wv / fi.H, X = Math.min(2 * Math.tan(30 * DEG), 0.95 * av), thx = 2 * Math.atan(X / 2), Y = X / av, c = Math.tan(sh);
@@ -448,7 +453,7 @@ export function initNav(ctx) {
     U.tSrc.value = comp.readBuffer.texture; renderer.setRenderTarget(null); quad.render(renderer);
   }
   let lensMode = null, prevRender = null, lastSh = 0;
-  function lens(reuse) { // reuse : caméra déjà redressée dans cette image (capture), on garde le décentrement calculé
+  function lens(reuse?) { // reuse : caméra déjà redressée dans cette image (capture), on garde le décentrement calculé
     const eye = eyeLevel(), fi = frameInfo(); let mode = null;
     if (eye && optic !== 'classique') mode = optic === 'pano' ? 'pano' : 'rect'; else if (!eye && isOpenView()) mode = 'open';
     if (mode === 'rect' || mode === 'pano') { const sh = reuse ? lastSh : (lastSh = levelCamera()); if (mode === 'rect') applyRect(OPTICS[optic].h, sh, fi); else applyPano(sh, fi); }
@@ -470,7 +475,7 @@ export function initNav(ctx) {
   hooks.post.push(now => { if (W.on) walkPost(now); lens(); });
 
   // ------------------------------------------------------------ interface (panneau)
-  const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
+  const el = (html: string) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild as HTMLElement; };
   const chips = lv => ROOMS.filter(r => r.lv === lv).map(r => `<button type="button" data-view="p_${r.k}" data-room="${r.k}" title="${r.n}${r.s ? ' · ' + r.s : ''}">${r.n}</button>`).join('');
   const secV = el(`<section><h2>Visite intérieure</h2>
     <div class="chips"><button type="button" data-walk="pied" aria-pressed="false" title="Se promener à hauteur d'homme avec les flèches du clavier : depuis la visite libre, on se pose là où l'on est ; sinon départ devant la porte d'entrée">Visite à hauteur d'homme</button><button type="button" data-walk="libre" aria-pressed="false" title="Voler dans la direction du regard depuis la vue actuelle, monter et descendre, traverser murs et portes">Visite libre</button></div>
@@ -481,19 +486,19 @@ export function initNav(ctx) {
   const sec1 = el(`<section><h2>Pièces de l'étage</h2><div class="chips">${chips(1)}</div></section>`);
   const old = document.querySelector('#panel [data-view="i_sejour"]')?.closest('section');
   if (old) old.replaceWith(secV, sec0, sec1); else { const body = document.querySelector('#panel .body'); body && body.prepend(secV, sec0, sec1); }
-  const walkBtns = [...secV.querySelectorAll('[data-walk]')], eyeEl = secV.querySelector('#nav-eye'), eyeOut = secV.querySelector('#nav-eye-v'), opticSel = secV.querySelector('#nav-optic'), openEl = secV.querySelector('#nav-open'), silhEl = secV.querySelector('#nav-silh');
+  const walkBtns = [...secV.querySelectorAll<HTMLElement>('[data-walk]')], eyeEl = secV.querySelector<HTMLInputElement>('#nav-eye'), eyeOut = secV.querySelector('#nav-eye-v'), opticSel = secV.querySelector<HTMLSelectElement>('#nav-optic'), openEl = secV.querySelector<HTMLInputElement>('#nav-open'), silhEl = secV.querySelector<HTMLInputElement>('#nav-silh');
   opticSel.value = optic;
   opticSel.addEventListener('change', () => { optic = opticSel.value; try { localStorage.setItem(LS_KEY, optic); } catch (e) { /* stockage indisponible */ } });
   silhEl.addEventListener('change', () => { silh.visible = silhEl.checked; updateSilh(); });
   for (const b of walkBtns) b.addEventListener('click', () => b.dataset.walk === 'libre' ? startWalk('camera', 'libre') : startWalk(W.on && W.mode === 'libre' ? 'fly' : 'door', 'pied'));
   const showEye = () => { eyeOut.textContent = eyeH.toFixed(2).replace('.', ',') + ' m'; };
-  eyeEl.value = eyeH; showEye();
+  eyeEl.value = String(eyeH); showEye();
   eyeEl.addEventListener('input', () => {
     eyeH = THREE.MathUtils.clamp(parseFloat(eyeEl.value) || EYE_DEF, EYE_MIN, EYE_MAX); showEye(); ctx.requestRender?.();
     try { localStorage.setItem(LS_EYE, String(eyeH)); } catch (e) { /* stockage indisponible */ }
   });
-  for (const b of [...sec0.querySelectorAll('[data-room]'), ...sec1.querySelectorAll('[data-room]')]) b.addEventListener('click', () => goRoom(b.dataset.room));
-  function goRoom(k, instant) {
+  for (const b of [...sec0.querySelectorAll<HTMLElement>('[data-room]'), ...sec1.querySelectorAll<HTMLElement>('[data-room]')]) b.addEventListener('click', () => goRoom(b.dataset.room));
+  function goRoom(k, instant?) {
     if (W.on) stopWalk();
     if (openMode) { VIEWS['o_' + k] = openView(RM[k]); setView('o_' + k, instant); } else setView('p_' + k, instant);
     syncUI();
@@ -507,7 +512,7 @@ export function initNav(ctx) {
   function syncUI() {
     for (const b of walkBtns) b.setAttribute('aria-pressed', W.on && W.mode === b.dataset.walk ? 'true' : 'false');
     const lv = state.lastView || ''; const k = lv.startsWith('o_') ? lv.slice(2) : null;
-    if (k) document.querySelectorAll('#panel [data-room]').forEach(b => b.setAttribute('aria-pressed', b.dataset.room === k ? 'true' : 'false'));
+    if (k) document.querySelectorAll<HTMLElement>('#panel [data-room]').forEach(b => b.setAttribute('aria-pressed', b.dataset.room === k ? 'true' : 'false'));
     if (hint) hint.textContent = !W.on ? hint0 + ' · Flèches : se promener'
       : W.mode === 'libre' ? '↑ ↓ : avancer, reculer dans la direction du regard · ← → : tourner · E ou Pg↑ : monter · A ou Pg↓ : descendre · 2 doigts ← → : de côté · Maj : plus vite · Glisser : regarder autour · Échap : arrêter'
       : '↑ ↓ : avancer, reculer · ← → : tourner · 2 doigts ← → : pas de côté · Maj : plus vite · Glisser : regarder autour · Clic : ouvrir une porte · Échap : arrêter';
@@ -518,7 +523,7 @@ export function initNav(ctx) {
     if (!lensMode) return; e.stopImmediatePropagation();
     snapping = true; lens(true); (hooks.render || defaultRender)(performance.now());
     const url = renderer.domElement.toDataURL('image/png'); snapping = false; lens(true);
-    document.getElementById('shot-img').src = url; document.getElementById('shot-dl').href = url; document.getElementById('shot').hidden = false;
+    (document.getElementById('shot-img') as HTMLImageElement).src = url; (document.getElementById('shot-dl') as HTMLAnchorElement).href = url; document.getElementById('shot').hidden = false;
   }, true);
 
   // ------------------------------------------------------------ clavier : flèches = marche (démarre depuis la vue d'intérieur en cours, sinon devant la porte)
@@ -559,5 +564,5 @@ export function initNav(ctx) {
 
   // accès pour les essais (scripts de rendu)
   window.__nav = { W, keys, ROOMS, startWalk, eye: v => { if (v !== undefined) { eyeH = v; eyeEl.value = v; showEye(); } return eyeH; }, stopWalk, goRoom, simulate, clearance: (x, z, f) => clearance(x, z, f), floorAt: (x, z, t) => floorAt(x, z, t), setOptic: o => { optic = o; opticSel.value = o; }, setOpen: v => { openEl.checked = openMode = v; }, silh, place: (x, z, dx, dz, f = 0) => { if (!C) buildColliders(); W.x = x; W.z = z; W.dir.set(dx, 0, dz).normalize(); W.feet = W.feetS = groundAt(x, z, f); W.c0 = clearance(x, z, W.feet); },
-    nearest: (x, z, f) => { let b = null; for (let t = 0; t < C.kind.length; t++) { const o = t * 15, T = C.T, k = C.kind[t]; if (k === 2 || T[o + 12] < f + (k === 1 ? 0.15 : 0.40) || T[o + 11] > f + 1.85) continue; const d = triD(x, z, T[o], T[o + 2], T[o + 3], T[o + 5], T[o + 6], T[o + 8]); if (!b || d < b.d) b = { d, g: C.gv[C.grp[t]].name, tri: Array.from(T.slice(o, o + 9)).map(v => +v.toFixed(3)) }; } return b; } };
+    nearest: (x, z, f) => { let b = null; for (let t = 0; t < C.kind.length; t++) { const o = t * 15, T = C.T, k = C.kind[t]; if (k === 2 || T[o + 12] < f + (k === 1 ? 0.15 : 0.40) || T[o + 11] > f + 1.85) continue; const d = triD(x, z, T[o], T[o + 2], T[o + 3], T[o + 5], T[o + 6], T[o + 8]); if (!b || d < b.d) b = { d, g: C.gv[C.grp[t]].name, tri: Array.from(T.slice(o, o + 9)).map((v: number) => +v.toFixed(3)) }; } return b; } };
 }

@@ -3,11 +3,13 @@
 // packs WC au sol Roca The Gap Round à réservoir attenant, sèche-serviettes Atlantic Adélis en sortie de douche, lave-mains du WC du RDC. Appelé avant A.build(groups).
 // Repère local des meubles muraux : x le long du mur (vers la droite face au meuble), z sortant du mur, y depuis le sol fini.
 import * as THREE from 'three';
+import type { Ctx, Door } from '../types';
 
 const PI = Math.PI, HP = PI / 2;
 
 // ---------------------------------------------------------------- constructeur de maillages (normales explicites, couleur de sommet pour assombrir rainures et joints)
 class MB {
+  declare p: number[]; declare n: number[]; declare uv: number[]; declare c: number[]; declare ix: number[];
   constructor() { this.p = []; this.n = []; this.uv = []; this.c = []; this.ix = []; }
   v(x, y, z, nx, ny, nz, u = 0, w = 0, c = 1) { this.p.push(x, y, z); this.n.push(nx, ny, nz); this.uv.push(u, w); this.c.push(c, c, c); return this.p.length / 3 - 1; }
   tri(a, b, c) { // sens corrigé d'après la normale moyenne des sommets
@@ -19,7 +21,7 @@ class MB {
     if (d < 0) this.ix.push(a, c, b); else this.ix.push(a, b, c);
   }
   quad(a, b, c, d) { this.tri(a, b, c); this.tri(a, c, d); }
-  add(geo, m, c = 1) { // ajoute une géométrie three (primitives, tubes) transformée par la matrice m : un seul maillage par matériau
+  add(geo, m?, c = 1) { // ajoute une géométrie three (primitives, tubes) transformée par la matrice m : un seul maillage par matériau
     const g = m ? geo.clone().applyMatrix4(m) : geo, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, i0 = this.p.length / 3;
     for (let i = 0; i < P.count; i++) this.v(P.getX(i), P.getY(i), P.getZ(i), N.getX(i), N.getY(i), N.getZ(i), U ? U.getX(i) : 0, U ? U.getY(i) : 0, c);
     if (g.index) for (let i = 0; i < g.index.count; i++) this.ix.push(i0 + g.index.getX(i)); else for (let i = 0; i < P.count; i++) this.ix.push(i0 + i);
@@ -38,7 +40,7 @@ const seg = {
   L(a, b) { const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz), tx = dx / (len || 1), tz = dz / (len || 1); return { len, n: 1, at: t => ({ x: a[0] + tx * t, z: a[1] + tz * t, tx, tz, nx: -tz, nz: tx }) }; },
   A(c, r, a0, a1) { const sg = Math.sign(a1 - a0), len = Math.abs(a1 - a0) * r; return { len, n: Math.max(2, Math.ceil(Math.abs(a1 - a0) / (PI / 20))), at: t => { const a = a0 + sg * t / r, ca = Math.cos(a), sa = Math.sin(a), tx = -sa * sg, tz = ca * sg; return { x: c[0] + r * ca, z: c[1] + r * sa, tx, tz, nx: -tz, nz: tx }; } }; },
 };
-function sample(segs, closed) { // points du contour avec abscisse curviligne s ; un angle vif garde deux points (deux normales)
+function sample(segs, closed?) { // points du contour avec abscisse curviligne s ; un angle vif garde deux points (deux normales)
   const out = []; let s = 0;
   for (const g of segs) {
     if (g.len < 1e-6) continue;
@@ -133,7 +135,7 @@ function loft(mb, secs, c = 1) {
 }
 
 // ---------------------------------------------------------------- façade à tasseaux : joncs demi-ronds au pas de 16 mm, rainures sombres, joints de portes plus marqués
-function fluted(mb, segs, joints, y0, y1, o = {}) {
+function fluted(mb, segs, joints, y0, y1, o: { pitch?: number; depth?: number; groove?: number } = {}) {
   const P0 = o.pitch || 0.016, d = o.depth || 0.0034, g = o.groove || 0.13, jw = 0.004, jd = 0.005;
   const U = [-1, -0.94, -0.78, -0.5, -0.17, 0.17, 0.5, 0.78, 0.94, 1];
   let s0 = 0;
@@ -390,7 +392,7 @@ function materials(ctx) {
   // sol terrazzo clair 60 × 60 à petits éclats (gris, sable, blanc, terre cuite pâle), joint 3 mm (texture = 2 × 2 dalles)
   const tz = makeTex(1024, 1.2, (g, s) => {
     ctx.pixelNoise(g, s, '#dcd6cc', 0.025, 0.018, 6, 504); const r = rng(505);
-    const pal = [['#b9b0a2', 0.26], ['#9a938a', 0.18], ['#f1ede6', 0.2], ['#cfa98c', 0.1], ['#6f6b66', 0.08], ['#e2d3bb', 0.18]];
+    const pal: [string, number][] = [['#b9b0a2', 0.26], ['#9a938a', 0.18], ['#f1ede6', 0.2], ['#cfa98c', 0.1], ['#6f6b66', 0.08], ['#e2d3bb', 0.18]];
     for (let i = 0; i < 24000; i++) {
       let u = r(), k = 0; while (k < pal.length - 1 && u > pal[k][1]) { u -= pal[k][1]; k++; }
       const big = r() < 0.12, rad = big ? 2.2 + r() * 3.5 : 0.6 + r() * 1.6, x = r() * s, y = r() * s, nv = 5 + Math.floor(r() * 3), a0 = r() * 7;
@@ -410,7 +412,7 @@ function tileWall(mb, ax, c, sg, a0, a1, y0, y1, ua, va) { // ax 'x' : plan x = 
 function tileFloor(mb, x0, x1, z0, z1, y, uo, vo) { const ids = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([x, z]) => mb.v(x, y, z, 0, 1, 0, x - uo, z - vo)); mb.quad(...ids); }
 
 // ---------------------------------------------------------------- assemblage
-export function buildBains(ctx) {
+export function buildBains(ctx: Ctx) {
   materials(ctx);
   const { A, M, groups, E1: e, H, T } = ctx, c = H.r1Ceil, f1 = groups.furn1, f0 = groups.furn0;
   const B = (l, x0, x1, y0, y1, z0, z1, m) => A.box(l, x0, x1, y0, y1, z0, z1, m);
@@ -458,7 +460,7 @@ export function buildBains(ctx) {
   B('furn1', X0, X1, e + 2.0, e + 2.04, zp - 0.016, zd + 0.016, 'bnBlack'); // rail haut
   // porte coulissante (vitre, montants, chariots, poignée bâton) : groupe mobile déclaré dans ctx.DOORS, clic : ouvrir / fermer (demande client du 12/10) ;
   // elle glisse de 53 cm vers le nord devant le panneau fixe (passage libre de 53 cm), hors fusion ; obstacle dynamique pour la balade, jamais ouverte d'elle-même
-  { const g = new THREE.Group(), d = { g, meshes: [], open: 0, target: 0, speed: 0.9, kind: 'douche' }; g.name = "porte de douche de la salle d'eau"; g.userData.noMerge = true; f1.add(g);
+  { const g = new THREE.Group(), d: Door = { g, meshes: [], open: 0, target: 0, speed: 0.9, kind: 'douche' }; g.name = "porte de douche de la salle d'eau"; g.userData.noMerge = true; f1.add(g);
     const bx = (x0, x1, y0, y1, z0, z1, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), M[mat]); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
       m.castShadow = !M[mat].transparent; m.receiveShadow = true; m.userData.door = d; g.add(m); d.meshes.push(m); };
     bx(5.62, X1 - 0.025, e + 0.035, e + 1.985, zd - 0.004, zd + 0.004, 'glassShower'); // vitre

@@ -3,8 +3,9 @@
 // grilles d'aération « périscope » RAL 7016 du vide sanitaire (pignons nord et sud). Appelé avant A.build(groups).
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx } from '../types';
 
-export function buildEquipment(ctx) {
+export function buildEquipment(ctx: Ctx) {
   const { M, std } = ctx;
   M.pacUI = std({ color: '#f8f8f6', roughness: 0.17, metalness: 0 }); // tôle laquée blanc brillant
   M.pacUE = std({ color: '#e6e7e3', roughness: 0.42, metalness: 0.05 }); // tôle prélaquée blanc grisé
@@ -46,7 +47,7 @@ function plane(ctx, layer, mat, w, h, x, y, z, n) {
 }
 // tube suivant une polyligne à angles cintrés (rayon rb)
 function tube(ctx, layer, mat, pts, rad, rb) {
-  const path = new THREE.CurvePath(), V = p => new THREE.Vector3(...p);
+  const path = new THREE.CurvePath<THREE.Vector3>(), V = p => new THREE.Vector3(...p);
   let prev = V(pts[0]);
   for (let i = 1; i < pts.length; i++) {
     const c = V(pts[i]);
@@ -77,7 +78,7 @@ function pacInterieure(ctx) {
   const s = new THREE.Shape(), a = w / 2 - bv, b = d / 2 - bv, rr = r - bv;
   s.moveTo(-a + rr, -b); s.lineTo(a - rr, -b); s.absarc(a - rr, -b + rr, rr, -Math.PI / 2, 0); s.lineTo(a, b - rr); s.absarc(a - rr, b - rr, rr, 0, Math.PI / 2);
   s.lineTo(-a + rr, b); s.absarc(-a + rr, b - rr, rr, Math.PI / 2, Math.PI); s.lineTo(-a, -b + rr); s.absarc(-a + rr, -b + rr, rr, Math.PI, Math.PI * 1.5);
-  let g = new THREE.ExtrudeGeometry(s, { depth: h - pl - 2 * bv, bevelEnabled: true, bevelThickness: bv, bevelSize: bv, bevelSegments: 3, curveSegments: 8 });
+  let g: THREE.BufferGeometry = new THREE.ExtrudeGeometry(s, { depth: h - pl - 2 * bv, bevelEnabled: true, bevelThickness: bv, bevelSize: bv, bevelSegments: 3, curveSegments: 8 });
   g.deleteAttribute('normal'); g.deleteAttribute('uv'); g = mergeVertices(g); g.computeVertexNormals(); // arrondis lissés
   g.rotateX(-Math.PI / 2); g.translate(x0 + w / 2, y0 + pl + bv, z0 + d / 2);
   mk(ctx, L0, g, M.pacUI);
@@ -117,7 +118,7 @@ function nourrice(ctx) {
   M.laiton = std({ color: '#c9a34c', roughness: 0.3, metalness: 0.85 }); M.perBleu = std({ color: '#2f6db5', roughness: 0.5 }); M.perRouge = std({ color: '#c23a2e', roughness: 0.5 });
   M.manoFace = std({ color: '#f4f4f0', roughness: 0.25 }); M.levierRouge = std({ color: '#cf2f29', roughness: 0.4 });
   const add = (m, g) => (G[m] = G[m] || []).push(g);
-  const cyl = (m, r, l, x, y, z, ax, seg = 14) => { const g = new THREE.CylinderGeometry(r, r, l, seg); if (ax === 'z') g.rotateX(Math.PI / 2); if (ax === 'x') g.rotateZ(Math.PI / 2); g.translate(x, y, z); add(m, g); };
+  const cyl = (m, r, l, x, y, z, ax?, seg = 14) => { const g = new THREE.CylinderGeometry(r, r, l, seg); if (ax === 'z') g.rotateX(Math.PI / 2); if (ax === 'x') g.rotateZ(Math.PI / 2); g.translate(x, y, z); add(m, g); };
   const cY = (m, r, y0, y1, x, z) => cyl(m, r, y1 - y0, x, (y0 + y1) / 2, z), cZ = (m, r, z0, z1, x, y) => cyl(m, r, z1 - z0, x, y, (z0 + z1) / 2, 'z');
   const za = 0.47, zb = 0.99, zi = 0.40, zr = 1.04, dz = 0.088;
   const EF = { y: yF + 1.50, x: xw + 0.085, m: 'perBleu', n: 6, z0: za + 0.04 }, EC = { y: yF + 1.16, x: xw + 0.052, m: 'perRouge', n: 5, z0: za + 0.04 + dz / 2 };
@@ -292,7 +293,7 @@ function gardeCorps(ctx) {
 // (110 mm), angles hauts abattus, arête haute arrière chanfreinée, casquette de 10 mm autour de la grille perforée hexagonale (trous en texture).
 function grillesVH(ctx) {
   const { M, std, hAt, FACE } = ctx, LS = 'site';
-  const VH = [['N', 1.17], ['N', 7.43], ['S', 3.30], ['S', 7.43]];
+  const VH: [string, number][] = [['N', 1.17], ['N', 7.43], ['S', 3.30], ['S', 7.43]];
   const e = 0.008; // peau d'enduit en saillie de 8 mm sur le nu (main.js)
   // ---- pièce en repère local : u = X le long du mur (centré), v = Y depuis le bas de la buse, w = Z sortant du mur (dos en w = 0)
   const a = 0.0535, r = 0.0505, wc = 0.0535, vb = 0.044, v0 = 0.094, vt = 0.204, cu = 0.015, cv = 0.017, wk = 0.0195, dg = 0.0105;
@@ -316,8 +317,8 @@ function grillesVH(ctx) {
   poly([[-(a - cu), vt, wk], [a - cu, vt, wk], F(a - cu, vt), F(-(a - cu), vt)], [0, 1, 0]);
   poly([[-a, vc, 0], [a, vc, 0], [a - cu, vt, wk], [-(a - cu), vt, wk]], [0, 1, -1]);
   // casquette : cadre avant (contour à angles hauts abattus), embrasure biaise de 10 mm, grille au fond
-  const oct = (hw, y0, y1, c) => [[-hw, y0], [hw, y0], [hw, y1 - c], [hw - c, y1], [-(hw - c), y1], [-hw, y1 - c]];
-  const O = [[-a, v0], [a, v0], [a, vc], [a - cu, vt], [-(a - cu), vt], [-a, vc]];
+  const oct = (hw, y0, y1, c): [number, number][] => [[-hw, y0], [hw, y0], [hw, y1 - c], [hw - c, y1], [-(hw - c), y1], [-hw, y1 - c]];
+  const O: [number, number][] = [[-a, v0], [a, v0], [a, vc], [a - cu, vt], [-(a - cu), vt], [-a, vc]];
   const If = oct(0.0485, 0.0965, 0.1985, 0.0125), Ig = oct(0.0454, 0.098, 0.195, 0.011);
   for (let i = 0; i < 6; i++) {
     const j = (i + 1) % 6;

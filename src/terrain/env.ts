@@ -3,6 +3,7 @@
 // en limite est, maison R+C au nord, maisons en face (rue des Merlettes à l'ouest, rue des Fauvettes au sud), lampadaires. Volumes indicatifs.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx } from '../types';
 
 let C; // contexte de la maquette (main.js)
 const RAD = Math.PI / 180;
@@ -31,7 +32,7 @@ function flushFaces() {
   RF.clear();
 }
 // toiture 4 pans quelconque (faîtage selon le plus grand côté), égout ye au nu extérieur du débord ; sous-face plate optionnelle
-function hip(layer, mat, x0, x1, z0, z1, ye, pitch, soffit) {
+function hip(layer, mat, x0, x1, z0, z1, ye, pitch, soffit?) {
   const t = Math.tan(pitch * RAD), lx = x1 - x0, lz = z1 - z0; let r;
   if (lx >= lz) {
     const run = lz / 2, yr = ye + run * t, zr = (z0 + z1) / 2, r0 = x0 + run, r1 = x1 - run;
@@ -181,7 +182,7 @@ function blob(x, y, z, rad, sx, sy, col, r) {
 }
 function trunk(x, y, z, r0, r1, h) { const g = new THREE.CylinderGeometry(r0, r1, h, 7); g.translate(x, y + h / 2, z); TREES.trunks.push(g); }
 // feuillu : fût, houppier de n boules ; o : rayon, hauteur de fût, teinte, saturation, clarté
-function leafy(x, z, s, o = {}) {
+function leafy(x, z, s, o: { trunk?: number; r?: number; h?: number; n?: number; hue?: number; sat?: number; light?: number; blob?: number } = {}) {
   const y = C.hAt(x, z), r = C.rng(Math.floor(x * 131 + z * 17 + 911));
   const th = (o.trunk ?? 1.7) * s, R = (o.r ?? 1.9) * s, H = o.h ?? 0.9, n = o.n ?? 36;
   trunk(x, y - 0.2, z, 0.08 * s, 0.18 * s, th + R * 0.9);
@@ -307,7 +308,7 @@ function manor(balTex) {
   C.sbox('site', 'envZinc', tr.a, tr.b, -0.07, 0.07, tr.yr - 0.03, tr.yr - 0.03, 0.08);
   // chaînes d'angle harpées en pierre beige
   const hq = 0.37, nq = Math.floor((yC - yF - 0.16) / hq);
-  for (const [f1, a1, s1, f2, a2, s2] of [['S', Z1, -1, 'W', X1, -1], ['S', Z0, 1, 'E', X1, -1], ['N', Z1, -1, 'W', X0, 1], ['N', Z0, 1, 'E', X0, 1]]) {
+  for (const [f1, a1, s1, f2, a2, s2] of [['S', Z1, -1, 'W', X1, -1], ['S', Z0, 1, 'E', X1, -1], ['N', Z1, -1, 'W', X0, 1], ['N', Z0, 1, 'E', X0, 1]] as [string, number, number, string, number, number][]) {
     for (let k = 0; k < nq; k++) {
       const y0 = yF + 0.16 + k * hq + 0.012, y1 = y0 + hq - 0.024, l1 = k % 2 ? 0.58 : 0.34, l2 = k % 2 ? 0.34 : 0.58;
       fb(f1, Math.min(a1, a1 + s1 * l1), Math.max(a1, a1 + s1 * l1), y0, y1, -0.001, 0.035, 'envQuoin');
@@ -609,7 +610,7 @@ function southHouse() {
   const r = hip2('envTileB2', x0 - ov, x1 + ov, z0 - ov, z1 + ov, ye, p, 40); ridge('envTileB2', r);
   const { P, fb, disc, ring } = faces(x0, x1, z0, z1), xm = (x0 + x1) / 2, zm = (z0 + z1) / 2;
   for (const f of ['S', 'N', 'W', 'E']) { const [a0, a1] = f === 'S' || f === 'N' ? [z0 - 0.06, z1 + 0.06] : [x0 - 0.06, x1 + 0.06]; fb(f, a0, a1, yE - 0.3, yE, 0, 0.06, 'envCream'); } // corniche
-  const win = (f, a, y0, h, w, guard) => {
+  const win = (f, a, y0, h, w, guard?) => {
     fb(f, a - w / 2 - 0.08, a + w / 2 + 0.08, y0 - 0.06, y0 + h + 0.06, -0.001, 0.02, 'appui'); fb(f, a - w / 2, a + w / 2, y0, y0 + h, 0.02, 0.03, 'envGlass');
     for (const s of [-1, 1]) fb(f, a + s * (w / 2 + 0.1) - (s > 0 ? 0 : w / 2), a + s * (w / 2 + 0.1) + (s > 0 ? w / 2 : 0), y0, y0 + h, 0.02, 0.05, 'white');
     if (guard) { const p0 = P(f, a - w / 2, 0, 0.06), p1 = P(f, a + w / 2, 0, 0.06); railing([p0[0], p0[2]], [p1[0], p1[2]], y0 + 0.02, y0 + 0.02, 0.38); }
@@ -741,7 +742,7 @@ function eastGarden() {
 }
 
 // ---------------------------------------------------------------- point d'entrée
-export function buildEnvironment(ctx) {
+export function buildEnvironment(ctx: Ctx) {
   C = ctx;
   const balTex = buildMaterials();
   eastBoundary();

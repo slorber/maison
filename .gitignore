@@ -2,3 +2,6 @@
 /out/
 /dist/
 /.netlify/
+# fichiers temporaires de Vite (configuration compilée) et de TypeScript
+vite.config.*.timestamp-*
+*.tsbuildinfo

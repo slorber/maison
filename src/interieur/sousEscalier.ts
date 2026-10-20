@@ -12,6 +12,7 @@
 // blanc, joints et chêne des marches partagent des seaux existants ou n'en créent qu'un ; appelé après buildMobilier, avant A.build(groups).
 import * as THREE from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx, Vec3 } from '../types';
 
 const LY = 'furn0';
 let A;
@@ -49,7 +50,7 @@ function rounded(a, b, c, d, r, y0, y1, bev = 0, bs = 1) {
 }
 // cylindre de a à b
 function rodG(a, b, r, seg = 8) {
-  const pa = V3(...a), pb = V3(...b), d = pb.clone().sub(pa), len = d.length();
+  const pa = V3(...(a as Vec3)), pb = V3(...(b as Vec3)), d = pb.clone().sub(pa), len = d.length();
   return new THREE.CylinderGeometry(r, r, len, seg).applyMatrix4(new THREE.Matrix4().compose(pa.add(pb).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), d.normalize()), V3(1, 1, 1)));
 }
 // cadre rapporté (montants et traverses de largeur w) sur un contour à 4 sommets [bas gauche, bas droit, haut droit, haut gauche],
@@ -83,7 +84,7 @@ function materials(ctx) {
 }
 
 // ---------------------------------------------------------------- placard et banquette
-export function buildSousEscalier(ctx) {
+export function buildSousEscalier(ctx: Ctx) {
   A = ctx.A; materials(ctx);
   const W = 'white', G = 'mobGapW', H = 'handle'; // laqué blanc satiné, joints, quincaillerie gris anthracite RAL 7016
   // volée droite de buildStair (main.js) : 16 hauteurs, giron constant de x 1,26 à 3,91 (jour de la partie basse, emmarchement 90), sous-face de la paillasse sof(x)

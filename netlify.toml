@@ -1,3 +1,5 @@
+# Build : npm ci (dépendances de développement comprises : TypeScript, Vite), puis vérification des types et build Vite.
+# Seul dist/index.html est publié : la page est autonome (JS et CSS inline, textures dessinées au chargement).
 [build]
   command = "npm run build"
   publish = "dist"
@@ -5,7 +7,7 @@
 [build.environment]
   NODE_VERSION = "24"
 
-# page entièrement autonome (JS et textures inline) : pas de cache long sur l'index
+# page entièrement autonome : pas de cache long sur l'index
 [[headers]]
   for = "/*"
   [headers.values]

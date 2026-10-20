@@ -4,6 +4,7 @@
 // nus d'en face, NGF levés) ; matériaux et ouvrages non cotés : photos du 11/10/2026 et du client (12/10/2026), Street View 2021.
 // Appelé après buildEnvironment, avant A.build(groups) : nappes et bordures dans les seaux A, mobilier fusionné en un seul maillage (atlas).
 import * as THREE from 'three';
+import type { Ctx } from '../types';
 
 let C, R; // R : profil de la branche ouest (C.RUE)
 const X0 = -80;
@@ -54,7 +55,7 @@ const GA = mk(), GL = mk(); let G = GA; // GL : diffuseurs des lampadaires (mat�
 const cell = (c, m = 0.01) => { const cx = c % 4, cy = Math.floor(c / 4); return [cx / 4 + m, 1 - (cy + 1) / 4 + m, (cx + 1) / 4 - m, 1 - cy / 4 - m]; }; // u0 v0 u1 v1
 const WHITE = [0.125, 0.875]; // centre de la case blanche (0) : la couleur vient des sommets
 let K; // couleurs (linéaires)
-function poly(p, n, uv, col) {
+function poly(p, n, uv?, col?) {
   const i0 = G.pos.length / 3, per = Array.isArray(n[0]); col = col || K.white;
   for (let k = 0; k < p.length; k++) { const q = p[k], nk = per ? n[k] : n, t = uv ? uv[k] : WHITE; G.pos.push(q[0], q[1], q[2]); G.nor.push(nk[0], nk[1], nk[2]); G.uv.push(t[0], t[1]); G.col.push(col.r, col.g, col.b); }
   const na = per ? n.reduce(add, [0, 0, 0]) : n, flip = dot(cross(sub(p[1], p[0]), sub(p[2], p[0])), na) < 0;
@@ -70,7 +71,7 @@ function cyl(x, z, y0, y1, r0, r1, n, col, cap) {
   if (cap) poly(Array.from({ length: n }, (_, i) => { const a = i / n * 2 * Math.PI; return [x + r1 * Math.cos(a), y1, z + r1 * Math.sin(a)]; }), [0, 1, 0], null, col);
 }
 // tube entre deux points (bras, câbles, traverses), bouts fermés en option (roues)
-function tube(a, b, r, n, col, caps) {
+function tube(a, b, r, n, col, caps?) {
   const d = unit(sub(b, a)), u = unit(cross(d, Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0])), w = cross(d, u);
   for (let i = 0; i < n; i++) {
     const t0 = i / n * 2 * Math.PI, t1 = (i + 1) / n * 2 * Math.PI, e0 = add(mul(u, Math.cos(t0)), mul(w, Math.sin(t0))), e1 = add(mul(u, Math.cos(t1)), mul(w, Math.sin(t1)));
@@ -79,7 +80,7 @@ function tube(a, b, r, n, col, caps) {
   if (caps) for (const [q, s] of [[a, -1], [b, 1]]) poly(Array.from({ length: n }, (_, i) => { const t = i / n * 2 * Math.PI; return add(q, mul(add(mul(u, Math.cos(t)), mul(w, Math.sin(t))), r)); }), mul(d, s), null, col);
 }
 // pavé orienté : centre c [x, z], axe local ax (unitaire, plan XZ), demi-côtés hx, hz, de y0 à y1 ; dessus texturé optionnel (case de l'atlas)
-function obox(c, ax, hx, hz, y0, y1, col, top, noBottom) {
+function obox(c, ax, hx, hz, y0, y1, col, top?, noBottom?) {
   const az = [-ax[1], ax[0]], P = (sx, sz, y) => [c[0] + sx * hx * ax[0] + sz * hz * az[0], y, c[1] + sx * hx * ax[1] + sz * hz * az[1]];
   const X = [ax[0], 0, ax[1]], Z = [az[0], 0, az[1]];
   poly([P(-1, -1, y1), P(1, -1, y1), P(1, 1, y1), P(-1, 1, y1)], [0, 1, 0], top ? [[top[0], top[1]], [top[2], top[1]], [top[2], top[3]], [top[0], top[3]]] : null, top ? K.white : col);
@@ -301,11 +302,11 @@ function bins() {
 }
 
 // ---------------------------------------------------------------- point d'entrée
-export function buildRue(ctx) {
+export function buildRue(ctx: Ctx) {
   C = ctx; R = ctx.RUE;
   buildMaterials();
   profile(); covers(); signs(); lamps(); pole(); bins();
-  for (const [g, mat, sh] of [[GA, 'rueAtlas', true], [GL, 'rueDiff', false]]) {
+  for (const [g, mat, sh] of [[GA, 'rueAtlas', true], [GL, 'rueDiff', false]] as [typeof GA, string, boolean][]) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(g.pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(g.nor, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(g.uv, 2)); if (mat === 'rueAtlas') geo.setAttribute('color', new THREE.Float32BufferAttribute(g.col, 3)); geo.setIndex(g.idx);

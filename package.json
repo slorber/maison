@@ -1,12 +1,24 @@
 {
   "name": "maison-merlettes-3d",
   "private": true,
+  "type": "module",
   "description": "Maquette 3D de la maison des Merlettes (Three.js), page HTML autonome",
   "scripts": {
-    "build": "node scripts/dirs.mjs && node build.mjs && node scripts/dist.mjs"
+    "dev": "vite",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
-    "esbuild": "0.24.0",
     "three": "0.169.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "@types/three": "0.169.0",
+    "playwright-core": "1.56.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vite-plugin-singlefile": "2.3.4"
   }
 }

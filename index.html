@@ -1,3 +1,10 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important} body{margin:0}</style>
+<!-- fragment Artifact : de ce repère à la fin du body, sans les balises de page (vite.config.ts → out/maquette.html) -->
 <title>Maison des Merlettes</title>
 <style>
 /* Plein écran 3D, panneau flottant façon cartouche d'architecte */
@@ -66,7 +73,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 @media (max-width: 700px) { #hint { display: none; } h1 { font-size: 18px; } }
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap">
-
+</head>
+<body>
 <div id="stage"><canvas id="scene" aria-label="Maquette 3D de la maison"></canvas></div>
 <div id="loading">Construction de la maquette…</div>
 
@@ -153,4 +161,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
     <div class="bar"><span>Clic droit ou appui long sur l'image pour l'enregistrer.</span><span style="display:flex;gap:8px"><a id="shot-dl" download="maison-merlettes.png" href="#">Télécharger</a><button id="shot-close">Fermer</button></span></div>
   </div>
 </div>
-<script>/*BUNDLE*/</script>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

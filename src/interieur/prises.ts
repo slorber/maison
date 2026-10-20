@@ -13,6 +13,7 @@
 // Géométrie légère : tout est fusionné par calque et par matériau (16 maillages, ≈ 10 000 triangles), sans ombre portée, ignoré par les collisions.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx, Vec3 } from '../types';
 
 const E1 = 2.87, T = 0.36, L = 12.90, D = 7.90, SK = 0.008; // repères de main.js ; SK : peau d'enduit en saillie du nu (main.js)
 const CRED = 4.24 + 0.006; // crédence de 6 mm sur la cloison cuisine / escalier, de 0,90 à 1,45 (mobilier.js)
@@ -23,7 +24,23 @@ const TERR = -0.04; // dessus de la terrasse ouest (main.js, x 2,45 → 10,45)
 // (sol : 0, garage −0,13, étage 2,87, 'ext' : terrain fini au pied de la façade, 'terr' : terrasse) ; st : plan (cote lue) ou inf (inférée) ;
 // planA : abscisse du symbole au plan quand la prise a été recalée pour ne pas être cachée par un meuble posé après le plan
 // (prises de chevet sur les chevets de mobilier.js, à 15 cm du lit ; bureau : bout du canapé-lit de chambre1.js)
-export const PRISES = [
+/** Appareil du plan électrique (voir le commentaire ci-dessus) */
+export interface Prise {
+  id: string;
+  piece: string;
+  lv: string;
+  n: string;
+  face: number;
+  postes: [string, number][];
+  h: number;
+  st: string;
+  type: string;
+  mur: string;
+  src: string;
+  floor?: number | string;
+  planA?: number;
+}
+export const PRISES: Prise[] = [
   // ---- RDC, cuisine (p. 12)
   { id: 'K1', piece: 'Cuisine', lv: 'rdc', n: '+z', face: CRED, postes: [['p', 0.660], ['p', 0.811]], h: 1.10, st: 'plan', type: 'prise double 16 A, plan de travail', mur: 'cloison escalier (z 4,24), sur la crédence', src: 'p. 12, 2 symboles 2P+T « H:1.10m »' },
   { id: 'K2', piece: 'Cuisine', lv: 'rdc', n: '+z', face: 4.24, postes: [['p32', 1.560]], h: 0.30, st: 'inf', type: 'prise 32 A + T (plaque de cuisson)', mur: 'cloison escalier (z 4,24), derrière le meuble bas sous la plaque', src: 'p. 12, symbole 2P+T encadré « 32 A+T »' },
@@ -77,7 +94,7 @@ export const PRISES = [
 ];
 
 const ENT = 0.071, PW = 0.080, PT = 0.008; // Dooxie : entraxe des postes, plaque 80 × 80, saillie
-const NRM = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] };
+const NRM: Record<string, Vec3> = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] };
 
 // sol fini sous l'appareil : sol de la pièce (étage, garage), terrasse, ou terrain au pied de la façade (25 cm devant le nu)
 function floorOf(ctx, p, a) {
@@ -87,12 +104,12 @@ function floorOf(ctx, p, a) {
   return p.lv === 'r1' ? E1 : 0;
 }
 // centre de la plaque (monde) et hauteur absolue de l'axe ; utilisé aussi pour prises.md
-export function placeOf(p, ground) {
+export function placeOf(p: Prise, ground: number) {
   const a = p.postes.reduce((s, q) => s + q[1], 0) / p.postes.length, nx = NRM[p.n][0];
   return { x: nx ? p.face : a, z: nx ? a : p.face, y: ground + p.h, a };
 }
 
-export function buildPrises(ctx) {
+export function buildPrises(ctx: Ctx) {
   const { M, std, groups } = ctx;
   M.prBlanc = std({ color: '#f6f6f3', roughness: 0.3 }); // plaque et mécanisme Dooxie blanc brillant
   M.prPuits = std({ color: '#d4d4cf', roughness: 0.5 }); // fond du puits (ombré)

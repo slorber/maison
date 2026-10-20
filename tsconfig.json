@@ -1,0 +1,18 @@
+{
+  // Sources de la maquette (src/) : vérification de types seule (tsc --noEmit), Vite se charge de la compilation.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    // Mode strict désactivé pour l'instant : le code repris de JavaScript n'annote pas tous ses paramètres.
+    "strict": false
+  },
+  "include": ["src"]
+}

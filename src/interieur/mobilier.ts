@@ -3,6 +3,7 @@
 // Formes douces (coussins, matelas, couettes) : boîtes arrondies subdivisées, déformées (bombé, drapé) puis lissées.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx, Vec3 } from '../types';
 
 let C, M, A; const BK = new Map();
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -22,7 +23,7 @@ function worldUV(g) {
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
 }
 // dépôt d'une géométrie (transformée par m4) dans le seau calque|matériau ; o.c : couleur de sommet (matériaux vertexColors), o.keepUV
-function put(layer, mat, geo, m4, o = {}) {
+function put(layer, mat, geo, m4, o: any = {}) {
   const g = geo.clone();
   if (!g.index) g.setIndex(Array.from({ length: g.attributes.position.count }, (_, i) => i));
   if (m4) g.applyMatrix4(m4);
@@ -44,7 +45,7 @@ function gridAx(h, zones, fine = 0.012, coarse = 0.07) {
   return out;
 }
 // boîte arrondie subdivisée (rayon r, nA segments par quart d'arrondi, nI segments intérieurs ou o.ax listes explicites), o.def(v, w, h, d) déforme, normales lissées
-function softBox(w, h, d, r, o = {}) {
+function softBox(w, h, d, r, o: any = {}) {
   const S = [w, h, d], H = S.map(s => s / 2), R = Math.min(r, ...H) * 0.999, nA = o.nA ?? 3, nI = o.nI || [1, 1, 1];
   const ax = S.map((s, i) => { const h2 = H[i], a = []; for (let k = nA; k >= 1; k--) a.push(-h2 + R - R * Math.tan(Math.PI / 4 * k / nA));
     const inn = o.ax && o.ax[i] ? o.ax[i] : Array.from({ length: nI[i] + 1 }, (_, k) => -h2 + R + (s - 2 * R) * k / nI[i]); a.push(...inn);
@@ -78,8 +79,8 @@ const drape = (hw, zf, rb) => v => {
 const boxG = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cylZ = (r, len, seg = 24) => new THREE.CylinderGeometry(r, r, len, seg).rotateX(Math.PI / 2);
 const lathe = (pts, seg = 32) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
-function rodG(a, b, r, seg = 12, r2, open) { // cylindre de a (rayon r) à b (rayon r2)
-  const pa = V3(...a), pb = V3(...b), d = pb.clone().sub(pa), len = d.length();
+function rodG(a, b, r, seg = 12, r2?, open?) { // cylindre de a (rayon r) à b (rayon r2)
+  const pa = V3(...(a as Vec3)), pb = V3(...(b as Vec3)), d = pb.clone().sub(pa), len = d.length();
   const g = new THREE.CylinderGeometry(r2 ?? r, r, len, seg, 1, !!open);
   return g.applyMatrix4(new THREE.Matrix4().compose(pa.add(pb).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), d.normalize()), V3(1, 1, 1)));
 }
@@ -108,12 +109,13 @@ function pipeG(w, d, rr, tube) { // passepoil : tube le long d'un rectangle arro
 }
 // repère local : toutes les cotes passées sont dans le repère F (identité = monde)
 class Kit {
-  constructor(layer, F) { this.l = layer; this.F = F || new THREE.Matrix4(); }
+  declare l: string; declare F: THREE.Matrix4;
+  constructor(layer, F?) { this.l = layer; this.F = F || new THREE.Matrix4(); }
   m(x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0) { return this.F.clone().multiply(mtx(x, y, z, ry, rx, rz)); }
-  g(mat, geo, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, o) { put(this.l, mat, geo, this.m(x, y, z, ry, rx, rz), o); return this; }
-  box(mat, x0, x1, y0, y1, z0, z1, o) { return this.g(mat, boxG(x1 - x0, y1 - y0, z1 - z0), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, 0, 0, 0, o); }
-  soft(mat, x0, x1, y0, y1, z0, z1, r, o = {}) { return this.g(mat, softBox(x1 - x0, y1 - y0, z1 - z0, r, o), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, o.ry || 0, o.rx || 0, o.rz || 0, o); }
-  rod(mat, a, b, r, seg = 12, r2, o = {}) { put(this.l, mat, rodG(a, b, r, seg, r2, o.open), this.F, o); return this; }
+  g(mat, geo, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, o?) { put(this.l, mat, geo, this.m(x, y, z, ry, rx, rz), o); return this; }
+  box(mat, x0, x1, y0, y1, z0, z1, o?) { return this.g(mat, boxG(x1 - x0, y1 - y0, z1 - z0), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, 0, 0, 0, o); }
+  soft(mat, x0, x1, y0, y1, z0, z1, r, o: any = {}) { return this.g(mat, softBox(x1 - x0, y1 - y0, z1 - z0, r, o), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, o.ry || 0, o.rx || 0, o.rz || 0, o); }
+  rod(mat, a, b, r, seg = 12, r2?, o: any = {}) { put(this.l, mat, rodG(a, b, r, seg, r2, o.open), this.F, o); return this; }
 }
 
 // ---------------------------------------------------------------- textures et matériaux
@@ -185,12 +187,12 @@ function kitchen() {
   A.box(k, T, 2.59, 0, 0.10, zw, zw + 0.52, 'plinth');
   A.box(k, T, 2.59, 0.10, 0.80, zw, zw + 0.56, { def: fr, pz: gl, py: gl });
   A.box(k, T, 2.59, 0.80, 0.86, zw, zw + 0.53, { def: fr, pz: gl, ny: gl });
-  for (const [a, b, st] of [[0.943, 0.977, door], [0.98, 1.277, door], [1.28, 1.877, drw3], [1.88, 2.232, door], [2.235, 2.587, door]]) for (const [y0, y1] of st) A.box(k, a, b, y0, y1, zw + 0.561, zw + 0.58, fr);
+  for (const [a, b, st] of [[0.943, 0.977, door], [0.98, 1.277, door], [1.28, 1.877, drw3], [1.88, 2.232, door], [2.235, 2.587, door]] as [number, number, number[][]][]) for (const [y0, y1] of st) A.box(k, a, b, y0, y1, zw + 0.561, zw + 0.58, fr);
   // --- retour sous la fenêtre nord (façades x T+0.561→T+0.58) : tiroirs, évier 2 portes, lave-vaisselle intégré, tiroirs
   A.box(k, T, T + 0.52, 0, 0.10, zw + 0.52, D - T, 'plinth');
   A.box(k, T, T + 0.56, 0.10, 0.80, zw + 0.56, D - T, { def: fr, px: gl, py: gl });
   A.box(k, T, T + 0.53, 0.80, 0.86, zw + 0.53, D - T, { def: fr, px: gl, ny: gl });
-  for (const [a, b, st] of [[4.823, 4.857, door], [4.86, 5.367, drw3], [5.37, 5.832, door], [5.835, 6.297, door], [6.30, 6.897, door], [6.90, 7.497, drw3], [7.50, D - T, door]]) for (const [y0, y1] of st) A.box(k, T + 0.561, T + 0.58, y0, y1, a, b, fr);
+  for (const [a, b, st] of [[4.823, 4.857, door], [4.86, 5.367, drw3], [5.37, 5.832, door], [5.835, 6.297, door], [6.30, 6.897, door], [6.90, 7.497, drw3], [7.50, D - T, door]] as [number, number, number[][]][]) for (const [y0, y1] of st) A.box(k, T + 0.561, T + 0.58, y0, y1, a, b, fr);
   // --- plan de travail en L d'un seul tenant, découpe de l'évier ; crédence assortie
   K.g('mobWorktop', slab([[T, zw], [2.59, zw], [2.59, zw + 0.62], [T + 0.62, zw + 0.62], [T + 0.62, D - T], [T, D - T]], [[[0.47, 5.43], [0.87, 5.43], [0.87, 6.31], [0.47, 6.31]]], 0.86, 0.04));
   A.box(k, T, 2.59, 0.90, 1.45, zw, zw + 0.006, 'mobWorktop'); A.box(k, 1.28, 1.88, 1.45, 1.52, zw, zw + 0.006, 'mobWorktop');
@@ -236,12 +238,12 @@ function kitchen() {
   A.box(k, 2.881, 3.54, 0.10, 0.80, 6.04, D - T, { def: fr, nx: gl, py: gl });
   A.box(k, 2.91, 3.54, 0.80, 0.86, 6.04, D - T, { def: fr, nx: gl, ny: gl });
   A.box(k, 3.54, 3.56, 0, 0.86, 6.04, D - T, fr);
-  for (const [a, b, st] of [[6.043, 6.52, drw3], [6.523, 7.00, drw3], [7.003, 7.48, drw3], [7.483, D - T, door]]) for (const [y0, y1] of st) A.box(k, 2.86, 2.879, y0, y1, a, b, fr);
+  for (const [a, b, st] of [[6.043, 6.52, drw3], [6.523, 7.00, drw3], [7.003, 7.48, drw3], [7.483, D - T, door]] as [number, number, number[][]][]) for (const [y0, y1] of st) A.box(k, 2.86, 2.879, y0, y1, a, b, fr);
   K.g('mobWorktop', slab([[2.86, 6.00], [3.86, 6.00], [3.86, D - T], [2.86, D - T]], null, 0.86, 0.04));
   K.soft('mobWorktop', 2.86, 3.86, 0, 0.862, 6.00, 6.04, 0.003);
   // coupe de fruits
   K.g('mobCeramic', lathe([[0, 0], [0.06, 0], [0.07, 0.006], [0.12, 0.05], [0.13, 0.07], [0.124, 0.072], [0.114, 0.053], [0.06, 0.014], [0, 0.012]]), 3.30, 0.90, 6.80);
-  for (const [dx, dy, dz, c] of [[-0.04, 0.045, -0.02, '#e08a2c'], [0.035, 0.045, 0.02, '#e3922f'], [0.0, 0.046, 0.05, '#9bbf4a'], [0.03, 0.05, -0.045, '#b8322a'], [-0.03, 0.085, 0.02, '#d9862a']]) K.g('mobPaint', new THREE.SphereGeometry(0.036, 16, 12), 3.30 + dx, 0.90 + dy, 6.80 + dz, 0, 0, 0, { c });
+  for (const [dx, dy, dz, c] of [[-0.04, 0.045, -0.02, '#e08a2c'], [0.035, 0.045, 0.02, '#e3922f'], [0.0, 0.046, 0.05, '#9bbf4a'], [0.03, 0.05, -0.045, '#b8322a'], [-0.03, 0.085, 0.02, '#d9862a']] as [number, number, number, string][]) K.g('mobPaint', new THREE.SphereGeometry(0.036, 16, 12), 3.30 + dx, 0.90 + dy, 6.80 + dz, 0, 0, 0, { c });
   // --- 2 tabourets de bar : assise chêne galbée Ø 36, 4 pieds acier noir évasés, repose-pieds annulaire
   const seat = lathe([[0, 0.618], [0.168, 0.618], [0.178, 0.624], [0.181, 0.634], [0.178, 0.645], [0.168, 0.652], [0.11, 0.647], [0, 0.644]]);
   for (const z of [6.55, 7.05]) {
@@ -254,7 +256,7 @@ function kitchen() {
 // ---------------------------------------------------------------- séjour
 // Table 1,80 × 1,00 en chêne massif sur piétement acier noir en cadre, 6 chaises (pieds chêne fuselés, assise tapissée, dossier cintré)
 function chairParts() {
-  const P = [], add = (mat, geo, c) => P.push({ mat, geo, c });
+  const P = [], add = (mat, geo, c?) => P.push({ mat, geo, c });
   for (const sx of [-1, 1]) {
     add('mobOak', rodG([sx * 0.200, 0, 0.195], [sx * 0.188, 0.43, 0.175], 0.012, 12, 0.017));
     add('mobOak', rodG([sx * 0.200, 0, -0.215], [sx * 0.190, 0.85, -0.232], 0.012, 12, 0.0155));
@@ -290,7 +292,7 @@ function sofa() {
   cush(xm + 0.005, 10.835, zF + 0.02, zb - 0.235); cush(10.845, x1 - 0.225, zF + 0.02, zb - 0.235); cush(x0 + 0.02, xm - 0.005, zm + 0.02, zb - 0.235);
   for (const [a0, a1] of [[x0 + 0.03, xm - 0.01], [xm + 0.01, 10.835], [10.845, x1 - 0.23]]) K.soft(sf, a0, a1, 0.43, 0.85, 7.07, 7.27, 0.08, { nI: [4, 4, 1], def: puff(0.18, 'z'), rx: 0.22 });
   const pil = softBox(0.46, 0.46, 0.15, 0.07, { nI: [4, 4, 1], def: pillow(0.35, 'z') });
-  for (const [x, z, ry, c] of [[11.50, 6.95, -0.30, '#c49a5a'], [9.20, 6.95, 0.28, '#8e9a80'], [10.15, 6.98, 0.06, '#e6e0d4']]) K.g('mobFab', pil, x, 0.68, z, ry, 0.25, 0, { c });
+  for (const [x, z, ry, c] of [[11.50, 6.95, -0.30, '#c49a5a'], [9.20, 6.95, 0.28, '#8e9a80'], [10.15, 6.98, 0.06, '#e6e0d4']] as [number, number, number, string][]) K.g('mobFab', pil, x, 0.68, z, ry, 0.25, 0, { c });
   // tapis 2,90 × 2,80 et table basse 1,10 × 0,60 (plateau et tablette en chêne à angles arrondis, pieds acier noir)
   K.g('mobRug', boxG(2.90, 0.01, 2.80), 10.60, 0.005, 5.55, 0, 0, 0, { keepUV: true });
   K.g('mobOak', slab(rrect(10.15, 5.50, 11.25, 6.10, 0.14, 8), null, 0.33, 0.03, 0.004)); K.g('mobOak', slab(rrect(10.22, 5.57, 11.18, 6.03, 0.11, 8), null, 0.10, 0.02, 0.003));
@@ -439,7 +441,7 @@ function terrasse() {
   K.box('pergola', xt0 + 0.03, xt0 + 0.05, y0 + 0.67, y0 + 0.728, zt0 + 0.05, zt1 - 0.05); K.box('pergola', xt1 - 0.05, xt1 - 0.03, y0 + 0.67, y0 + 0.728, zt0 + 0.05, zt1 - 0.05);
   for (const x of [xt0 + 0.03, xt1 - 0.09]) for (const z of [zt0 + 0.03, zt1 - 0.09]) { K.box('pergola', x, x + 0.06, y0 + 0.008, y0 + 0.67, z, z + 0.06); K.box('mobRubber', x + 0.005, x + 0.055, y0, y0 + 0.008, z + 0.005, z + 0.055); }
   // fauteuil : repère local, assise face à +z (comme chairParts)
-  const P = [], add = (mat, geo, c) => P.push({ mat, geo, c }), tex = '#8d8f8f';
+  const P = [], add = (mat, geo, c?) => P.push({ mat, geo, c }), tex = '#8d8f8f';
   for (const sx of [-1, 1]) {
     add('pergola', rodG([sx * 0.25, 0.006, 0.23], [sx * 0.25, 0.64, 0.21], 0.0135, 12)); // pied avant prolongé en support d'accoudoir
     add('pergola', rodG([sx * 0.25, 0.006, -0.22], [sx * 0.24, 0.90, -0.30], 0.0135, 12)); // pied arrière prolongé en montant de dossier
@@ -455,7 +457,7 @@ function terrasse() {
   for (const x of [xc - 0.60, xc, xc + 0.60]) for (const [z, ry] of [[zt0 - 0.22, 0], [zt1 + 0.22, Math.PI]]) for (const p of P) put(f, p.mat, p.geo, mtx(x, y0, z, ry), { c: p.c });
 }
 
-export function buildMobilier(ctx) {
+export function buildMobilier(ctx: Ctx) {
   C = ctx; M = ctx.M; A = ctx.A; BK.clear();
   materials(); kitchen(); dining(); sofa(); tvUnit(); radiators(); garage(); entree(); bedrooms(); terrasse();
   flush();

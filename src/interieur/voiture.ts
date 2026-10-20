@@ -7,6 +7,7 @@
 // tout est fusionné par matériau (9 meshes visibles) ; seule la caisse peinte porte ombre ; un prisme invisible sert aux collisions de la visite.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx } from '../types';
 
 // ---------------------------------------------------------------- cotes (m)
 const L = 4.791, W2 = 1.895 / 2, WM2 = 2.108 / 2, HT = 1.694, EMP = 2.901, PAF = 0.940, VAV = 1.630, VAR = 1.636;
@@ -163,7 +164,7 @@ function mir(g) {
   const ix = c.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; }
   c.index.needsUpdate = true; return c;
 }
-function put(k, g, both) { g = clean(g); BK[k].push(g); if (both) BK[k].push(mir(g)); }
+function put(k, g, both?) { g = clean(g); BK[k].push(g); if (both) BK[k].push(mir(g)); }
 // maillage depuis positions / normales / triangles ; chaque triangle est orienté selon la normale moyenne de ses sommets
 function meshFrom(pos, nor, idx) {
   const a = V(0, 0, 0), b = V(0, 0, 0), c = V(0, 0, 0), n = V(0, 0, 0), m = V(0, 0, 0);
@@ -178,7 +179,7 @@ function meshFrom(pos, nor, idx) {
   return g;
 }
 // ruban posé sur une surface : S = [{p, n}] le long de la ligne, largeur w, décollé de off
-function ribbon(k, S, w, off, both) {
+function ribbon(k, S, w, off, both?) {
   S = S.filter(Boolean); if (S.length < 2) return;
   const pos = [], nor = [], idx = [], t = V(0, 0, 0), b = V(0, 0, 0), c = V(0, 0, 0);
   S.forEach((s, i) => {
@@ -190,7 +191,7 @@ function ribbon(k, S, w, off, both) {
   put(k, meshFrom(pos, nor, idx), both);
 }
 // pièce de surface : f(a, b) → {p, n} pour a, b dans [0, 1], grille na × nb, décollée de off
-function patch(k, f, na, nb, off, both) {
+function patch(k, f, na, nb, off, both?) {
   const S = [];
   for (let j = 0; j <= nb; j++) for (let i = 0; i <= na; i++) S.push(f(i / na, j / nb));
   const pos = [], nor = [], idx = [];
@@ -222,7 +223,7 @@ function loftRings(rings, caps = true) {
 
 // ---------------------------------------------------------------- caisse
 function body() {
-  const S = new Set();
+  const S = new Set<number>();
   for (const d of [0, 0.002, 0.007, 0.015, 0.027, 0.045, 0.07, 0.10, 0.14, 0.19, 0.25, 0.32, 0.40, 0.48]) S.add(U0 + d);
   for (let u = 0.51; u < 1.40; u += 0.03) S.add(u);
   for (let u = 1.40; u < 3.40; u += 0.06) S.add(u);
@@ -394,7 +395,7 @@ function materials() {
 }
 
 // ---------------------------------------------------------------- assemblage
-export function buildVoiture(ctx) {
+export function buildVoiture(ctx: Ctx) {
   BK = { paint: [], glass: [], gloss: [], matte: [], tyre: [], alloy: [], steel: [], led: [], red: [] };
   const { PF, PR } = body();
   avant(PF); arriere(PR); flancs(); roues(); arches(); retro(); const hb = barres(); becquet();

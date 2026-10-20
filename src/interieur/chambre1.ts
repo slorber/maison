@@ -7,6 +7,7 @@
 // Le mobilier fixe est fusionné en un mesh par matériau (peu d'appels de dessin) ; seules les pièces mobiles du canapé restent séparées.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Ctx, Door, Vec3 } from '../types';
 
 let C, M; const BK = new Map();
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -25,7 +26,7 @@ function worldUV(g) {
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
 }
 // géométrie prête à fusionner (transformée par m4, attributs normalisés) ; o.c : couleur de sommet (matériaux vertexColors), o.keepUV
-function prep(mat, geo, m4, o = {}) {
+function prep(mat, geo, m4, o: any = {}) {
   const g = geo.clone();
   if (!g.index) g.setIndex(Array.from({ length: g.attributes.position.count }, (_, i) => i));
   if (m4) g.applyMatrix4(m4);
@@ -46,7 +47,7 @@ function flush() {
 function sinkTo() { const map = new Map(), f = (mat, geo, m4, o) => { let l = map.get(mat); if (!l) map.set(mat, l = []); l.push(prep(mat, geo, m4, o)); }; f.map = map; return f; }
 function meshesOf(sink, g, out) { for (const [mat, l] of sink.map) { const m = new THREE.Mesh(mergeGeometries(l, false), M[mat]); m.name = 'chambre1'; m.castShadow = true; m.receiveShadow = true; g.add(m); out.push(m); } }
 // boîte arrondie subdivisée (rayon r, nA segments par quart d'arrondi, nI segments intérieurs), o.def(v, w, h, d) déforme, normales lissées
-function softBox(w, h, d, r, o = {}) {
+function softBox(w, h, d, r, o: any = {}) {
   const S = [w, h, d], H = S.map(s => s / 2), R = Math.min(r, ...H) * 0.999, nA = o.nA ?? 3, nI = o.nI || [1, 1, 1];
   const ax = S.map((s, i) => { const h2 = H[i], a = []; for (let k = nA; k >= 1; k--) a.push(-h2 + R - R * Math.tan(Math.PI / 4 * k / nA));
     for (let k = 0; k <= nI[i]; k++) a.push(-h2 + R + (s - 2 * R) * k / nI[i]);
@@ -70,13 +71,13 @@ const OTH = { x: ['y', 'z'], y: ['x', 'z'], z: ['x', 'y'] };
 const wgt = (v, S, ax) => { const [a, b] = OTH[ax], u = v[a] / (S[a] / 2), t = v[b] / (S[b] / 2); return Math.max(0, (1 - u * u) * (1 - t * t)); };
 const puff = (k, ax = 'y') => (v, w, h, d) => { v[ax] *= 1 + k * wgt(v, { x: w, y: h, z: d }, ax); }; // bombé de coussin
 const boxG = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-function rodG(a, b, r, seg = 12, r2) { // cylindre de a (rayon r) à b (rayon r2)
-  const pa = V3(...a), pb = V3(...b), d = pb.clone().sub(pa), len = d.length();
+function rodG(a, b, r, seg = 12, r2?) { // cylindre de a (rayon r) à b (rayon r2)
+  const pa = V3(...(a as Vec3)), pb = V3(...(b as Vec3)), d = pb.clone().sub(pa), len = d.length();
   const g = new THREE.CylinderGeometry(r2 ?? r, r, len, seg, 1);
   return g.applyMatrix4(new THREE.Matrix4().compose(pa.add(pb).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), d.normalize()), V3(1, 1, 1)));
 }
 // tube lisse passant par des points (cadres, accoudoirs, piètements cintrés)
-const tubeG = (pts, r, seg, rad = 6, closed = false) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => V3(...p)), closed, 'catmullrom', 0.5), seg, r, rad, closed);
+const tubeG = (pts, r, seg, rad = 6, closed = false) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((p: Vec3) => V3(...p)), closed, 'catmullrom', 0.5), seg, r, rad, closed);
 // nappe paramétrée f(u, v) → [x, y, z] sur nu × nv quadrilatères (toiles tendues)
 function sheetG(nu, nv, f) {
   const pos = [], idx = [];
@@ -86,13 +87,14 @@ function sheetG(nu, nv, f) {
 }
 // repère local : toutes les cotes passées sont dans le repère F (identité = monde) ; sink : collecteur d'une pièce mobile (sinon seaux fixes)
 class Kit {
-  constructor(layer, F, sink) { this.l = layer; this.F = F || new THREE.Matrix4(); this.s = sink; }
+  declare l: string; declare F: THREE.Matrix4; declare s: ((mat, geo, m4, o) => void) | undefined;
+  constructor(layer, F?, sink?) { this.l = layer; this.F = F || new THREE.Matrix4(); this.s = sink; }
   m(x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0) { return this.F.clone().multiply(mtx(x, y, z, ry, rx, rz)); }
   p(mat, geo, m4, o) { if (this.s) this.s(mat, geo, m4, o); else put(this.l, mat, geo, m4, o); return this; }
-  g(mat, geo, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, o) { return this.p(mat, geo, this.m(x, y, z, ry, rx, rz), o); }
-  box(mat, x0, x1, y0, y1, z0, z1, o) { return this.g(mat, boxG(x1 - x0, y1 - y0, z1 - z0), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, 0, 0, 0, o); }
-  soft(mat, x0, x1, y0, y1, z0, z1, r, o = {}) { return this.g(mat, softBox(x1 - x0, y1 - y0, z1 - z0, r, o), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, o.ry || 0, o.rx || 0, o.rz || 0, o); }
-  rod(mat, a, b, r, seg = 12, r2, o) { return this.p(mat, rodG(a, b, r, seg, r2), this.F, o); }
+  g(mat, geo, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, o?) { return this.p(mat, geo, this.m(x, y, z, ry, rx, rz), o); }
+  box(mat, x0, x1, y0, y1, z0, z1, o?) { return this.g(mat, boxG(x1 - x0, y1 - y0, z1 - z0), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, 0, 0, 0, o); }
+  soft(mat, x0, x1, y0, y1, z0, z1, r, o: any = {}) { return this.g(mat, softBox(x1 - x0, y1 - y0, z1 - z0, r, o), (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, o.ry || 0, o.rx || 0, o.rz || 0, o); }
+  rod(mat, a, b, r, seg = 12, r2?, o?) { return this.p(mat, rodG(a, b, r, seg, r2), this.F, o); }
 }
 
 // ---------------------------------------------------------------- matériaux
@@ -119,7 +121,7 @@ function materials() {
 function keysTex() {
   return C.makeTex(512, 1, (g, s, w, h) => {
     g.fillStyle = '#0b0c0d'; g.fillRect(0, 0, w, h);
-    const u = w / 14.5, gp = u * 0.13, rows = [[0.55, Array(14).fill(14.5 / 14)], [1, [...Array(13).fill(1), 1.5]], [1, [1.5, ...Array(13).fill(1)]],
+    const u = w / 14.5, gp = u * 0.13, rows: [number, number[]][] = [[0.55, Array(14).fill(14.5 / 14)], [1, [...Array(13).fill(1), 1.5]], [1, [1.5, ...Array(13).fill(1)]],
       [1, [1.75, ...Array(11).fill(1), 1.75]], [1, [2.25, ...Array(10).fill(1), 2.25]], [1, [1, 1, 1, 1.25, 5, 1.25, 1, 1, 1, 1]]];
     const key = (x, y, kw, kh) => { g.fillStyle = '#1f2023'; g.fillRect(x * u + gp / 2, y * u + gp / 2, kw * u - gp, kh * u - gp); g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x * u + gp / 2, y * u + gp / 2, kw * u - gp, 1); };
     let y = 0;
@@ -301,7 +303,7 @@ function bureau() {
   monitor(new Kit('furn1', K.m(sx, h, 0.17)), 0.708, 0.398, 0.25, 0.006, 0.016, 0.26, 0.20); // 32" : bas du cadre 6 mm au-dessus du haut de l'écran du MacBook
   monitor(new Kit('furn1', K.m(-0.425, h, 0.04, -Math.PI / 6)), 0.297, 0.527, 0.125, 0.007, 0.011, 0.20, 0.18); // 24" en portrait, z monde 7,03 → 7,30
   const px = 0.535, pz = 0.17; K.rod('mobPaint', [px, h, pz], [px, h + 0.10, pz], 0.035, 18, 0.035, { c: '#3f5e6e' });
-  for (const [dx, dz, c] of [[-0.01, 0.0, '#d9a441'], [0.012, 0.008, '#1f2a36'], [0.0, -0.012, '#9b4a3c']]) K.rod('mobPaint', [px + dx, h + 0.05, pz + dz], [px + dx * 2.5, h + 0.18, pz + dz * 2.5], 0.004, 6, 0.004, { c });
+  for (const [dx, dz, c] of [[-0.01, 0.0, '#d9a441'], [0.012, 0.008, '#1f2a36'], [0.0, -0.012, '#9b4a3c']] as [number, number, string][]) K.rod('mobPaint', [px + dx, h + 0.05, pz + dz], [px + dx * 2.5, h + 0.18, pz + dz * 2.5], 0.004, 6, 0.004, { c });
   K.box('mobPaint', 0.31, 0.51, h, h + 0.012, -0.25, 0.03, { c: '#1f2a36' });
   aeron(7.32, zs, Math.PI / 2); // rangé sous le bureau face au MacBook, assise engagée de 13 cm, accoudoirs contre la ceinture du plateau
 }
@@ -340,7 +342,7 @@ function monitor(K, dw, dh, yb, s, bb, bw, bd) {
 function canape() {
   const e = C.E1, xc = 6.03, zw = 4.24, fab = { c: '#c4c2bd' }, t = 0.13, Lp = 1.90 / 3, za = 0.16, zb = za + Lp, zf = 0.83, yb = 0.08, lift = 0.26, hl = yb + lift - 0.015;
   const root = new THREE.Group(); root.name = 'canapé-lit'; root.position.set(xc, e, zw); C.groups.furn1.add(root);
-  const item = { g: root, meshes: [], open: 0, target: 0, speed: 0.35, kind: 'canape' };
+  const item: Door = { g: root, meshes: [], open: 0, target: 0, speed: 0.35, kind: 'canape' };
   // structure fixe : accoudoirs, dossier et coussins de dos (en arrière du panneau P1 : z < za), traverse avant, fonds, pieds
   const s0 = sinkTo(), K = new Kit('furn1', null, s0);
   for (const sx of [-1, 1]) K.soft('mobFab', sx > 0 ? 0.72 : -0.92, sx > 0 ? 0.92 : -0.72, 0.05, 0.62, 0, zf, 0.05, { nA: 2, nI: [1, 3, 3], c: fab.c });
@@ -391,18 +393,18 @@ function rangement() {
   const boite = (i, j, col) => { const [x, y] = cell(i, j); K.soft('mobFab', x + 0.004, x + c - 0.004, y, y + c - 0.006, 0.006, D - 0.012, 0.008, { nA: 1, c: col });
     K.box('mobPaint', x + c / 2 - 0.045, x + c / 2 + 0.045, y + c - 0.08, y + c - 0.055, 0.003, 0.0065, { c: '#34332f' }); };
   // livres debout, dos vers la pièce : [épaisseur, hauteur, profondeur, couleur] ; lean : dernier livre penché contre les autres
-  const livres = (i, j, L, lean) => { let [x, y] = cell(i, j); x += 0.012;
+  const livres = (i, j, L, lean?) => { let [x, y] = cell(i, j); x += 0.012;
     L.forEach(([e, h, p, col], k) => { const a = lean && k === L.length - 1 ? 0.32 : 0, sa = Math.sin(a), ca = Math.cos(a); // penché : coin haut gauche contre le livre précédent
       K.g('mobPaint', boxG(e, h, p), x + h / 2 * sa + e / 2 * ca, y + h / 2 * ca + e / 2 * sa, 0.02 + p / 2, 0, 0, a, { c: col }); x += e + 0.001; }); };
   boite(0, 0, '#8e8b85'); boite(1, 0, '#8e8b85'); boite(1, 1, '#cfc5b2'); boite(0, 2, '#cfc5b2');
   livres(0, 1, [[0.032, 0.285, 0.21, '#2f3e46'], [0.024, 0.27, 0.20, '#c9b88f'], [0.04, 0.29, 0.22, '#e3ddd0'], [0.02, 0.24, 0.17, '#4f5d4a'], [0.028, 0.26, 0.19, '#a8573f'],
     [0.035, 0.25, 0.18, '#1f2a36'], [0.022, 0.235, 0.16, '#b9a27a'], [0.03, 0.28, 0.21, '#6b4f3a']]);
-  { const [x, y] = cell(1, 2); let yy = y; for (const [w, h, p, col] of [[0.27, 0.035, 0.21, '#e3ddd0'], [0.25, 0.028, 0.19, '#2f3e46'], [0.235, 0.03, 0.17, '#a8573f']]) {
+  { const [x, y] = cell(1, 2); let yy = y; for (const [w, h, p, col] of [[0.27, 0.035, 0.21, '#e3ddd0'], [0.25, 0.028, 0.19, '#2f3e46'], [0.235, 0.03, 0.17, '#a8573f']] as [number, number, number, string][]) {
     K.box('mobPaint', x + 0.04, x + 0.04 + w, yy, yy + h, 0.03, 0.03 + p, { c: col }); yy += h; } } // pile couchée
   livres(0, 3, [[0.03, 0.25, 0.18, '#4f5d4a'], [0.026, 0.27, 0.20, '#e3ddd0'], [0.034, 0.24, 0.17, '#1f2a36'], [0.022, 0.26, 0.19, '#c9b88f'], [0.03, 0.235, 0.17, '#8a8f94']], true);
 }
 
-export function buildChambre1(ctx) {
+export function buildChambre1(ctx: Ctx) {
   C = ctx; M = ctx.M; BK.clear();
   materials(); chambre1(); valet(); bureau(); canape(); rangement();
   flush();
