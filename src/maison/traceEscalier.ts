@@ -11,18 +11,25 @@ type P2 = [number, number];
 // du jour, toutes deux comptées depuis le nez de la marche 1 (z0). Lignes d'équerre dans les volées droites, balancées entre les deux.
 export type StairPlan = { z0: number; s: number[]; u: number[] };
 
-// Version retenue par les clients : marche 1 à 31 cm du tableau de porte (z 3,03), giron de la volée droite ≈ 24 cm (nez des marches
-// 6 à 15 du plan à x 1,51 … 3,67), marches 2 à 5 légèrement balancées (4,5 / 5,3 / 6,3 / 7,5 cm d'emmarchement au jour).
-function planActuel(): StairPlan {
-  const z0 = 3.03, a = ZS - z0, go = (XE - XS) / 11, U = [0, 0.24, 0.285, 0.338, 0.401], s = [], u = [];
-  for (let j = 0; j <= 15; j++) {
-    s.push(j <= 1 ? j * a : j <= 4 ? a + (j - 1) * ARC / 3 : a + ARC + (j - 4) * go);
-    u.push(j <= 4 ? U[j] : a + (j - 4) * go);
-  }
+// Variante « balancement symétrique » : marches 2 à 5 balancées symétriquement de part et d'autre de la diagonale du tournant
+// (2 = 5 et 3 = 4 : 8,0 / 6,7 / 6,7 / 8,0 cm d'emmarchement au jour), le nez de la marche 4 part de l'angle du jour ; giron de 25,0 cm
+// sur la ligne de foulée pour les 15 marches. La symétrie fixe le départ : contremarche de la marche 1 à 15,3 cm du tableau de porte
+// (z 2,873), nez à 13,3 cm.
+function planSymetrique(): StairPlan {
+  // ligne 3 (nez de la marche 4) sur la diagonale : 3 g = a + ARC / 2, avec g = (a + ARC + 2,65) / 15
+  const a = (3 * (XE - XS) - 4.5 * ARC) / 12, g = (a + ARC + XE - XS) / 15, j2 = 0.08, j3 = a - g - j2;
+  return planGironEgal(ZS - a, [j2, j3, j3]);
+}
+// Giron constant g sur la ligne de foulée, marche 1 comprise (d'équerre) ; jour : emmarchement au jour des balancées 2, 3 …, la
+// dernière balancée prenant le reste jusqu'à la première ligne d'équerre de la volée droite
+function planGironEgal(z0: number, jour: number[]): StairPlan {
+  const a = ZS - z0, g = (a + ARC + XE - XS) / 15, s = [], u = [0, g];
+  for (const d of jour) u.push(u[u.length - 1] + d);
+  for (let j = 0; j <= 15; j++) { s.push(j * g); if (j > jour.length + 1) u.push(j * g - ARC); }
   return { z0, s, u };
 }
 
-export const PLAN = planActuel();
+export const PLAN = planSymetrique();
 
 // ---------------------------------------------------------------- géométrie dérivée du tracé
 const a = ZS - PLAN.z0; // longueur droite du jour et de la ligne de foulée avant le tournant
