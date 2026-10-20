@@ -3,6 +3,7 @@
 // ici chaque calque est accroché à un groupe mobile, puis déclaré dans DOORS (le clic de bindUI bascule d.target, animateDoors appelle d.apply).
 import * as THREE from 'three';
 import type { Ctx } from '../types';
+import { ENTRY } from './plan';
 
 const cl = t => t < 0 ? 0 : t > 1 ? 1 : t, ez = t => { t = cl(t); return t * t * (3 - 2 * t); };
 const AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0), _p = new THREE.Vector3(), _q = new THREE.Vector3();
@@ -57,7 +58,8 @@ export function buildOuvrants(ctx: Ctx) {
       // Portes-fenêtres ouest et sud : sens des plans travaux p. 9 (vantail principal côté a0 ouvert à 90°, semi-fixe dessiné entrouvert à 60°)
       const legs = o.leaves.map(lf => { const ha = o.t === 'entry' || o.n === 1 || lf.i === 0 ? lf.s0 : lf.s1, fa = ha === lf.s0 ? lf.s1 : lf.s0;
         return { mov: lf.mov, p: new THREE.Vector3(s * ha, 0, lf.d1), sg: -Math.sign(s * (fa - ha)) }; });
-      const amax = o.t === 'entry' || o.t === 'baie' ? Math.PI / 2 : 0.47 * Math.PI, a2 = o.t === 'baie' ? Math.PI / 3 : amax;
+      // porte d'entrée : ouverture limitée par la butée au sol posée avant le radiateur de l'entrée (ENTRY, plan.ts : 112°, béquille à 2,5 cm du radiateur)
+      const amax = o.t === 'entry' ? ENTRY.amax : o.t === 'baie' ? Math.PI / 2 : 0.47 * Math.PI, a2 = o.t === 'baie' ? Math.PI / 3 : amax;
       apply = v => legs.forEach((l, j) => turn(l.mov, AY, l.sg * (j ? a2 : amax) * (legs.length > 1 ? ez(j ? (v - 0.2) / 0.8 : v / 0.8) : ez(v)), l.p));
       speed = o.t === 'entry' || o.t === 'baie' ? 0.9 : 1.2;
     }

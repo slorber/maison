@@ -101,9 +101,8 @@ export function buildSite() {
   hedge(-60, 4.6, 6.4, 1.7); hedge(1.0, 12.5, 0, 1.8); // au sud de la rue, à l'ouest du virage
   // PAC : unité extérieure sur le pignon nord, devant le WC (plan RDC « Ext. Mod. »)
   // (dessinée dans equip.ts, centrée sous la fenêtre du WC)
-  // appliques extérieures (façades PCMI 5) : de part et d'autre de la baie ouest, au-dessus du garage (celle de l'entrée est remplacée par le spot de l'auvent)
-  const lamp = (x0, x1, y0, y1, z0, z1) => { A.box('rdc', x0, x1, y0, y1, z0, z1, 'blackMatte'); };
-  lamp(4.49, 4.59, 2.12, 2.32, D, D + 0.07); lamp(8.40, 8.50, 2.12, 2.32, D, D + 0.07); lamp(L, L + 0.07, 2.48, 2.68, 1.63, 1.73);
+  // appliques extérieures (façades PCMI 5 et plan électrique RDC) : de part et d'autre de la baie ouest, au-dessus du garage : interieur/electricite.ts
+  // (celle de l'entrée est remplacée par le spot de l'auvent ci-dessus)
   // terrasse 8 × 4 m devant la baie ouest du séjour (dalles 60 × 60 indicatives, −0,04 sous le seuil)
   const tx0 = 6.45 - 4.0, tx1 = 6.45 + 4.0, tz1 = D + 4.0;
   A.box('site', tx0, tx1, -0.30, -0.04, D, tz1, { py: 'terrace', def: 'terraceEdge' });
