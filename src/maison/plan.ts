@@ -37,3 +37,11 @@ export const OPEN = {
 // Porte d'entrée Bel'M Eurielle, alu 80 mm, gris anthracite 7016 sablé extérieur / blanc intérieur (avenant 1, photo Bel'M fournie)
 // Vitrage : largeur 18,3 cm, haut du vitrage à 1,76 m, bas à 0,40 m, arrondis de rayon égal à la largeur côté charnières.
 export const EUR = { w: 0.183, h: 1.359, r: 0.183, o: 0.045, barB: 0.220, barT: 1.089, fromLock: 0.142, y0: 0.398 };
+// Butée de la porte d'entrée (demande client du 20/10/2026 : « s'ouvre jusqu'à la butée, sans que la poignée touche le radiateur, laisser un petit jeu »).
+// Axe des paumelles x 0,28 z 1,885 (nu intérieur du vantail, facades.ts) ; bout de la béquille intérieure à 73,5 cm de l'axe le long du vantail et 6 cm devant lui ;
+// façade du radiateur de l'entrée (Acova Fassane HXD, saillie 95 mm sur la cloison du WC z 1,43, mobilier.ts) en z 1,525. Au-delà de 90°, l'angle α vérifie
+// 0,735 sin α + 0,06 cos α = 1,885 − 1,525 − 0,025 : 2,5 cm de jeu entre béquille et radiateur, ouverture maxi 112,4°. La butée au sol (demi-sphère
+// anthracite, bague caoutchouc Ø 50) touche la face intérieure du vantail ouvert à 65 cm de l'axe (12 cm du chant, à côté de la béquille) : centre x 0,872 z 1,615,
+// 6,5 cm devant le radiateur.
+const ENTRY_A = Math.asin((1.885 - (1.43 + 0.095) - 0.025) / Math.hypot(0.735, 0.06)) - Math.atan2(0.06, 0.735);
+export const ENTRY = { amax: Math.PI / 2 + ENTRY_A, stop: [0.28 + 0.65 * Math.cos(ENTRY_A) - 0.025 * Math.sin(ENTRY_A), 1.885 - 0.65 * Math.sin(ENTRY_A) - 0.025 * Math.cos(ENTRY_A)], stopR: 0.025 };
