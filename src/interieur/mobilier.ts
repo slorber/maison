@@ -1,10 +1,11 @@
-// Mobilier détaillé (séjour, chambres, entrée, garage ; cuisine : cuisine.ts ; bureau de chambre 1 et pièce « Bureau » : chambre1.js) : appelé avant A.build(groups)
+// Mobilier détaillé (séjour, chambres, radiateurs Acova / Radson, entrée et butée de porte, garage ; cuisine : cuisine.ts ; bureau de chambre 1 et pièce « Bureau » : chambre1.js) : appelé avant A.build(groups)
 // Boîtes plates via A.box (UV en mètres) ; le reste est fusionné en un mesh par couple calque × matériau (peu d'appels de dessin).
 // Formes douces (coussins, matelas, couettes) : boîtes arrondies subdivisées, déformées (bombé, drapé) puis lissées.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCuisine } from './cuisine';
 import type { Ctx, Vec3 } from '../types';
+import { ENTRY } from '../maison/plan';
 
 let C, M, A; const BK = new Map();
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -261,16 +262,21 @@ function tvUnit() {
 }
 
 // ---------------------------------------------------------------- radiateurs
-// Acova Fassane Vertical double (RDC) : tubes plats verticaux 70 × 11 au pas de 74 mm soudés sur deux collecteurs ronds, robinet thermostatique.
+// Acova Fassane Vertical double HXD (RDC, notice signée p. 11 ; cotes acova.fr, fiche « Fassane vertical double - HXD ») : hauteur 2000, largeur n × 74 mm
+// (n éléments plats verticaux 70 × 11, en double rangée), collecteurs ronds Ø 38, saillie au mur 95 mm, raccordement S007 : 2 orifices 1/2" par le bas à une
+// extrémité, entraxe 49 mm, aller / retour réversible gauche / droite ; purgeur chromé 1/4" et bouchon. INFÉRÉS (non cotés par Acova) : épaisseur du corps
+// (2 rangées de part et d'autre des collecteurs : 11 + 38 + 11), consoles, bas à 10 cm du sol, robinet thermostatique sur l'orifice extérieur.
 // Repère local : x le long du mur, z vers la pièce depuis le nu du mur, y depuis le sol.
-function fassane(F, w, right = false) { // right : robinet à l'extrémité x = w (sinon x = 0)
-  const K = new Kit('furn0', F), n = Math.max(3, Math.round(w / 0.074)), p = w / n, y0 = 0.10, y1 = 2.10, tube = stadiumG(0.068, 0.011, y1 - y0);
-  for (const z of [0.052, 0.082]) for (let i = 0; i < n; i++) K.g('radiator', tube, (i + 0.5) * p, y0, z);
-  for (const y of [y0 + 0.04, y1 - 0.04]) K.rod('radiator', [0.002, y, 0.067], [w - 0.002, y, 0.067], 0.017, 16);
-  for (const x of [0.12, w - 0.12]) for (const y of [y0 + 0.06, y1 - 0.06]) K.rod('radiator', [x, y, 0], [x, y, 0.05], 0.008, 8);
-  for (const x of [0.035, w - 0.035]) K.rod('radiator', [x, 0, 0.067], [x, y0 + 0.03, 0.067], 0.008, 10);
-  const xr = right ? w - 0.035 : 0.035, xe = right ? w + 0.05 : -0.05;
-  K.rod('mobChrome', [xr, 0.045, 0.067], [xr, 0.10, 0.067], 0.013, 12); K.rod('radiator', [xr, 0.072, 0.067], [xe, 0.072, 0.067], 0.024, 20, 0.022);
+function fassane(F, w, right = false) { // right : raccordement et robinet à l'extrémité x = w (sinon x = 0)
+  const K = new Kit('furn0', F), n = Math.round(w / 0.074), p = w / n, y0 = 0.10, y1 = 2.10, zc = 0.095 - 0.011 - 0.019, tube = stadiumG(0.070, 0.011, y1 - y0 - 0.01);
+  for (const z of [zc - 0.0245, zc + 0.0245]) for (let i = 0; i < n; i++) K.g('radiator', tube, (i + 0.5) * p, y0 + 0.005, z); // façade avant à 95 mm du mur
+  for (const y of [y0 + 0.019, y1 - 0.019]) K.rod('radiator', [0.003, y, zc], [w - 0.003, y, zc], 0.019, 18);
+  for (const x of [0.12, w - 0.12]) for (const y of [y0 + 0.06, y1 - 0.06]) K.rod('radiator', [x, y, 0], [x, y, zc - 0.03], 0.008, 8);
+  const e = right ? w : 0, sg = right ? 1 : -1, xo = e - sg * 0.0125, xi = xo - sg * 0.049; // orifices au pas de 49 mm sous le collecteur bas
+  K.rod('mobChrome', [e, y1 - 0.019, zc], [e + sg * 0.012, y1 - 0.019, zc], 0.007, 12); K.rod('radiator', [w - e, y1 - 0.019, zc], [w - e - sg * 0.006, y1 - 0.019, zc], 0.011, 12); // purgeur, bouchon
+  for (const x of [xo, xi]) K.rod('radiator', [x, 0, zc], [x, y0 + 0.005, zc], 0.008, 10);
+  K.rod('mobChrome', [xi, 0.06, zc], [xi, 0.095, zc], 0.012, 12); // té de réglage (retour)
+  K.rod('mobChrome', [xo, 0.045, zc], [xo, 0.10, zc], 0.013, 12); K.rod('radiator', [xo, 0.072, zc], [e + sg * 0.06, 0.072, zc], 0.024, 20, 0.022); // robinet, tête thermostatique
 }
 // Radson Integra Ramo (étage) : panneaux type 21 à façade profilée, joues, grille perforée, tête thermostatique latérale
 function panel(F, w) {
@@ -283,9 +289,11 @@ function panel(F, w) {
 }
 function radiators() {
   const e = C.E1, D = C.D, L = C.L, T = C.T;
-  // RDC, plan travaux v3 p. 9 (RBT vertical, 60 cm, robinet dessiné) : entrée x 0,56 → 1,16 contre le WC, robinet au sud ; séjour ouest x 4,36 → 4,96, robinet au sud ;
-  // séjour sud z 3,80 → 4,40, robinet côté porte-fenêtre puis 15 cm (coté) jusqu'au tableau
-  fassane(mtx(0.56, 0, 1.43, 0), 0.60, true); fassane(mtx(4.96, 0, D - T, Math.PI), 0.60); fassane(mtx(L - T, 0, 3.80, -Math.PI / 2), 0.60, true);
+  // RDC, notice signée p. 11 : entrée Acova Fassane vertical double HXD-200-044 (1386 W, 2000 × 444), pièce de vie 2 × HXD-200-081 (2541 W, 2000 × 814) ;
+  // plan travaux v3 p. 9 (symbole « RBT vertical » de 60 cm, robinet dessiné) : on garde l'extrémité du robinet et la longueur vient de la référence.
+  // Entrée x 0,716 → 1,16 contre le WC, robinet au sud ; séjour ouest x 4,146 → 4,96, robinet au sud ; séjour sud z 3,586 → 4,40, robinet côté porte-fenêtre
+  // puis 15 cm (coté) jusqu'au tableau (le meuble TV s'arrête en x 12,40 : 4,5 cm avant la façade du radiateur)
+  fassane(mtx(1.16 - 0.444, 0, 1.43, 0), 0.444, true); fassane(mtx(4.96, 0, D - T, Math.PI), 0.814); fassane(mtx(L - T, 0, 4.40 - 0.814, -Math.PI / 2), 0.814, true);
   // Radson Ramo de l'étage : 90 cm aux emplacements du plan étage (PT p. 10) : ch. 1 z 2,42 → 3,32, ch. 2 z 6,09 → 6,99, ch. 3 x 3,37 → 4,27, bureau x 7,12 → 8,02
   panel(mtx(L - T, e, 2.42, -Math.PI / 2), 0.90); panel(mtx(L - T, e, 6.09, -Math.PI / 2), 0.90); panel(mtx(4.27, e, D - T, Math.PI), 0.90); panel(mtx(8.02, e, D - T, Math.PI), 0.90);
 }
@@ -309,7 +317,14 @@ function garage() {
   K.box('mobGrey', 0.175, 0.195, dy - 0.05, dy + 0.05, zf + 0.012, zf + 0.026);
   K.soft(W, -0.27, -0.13, 0.03, 0.10, zf, zf + 0.004, 0.002);
 }
-function entree() { new Kit('furn0').soft('mobDoormat', 0.40, 0.95, 0, 0.009, 1.92, 2.62, 0.003); } // tapis-brosse coco devant la porte
+// tapis-brosse coco devant la porte ; butée de porte au sol (ENTRY, plan.ts) : demi-sphère anthracite RAL 7016 Ø 44 sur embase, bague caoutchouc noir Ø 50
+// (contact du vantail ouvert à 112°, la béquille reste à 2,5 cm du radiateur), vissée au sol 6,5 cm devant la façade du radiateur de l'entrée
+function entree() {
+  const K = new Kit('furn0'); K.soft('mobDoormat', 0.40, 0.95, 0, 0.009, 1.92, 2.62, 0.003);
+  const [x, z] = ENTRY.stop, B = new Kit('furn0', mtx(x, 0, z));
+  B.g('handle', new THREE.CylinderGeometry(0.022, 0.023, 0.006, 28), 0, 0.003, 0); B.g('handle', new THREE.SphereGeometry(0.022, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.006, 0);
+  B.g('blackMatte', new THREE.TorusGeometry(ENTRY.stopR - 0.004, 0.004, 8, 32), 0, 0.017, 0, 0, Math.PI / 2);
+}
 
 // ---------------------------------------------------------------- chambres
 // Lit 160 ou 180 × 200 : pieds chêne, sommier tapissier, tête de lit capitonnée à côtes, matelas, couette drapée (revers), oreillers, coussin, plaid ;

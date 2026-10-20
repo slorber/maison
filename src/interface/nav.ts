@@ -7,6 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Ctx } from '../types';
+import { ENTRY } from '../maison/plan';
 
 const DEG = Math.PI / 180, UP = new THREE.Vector3(0, 1, 0);
 const EYE = 1.60, R_BODY = 0.22, CUT = 1.25, SHIFT_MAX = 30 * DEG, CS = 0.5;
@@ -193,7 +194,7 @@ export function initNav(ctx: Ctx) {
       if (near && !W.entryOpened) { const d = (DOORS || []).find(e => e.kind === 'entry'); if (d) d.target = 1; }
       W.entryOpened = near; return;
     } const dt = Math.min(0.1, (now - (DOOR.t || now)) / 1000); DOOR.t = now;
-    const goal = pied() && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4 ? 88 * DEG : 0; if (Math.abs(goal - DOOR.a) < 1e-4) return;
+    const goal = pied() && Math.hypot(W.x - 0.25, W.z - 2.27) < 2.4 ? ENTRY.amax : 0; if (Math.abs(goal - DOOR.a) < 1e-4) return; // ouverte jusqu'à la butée (ENTRY, plan.ts)
     DOOR.a += THREE.MathUtils.clamp(goal - DOOR.a, -120 * DEG * dt, 120 * DEG * dt); const a = DOOR.a, c = Math.cos(a), s = Math.sin(a);
     DOOR.pivot.rotation.y = a; ctx.requestRender?.(); // [perf] rendu à la demande : le vantail bouge sans que la caméra bouge
     for (const v of DOOR.verts) {
