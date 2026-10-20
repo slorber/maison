@@ -39,7 +39,7 @@ export function buildInterior() {
   const P = { neg: 'paint', pos: 'paint', end: 'paint', top: 'cut' };
   const d0 = 2.04;
   // cloisons RDC
-  wall('rdc', 'x', 1.36, 1.43, T, 2.43, 0, H.rdcCeil, [{ a0: 1.33, a1: 2.16, y0: 0, y1: d0 }], P); // WC / entrée (PP 73 : baie x 1,33 → 2,16, plan p. 9)
+  wall('rdc', 'x', 1.36, 1.43, T, 2.43, 0, H.rdcCeil, [{ a0: 1.23, a1: 2.06, y0: 0, y1: d0 }], P); // WC / entrée (PP 73 : baie x 1,33 → 2,16 au plan p. 9, décalée de 10 cm vers le nord pour une niche de 30 cm côté placard, demande client du 20/10)
   wall('rdc', 'z', 2.36, 2.43, T, 1.43, 0, H.rdcCeil, [], P); // WC / placard
   A.box('rdc', 2.43, 2.65, 0, H.rdcCeil, 0.99, 1.43, 'paint'); // gaine colonnes WC et bains
   wall('rdc', 'z', 5.16, 5.31, SH, 3.30, -0.13, H.rdcCeil, [{ a0: 1.36, a1: 2.29, y0: 0, y1: d0 }], { neg: 'paint', pos: 'garageWall', end: 'paint', top: 'cut' }); // entrée / garage (ISO 83 : baie z 1,36 → 2,29, plan p. 9)
@@ -75,7 +75,7 @@ export function buildInterior() {
   // portes intérieures Righini Graphik (choix client) : [calque, axe du mur, milieu du mur, charnière, autre montant, sol, sens d'ouverture, épaisseur du mur]
   // baies brutes des plans p. 9 et 10 (0,83 pour les PP 73, 0,93 pour l'ISO 83), vantaux de 73 / 83 cm dans des huisseries d'environ 5 cm
   buildDoors([
-    ['rdc', 'x', 1.395, 2.16, 1.33, 0, 1, 0.07, 0.73], ['rdc', 'z', 5.235, 1.36, 2.29, 0, -1, 0.15, 0.83], ['rdc', 'z', 7.045, 1.67, 2.55, -0.13, -1, 0.07, 0.83], // porte de service, ouvrant côté local technique
+    ['rdc', 'x', 1.395, 2.06, 1.23, 0, 1, 0.07, 0.73], ['rdc', 'z', 5.235, 1.36, 2.29, 0, -1, 0.15, 0.83], ['rdc', 'z', 7.045, 1.67, 2.55, -0.13, -1, 0.07, 0.83], // porte de service, ouvrant côté local technique
     ['r1', 'z', 3.895, 3.05, 2.22, e, -1, 0.07, 0.73], ['r1', 'x', 2.145, 4.80, 3.97, e, 1, 0.07, 0.73], ['r1', 'z', 8.415, 1.62, 2.45, e, 1, 0.07, 0.73],
     ['r1', 'z', 9.105, 4.12, 3.29, e, 1, 0.07, 0.73], ['r1', 'x', 4.205, 4.97, 4.14, e, 1, 0.07, 0.73], ['r1', 'x', 4.205, 8.02, 7.19, e, 1, 0.07, 0.73], ['r1', 'x', 4.205, 8.19, 9.02, e, 1, 0.07, 0.73],
   ]);

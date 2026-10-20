@@ -51,7 +51,7 @@ export const COMMANDES: Commande[] = [
   // ---- RDC (p. 12)
   { id: 'I01', piece: 'Entrée', lv: 'rdc', n: '+x', face: T, postes: [['i', 2.820], ['i', 2.920], ['i', 3.019]], h: HC, st: 'inf', type: '3 interrupteurs (plaque 3 postes)', mur: 'façade nord (nu x 0,36), côté serrure de la porte d\'entrée',
     circuit: 'applique extérieure de l\'entrée, en va-et-vient avec le portillon (flèche « Va et vient vers portillon ») · 2 DCL de l\'entrée, en va-et-vient avec I04 · DCL de l\'escalier, en va-et-vient avec I23', src: P12 + ', 3 cercles accolés' },
-  { id: 'I02', piece: 'WC', lv: 'rdc', n: '-z', face: 1.36, postes: [['i', 1.235]], planA: [1.260], h: HC, st: 'inf', type: 'interrupteur simple allumage', mur: 'cloison WC / entrée côté WC (nu z 1,36), côté serrure',
+  { id: 'I02', piece: 'WC', lv: 'rdc', n: '-z', face: 1.36, postes: [['i', 1.135]], planA: [1.260], h: HC, st: 'inf', type: 'interrupteur simple allumage', mur: 'cloison WC / entrée côté WC (nu z 1,36), côté serrure ; décalé de 10 cm vers le nord avec la porte de cette variante (baie 1,23 → 2,06)',
     circuit: 'DCL du WC', src: P12 },
   { id: 'I03', piece: 'Local technique', lv: 'rdc', n: '+x', face: 5.31, postes: [['i', 2.380]], planA: [2.349], h: HC, floor: -0.13, plexo: true, st: 'inf', type: 'interrupteur va-et-vient Plexo (saillie)', mur: 'cloison entrée / garage côté local technique (nu x 5,31), côté serrure de la porte ISO 83',
     circuit: '2 DCL du garage et du local technique, en va-et-vient avec I06', src: P12 },
