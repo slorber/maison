@@ -122,17 +122,18 @@ class Kit {
 // ---------------------------------------------------------------- textures et matériaux
 function materials() {
   const { makeTex, pixelNoise, rng, std } = C;
-  // chêne clair massif : alaises de 10 cm, fil ondulé
-  const oak = makeTex(512, 1.0, (g, s) => {
-    pixelNoise(g, s, '#c9ab83', 0.025, 0.04, 3, 701); const r = rng(702), rows = 8, rh = s / rows;
+  // chêne massif : alaises de 10 cm, fil ondulé (kv : intensité des veines)
+  const oakTex = (base, seed, kv = 1) => makeTex(512, 1.0, (g, s) => {
+    pixelNoise(g, s, base, 0.025, 0.04, 3, seed); const r = rng(seed + 1), rows = 8, rh = s / rows;
     for (let j = 0; j < rows; j++) {
       const y0 = j * rh; g.fillStyle = r() < 0.5 ? `rgba(255,236,205,${0.05 + r() * 0.08})` : `rgba(120,85,50,${0.04 + r() * 0.08})`; g.fillRect(0, y0, s, rh);
       for (let i = 0; i < 22; i++) { const y = y0 + r() * rh, k = 1 + Math.floor(r() * 2), ph = r() * 6.28, a = rh * (0.05 + r() * 0.12);
-        g.strokeStyle = `rgba(100,68,38,${0.05 + r() * 0.13})`; g.lineWidth = 0.5 + r() * 1.5; g.beginPath();
+        g.strokeStyle = `rgba(100,68,38,${(0.05 + r() * 0.13) * kv})`; g.lineWidth = 0.5 + r() * 1.5; g.beginPath();
         for (let x = 0; x <= s; x += 8) { const yy = y + Math.sin(x / s * 6.2832 * k + ph) * a; if (x) g.lineTo(x, yy); else g.moveTo(x, yy); } g.stroke(); }
-      g.fillStyle = 'rgba(90,60,35,0.10)'; g.fillRect(0, y0, s, 1);
+      g.fillStyle = `rgba(90,60,35,${0.10 * kv})`; g.fillRect(0, y0, s, 1);
     }
   });
+  const oak = oakTex('#c9ab83', 701), oakL = oakTex('#dfcbab', 721, 0.45); // oakL : chêne clair scandinave du meuble TV
   const wt = makeTex(512, 0.6, (g, s) => pixelNoise(g, s, '#4b4845', 0.08, 0.025, 5, 711, (f, r) => r() < 0.015 ? f * (1.35 + r() * 0.5) : f)); // quartz anthracite moucheté
   const weave = makeTex(256, 0.08, (g, s) => pixelNoise(g, s, '#eeeeec', 0.025, 0.02, 4, 721, (f, r, u, v) => f * ((((u * 40) | 0) + ((v * 40) | 0)) & 1 ? 0.982 : 1.015))); // tissage neutre, teinté par couleur de sommet
   // plaque induction : 4 foyers sérigraphiés, commandes tactiles à l'avant
@@ -153,6 +154,7 @@ function materials() {
   const perf = makeTex(32, 0.007, (g, s) => { g.fillStyle = '#eeeeec'; g.fillRect(0, 0, s, s); g.fillStyle = '#55585a'; g.fillRect(10, 10, s - 20, s - 20); }); // grille supérieure perforée
   const coir = makeTex(256, 0.25, (g, s) => { pixelNoise(g, s, '#6f5a42', 0.2, 0.05, 6, 741); const r = rng(742); g.lineWidth = 1; for (let i = 0; i < 2500; i++) { g.strokeStyle = r() < 0.5 ? 'rgba(60,40,20,0.35)' : 'rgba(190,150,100,0.3)'; const x = r() * s, y = r() * s; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 6, y + (r() - 0.5) * 6); g.stroke(); } });
   M.mobOak = std({ map: oak, roughness: 0.55 });
+  M.mobOakL = std({ map: oakL, roughness: 0.6 });
   M.mobWorktop = std({ map: wt, roughness: 0.32 });
   M.mobGola = std({ color: '#35383b', roughness: 0.5, metalness: 0.3 }); // profils gola et fonds de joints
   M.mobGapW = std({ color: '#8f8d88', roughness: 0.9 }); // joints des façades blanches
@@ -305,35 +307,44 @@ function sofa() {
 }
 // rangée de livres debout (dos vers +z), hauteur de base h
 function books(K, x0, x1, y0, zb, r, h = 0.22) { let x = x0; while (x < x1) { const w = 0.017 + r() * 0.028, hh = h * (0.8 + r() * 0.3), d = 0.15 + r() * 0.06; if (x + w > x1) break; K.box('mobPaint', x, x + w, y0, y0 + hh, zb + 0.01, zb + 0.01 + d, { c: PAL[(r() * PAL.length) | 0] }); x += w + 0.0015; } }
-// Meuble TV blanc laqué : base à 4 portes, colonnes à niches (fond chêne, portes basses), bandeau haut à LED, TV 55" murale, barre de son
+// Meuble TV du séjour, style scandinave (demande du 20/10/2026 : « coffrage bois clair et portes blanches ») : caisson en chêne clair, portes blanches mates
+// à recouvrement intérieur avec boutons ronds en chêne ; bas sur 6 pieds fuselés, deux colonnes à niches ouvertes (fonds blancs), bandeau ouvert au-dessus
+// de l'écran. Raccourci de 10 cm de chaque côté (x 9,40 → 12,30, axe 10,85 inchangé) : 14,5 cm de jeu avec le radiateur du séjour sud (façade x 12,445).
 function tvUnit() {
-  const f = 'furn0', K = new Kit(f), zg = 3.30, x0 = 9.30, x1 = 12.40, xc = 10.85, col = 0.65, yu = 2.20, W = 'white', r = C.rng(907);
-  A.box(f, x0 + 0.04, x1 - 0.04, 0, 0.06, zg, zg + 0.39, 'plinth');
-  A.box(f, x0, x1, 0.06, 0.50, zg, zg + 0.43, { def: W, pz: 'mobGapW' });
-  const dw = (x1 - x0 - 0.009) / 4; for (let i = 0; i < 4; i++) { const a = x0 + i * (dw + 0.003); A.box(f, a, a + dw, 0.063, 0.497, zg + 0.431, zg + 0.45, W); }
+  const f = 'furn0', K = new Kit(f), zg = 3.30, x0 = 9.40, x1 = 12.30, xc = 10.85, col = 0.60, yu = 2.20, t = 0.02, O = 'mobOakL', W = 'white', r = C.rng(907);
+  const yL = 0.14, yB = 0.52, dB = 0.43, dC = 0.36; // pieds, dessus du bas, profondeurs du bas et des colonnes
+  const knob = (x, y, z) => K.g(O, new THREE.CylinderGeometry(0.015, 0.012, 0.022, 20), x, y, z + 0.011, 0, Math.PI / 2);
+  const door = (a, b, y0, y1, z1, ky?) => { K.box(W, a + 0.002, b - 0.002, y0 + 0.002, y1 - 0.002, z1 - 0.019, z1); knob((a + b) / 2, ky ?? y1 - 0.06, z1); };
+  // bas : pieds fuselés, caisson, 3 séparations, 4 portes
+  for (const x of [x0 + 0.08, xc, x1 - 0.08]) for (const z of [zg + 0.07, zg + dB - 0.07]) K.rod(O, [x, 0, z], [x, yL, z], 0.016, 16, 0.022);
+  K.box(O, x0, x1, yL, yL + t, zg, zg + dB); K.box(O, x0, x1, yB - t, yB, zg, zg + dB);
+  K.box(O, x0, x0 + t, yL, yB, zg, zg + dB); K.box(O, x1 - t, x1, yL, yB, zg, zg + dB); K.box(W, x0 + t, x1 - t, yL + t, yB - t, zg, zg + 0.008);
+  const bw = (x1 - x0 - 5 * t) / 4;
+  for (let i = 0; i < 4; i++) { const a = x0 + t + i * (bw + t); if (i) K.box(O, a - t, a, yL + t, yB - t, zg + 0.008, zg + dB); door(a, a + bw, yL + t, yB - t, zg + dB); }
+  // colonnes : joues, porte basse, tablettes en chêne, fond blanc
   for (const [c0, c1] of [[x0, x0 + col], [x1 - col, x1]]) {
-    A.box(f, c0, c0 + 0.025, 0.50, yu - 0.025, zg, zg + 0.36, W); A.box(f, c1 - 0.025, c1, 0.50, yu - 0.025, zg, zg + 0.36, W);
-    A.box(f, c0 + 0.025, c1 - 0.025, 0.90, yu - 0.025, zg, zg + 0.012, 'mobOak');
-    A.box(f, c0 + 0.025, c1 - 0.025, 0.50, 0.90, zg, zg + 0.338, { def: W, pz: 'mobGapW' }); A.box(f, c0 + 0.0255, c1 - 0.0255, 0.503, 0.897, zg + 0.34, zg + 0.36, W);
-    for (const y of [0.90, 1.32, 1.74]) A.box(f, c0 + 0.025, c1 - 0.025, y, y + 0.025, zg + 0.012, zg + 0.36, W);
+    K.box(O, c0, c0 + t, yB, yu - t, zg, zg + dC); K.box(O, c1 - t, c1, yB, yu - t, zg, zg + dC); K.box(W, c0 + t, c1 - t, yB, yu - t, zg, zg + 0.008);
+    for (const y of [0.92, 1.34, 1.76]) K.box(O, c0 + t, c1 - t, y, y + t, zg + 0.008, zg + dC);
+    door(c0 + t, c1 - t, yB, 0.92, zg + dC, 0.86);
   }
-  A.box(f, x0 + col, x1 - col, 1.90, yu - 0.025, zg, zg + 0.36, W); A.box(f, x0, x1, yu - 0.025, yu, zg, zg + 0.36, W);
-  A.box(f, x0 + col, x1 - col, 0.50, 1.90, zg, zg + 0.012, 'mobOak');
+  // bandeau ouvert au-dessus de l'écran, dessus filant, ruban LED sous le bandeau
+  K.box(O, x0, x1, yu - t, yu, zg, zg + dC); K.box(O, x0 + col, x1 - col, 1.90, 1.90 + t, zg, zg + dC); K.box(W, x0 + col, x1 - col, 1.90 + t, yu - t, zg, zg + 0.008);
   K.box('mobLed', x0 + col + 0.01, x1 - col - 0.01, 1.896, 1.90, zg + 0.30, zg + 0.32);
+  // écran 55" sur support mural, barre de son sur le bas
   K.soft('blackMatte', xc - 0.615, xc + 0.615, 0.82, 1.53, zg + 0.035, zg + 0.062, 0.006); K.box('mobScreen', xc - 0.607, xc + 0.607, 0.83, 1.522, zg + 0.062, zg + 0.0626);
-  K.box('blackMatte', xc - 0.20, xc + 0.20, 1.0, 1.35, zg + 0.012, zg + 0.035);
-  K.soft('mobFab', xc - 0.45, xc + 0.45, 0.50, 0.565, zg + 0.12, zg + 0.21, 0.025, { c: '#3d3f42' });
-  // niches : livres, vase, coupe, cadre, plante
-  const L0 = x0 + 0.025, R0 = x1 - col + 0.025, z = zg + 0.012;
-  books(K, L0 + 0.01, L0 + 0.30, 0.925, z, r); K.g('mobPaint', lathe([[0, 0], [0.045, 0], [0.06, 0.05], [0.055, 0.14], [0.03, 0.20], [0.032, 0.23], [0, 0.23]], 24), L0 + 0.45, 0.925, zg + 0.17, 0, 0, 0, { c: '#d8cfc0' });
-  for (let i = 0; i < 3; i++) K.box('mobPaint', L0 + 0.03 + i * 0.01, L0 + 0.27 - i * 0.012, 1.345 + i * 0.03, 1.374 + i * 0.03, z + 0.03, z + 0.20 - i * 0.012, { c: PAL[(i * 5 + 2) % PAL.length] });
-  K.g('mobCeramic', lathe([[0, 0], [0.04, 0], [0.085, 0.05], [0.09, 0.06], [0.083, 0.06], [0.034, 0.012], [0, 0.012]]), L0 + 0.44, 1.345, zg + 0.17);
-  books(K, L0 + 0.06, L0 + 0.59, 1.765, z, r, 0.26);
-  { const F = new Kit(f, K.m(R0 + 0.12, 0.925, zg + 0.06, 0.15, -0.12)); F.box('blackMatte', -0.09, 0.09, 0, 0.24, -0.01, 0.01); F.box('mobPaint', -0.075, 0.075, 0.015, 0.225, 0.01, 0.0112, { c: '#f2efe8' }); F.box('mobPaint', -0.055, 0.055, 0.04, 0.20, 0.0112, 0.0118, { c: '#7d8f9c' }); }
-  K.rod('mobPaint', [R0 + 0.44, 0.925, zg + 0.17], [R0 + 0.44, 1.05, zg + 0.17], 0.05, 20, 0.06, { c: '#b56a45' });
-  for (let i = 0; i < 9; i++) { const a = i * 2.4, rr = 0.03 + (i % 3) * 0.018; K.g('leaf', new THREE.IcosahedronGeometry(0.04 + r() * 0.02, 1), R0 + 0.44 + Math.cos(a) * rr, 1.10 + (i % 4) * 0.035, zg + 0.17 + Math.sin(a) * rr); }
-  books(K, R0 + 0.02, R0 + 0.58, 1.345, z, r);
-  books(K, R0 + 0.02, R0 + 0.30, 1.765, z, r, 0.25); K.soft('mobPaint', R0 + 0.36, R0 + 0.56, 1.765, 1.865, zg + 0.08, zg + 0.24, 0.006, { c: '#c8b27a' });
+  K.box('blackMatte', xc - 0.20, xc + 0.20, 1.0, 1.35, zg, zg + 0.035);
+  K.soft('mobFab', xc - 0.45, xc + 0.45, yB, yB + 0.065, zg + 0.12, zg + 0.21, 0.025, { c: '#3d3f42' });
+  // niches : livres, vase, coupe, cadre, plante ; bandeau : panier et pichet
+  const L0 = x0 + t, R0 = x1 - col + t, z = zg + 0.008, n1 = 0.94, n2 = 1.36, n3 = 1.78;
+  books(K, L0 + 0.01, L0 + 0.28, n1, z, r); K.g('mobPaint', lathe([[0, 0], [0.045, 0], [0.06, 0.05], [0.055, 0.14], [0.03, 0.20], [0.032, 0.23], [0, 0.23]], 24), L0 + 0.42, n1, zg + 0.17, 0, 0, 0, { c: '#d8cfc0' });
+  for (let i = 0; i < 3; i++) K.box('mobPaint', L0 + 0.03 + i * 0.01, L0 + 0.27 - i * 0.012, n2 + i * 0.03, n2 + 0.029 + i * 0.03, z + 0.03, z + 0.20 - i * 0.012, { c: PAL[(i * 5 + 2) % PAL.length] });
+  K.g('mobCeramic', lathe([[0, 0], [0.04, 0], [0.085, 0.05], [0.09, 0.06], [0.083, 0.06], [0.034, 0.012], [0, 0.012]]), L0 + 0.41, n2, zg + 0.17);
+  books(K, L0 + 0.04, L0 + 0.54, n3, z, r, 0.26);
+  { const F = new Kit(f, K.m(R0 + 0.12, n1, zg + 0.06, 0.15, -0.12)); F.box('blackMatte', -0.09, 0.09, 0, 0.24, -0.01, 0.01); F.box('mobPaint', -0.075, 0.075, 0.015, 0.225, 0.01, 0.0112, { c: '#f2efe8' }); F.box('mobPaint', -0.055, 0.055, 0.04, 0.20, 0.0112, 0.0118, { c: '#7d8f9c' }); }
+  K.rod('mobPaint', [R0 + 0.40, n1, zg + 0.17], [R0 + 0.40, n1 + 0.125, zg + 0.17], 0.05, 20, 0.06, { c: '#b56a45' });
+  for (let i = 0; i < 9; i++) { const a = i * 2.4, rr = 0.03 + (i % 3) * 0.018; K.g('leaf', new THREE.IcosahedronGeometry(0.04 + r() * 0.02, 1), R0 + 0.40 + Math.cos(a) * rr, n1 + 0.175 + (i % 4) * 0.035, zg + 0.17 + Math.sin(a) * rr); }
+  books(K, R0 + 0.02, R0 + 0.54, n2, z, r);
+  books(K, R0 + 0.02, R0 + 0.28, n3, z, r, 0.25); K.soft('mobPaint', R0 + 0.34, R0 + 0.52, n3, n3 + 0.10, zg + 0.08, zg + 0.24, 0.006, { c: '#c8b27a' });
 }
 
 // ---------------------------------------------------------------- radiateurs
