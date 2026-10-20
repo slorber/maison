@@ -1,6 +1,6 @@
 // Salles de bains et WC : meubles Balmani Moon (chêne naturel à tasseaux, plan Solid Surface, grands miroirs rectangulaires rétroéclairés), colonne assortie,
 // douches (Bains 160×90 du plan, cabine 140×100 de la salle d'eau parentale), faïence toute hauteur et sol terrazzo de la salle d'eau,
-// packs WC au sol Roca The Gap Round à réservoir attenant, sèche-serviettes Atlantic Adélis en sortie de douche, lave-mains du WC du RDC. Appelé avant A.build(groups).
+// packs WC au sol Roca The Gap Round à réservoir attenant, sèche-serviettes Atlantic Adélis en sortie de douche, meuble vasque sur mesure dans la niche du WC du RDC. Appelé avant A.build(groups).
 // Repère local des meubles muraux : x le long du mur (vers la droite face au meuble), z sortant du mur, y depuis le sol fini.
 import * as THREE from 'three';
 import type { Ctx, Door } from '../types';
@@ -181,6 +181,15 @@ function solidTop(mb, segs, yb, yt, rT, rB, basins, closed = false) {
 // ---------------------------------------------------------------- petits éléments
 function cyl(parent, mat, r, h, x, y, z, rx = 0, rz = 0, seg = 28, ry = 0) { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), mat); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o; }
 function box(parent, mat, w, h, d, x, y, z, rx = 0, ry = 0) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); o.position.set(x, y, z); o.rotation.set(rx, ry, 0); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o; }
+// pavé dans un MB : UV en mètres (fil vertical sur les faces avant, arrière et latérales), couleur de sommet c sur les grandes faces et ce sur les chants
+function slab(mb, x0, x1, y0, y1, z0, z1, c = 1, ce = c) {
+  const F: [number[], number[][], (p: number[]) => number[], number][] = [
+    [[0, 0, 1], [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], p => [p[0], p[1]], c], [[0, 0, -1], [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], p => [p[0], p[1]], c],
+    [[1, 0, 0], [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], p => [p[2], p[1]], ce], [[-1, 0, 0], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], p => [p[2], p[1]], ce],
+    [[0, 1, 0], [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], p => [p[0], p[2]], ce], [[0, -1, 0], [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], p => [p[0], p[2]], ce],
+  ];
+  for (const [n, P, uv, k] of F) { const ids = P.map(p => { const [u, w] = uv(p); return mb.v(p[0], p[1], p[2], n[0], n[1], n[2], u, w, k); }); mb.quad(ids[0], ids[1], ids[2], ids[3]); }
+}
 // mitigeur monocommande fin (corps rond, bec et levier plats), bec vers +z local
 function mixer(parent, mat, x, y, z, ry = 0, s = 1) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.scale.setScalar(s); parent.add(g);
@@ -202,7 +211,8 @@ function roundMirror(parent, M, x, y, z, r) {
 // chant sombre, entretoise murale, bandeau LED sablé en périphérie, halo sur le mur (plan additif, pas de source lumineuse).
 // Le chant est reculé de 1 mm derrière la glace : sa face avant coïncidait avec elle (scintillement en triangles et tirets sur toute la glace).
 // Glace non métallique et satinée (bnMirrorRect) : reflet clair et doux, sans horizon sombre sur une grande surface plane.
-function rectMirror(parent, M, x, y, z, w, h) {
+// clip : [xa, xb] dans le repère du parent, coupe le halo à un angle de mur (miroir proche d'une cloison perpendiculaire).
+function rectMirror(parent, M, x, y, z, w, h, clip?: number[]) {
   const shape = (ww, hh, rr) => { const s = new THREE.Shape(), a = ww / 2, b = hh / 2; s.moveTo(-a + rr, -b); s.lineTo(a - rr, -b); s.absarc(a - rr, -b + rr, rr, -HP, 0); s.lineTo(a, b - rr);
     s.absarc(a - rr, b - rr, rr, 0, HP); s.lineTo(-a + rr, b); s.absarc(-a + rr, b - rr, rr, HP, PI); s.lineTo(-a, -b + rr); s.absarc(-a + rr, -b + rr, rr, PI, PI + HP); return s; };
   const r = 0.03, glass = new THREE.ShapeGeometry(shape(w, h, r), 8), uv = glass.attributes.uv;
@@ -212,7 +222,13 @@ function rectMirror(parent, M, x, y, z, w, h) {
   box(parent, M.bnMirrorEdge, w - 0.10, h - 0.10, 0.024, x, y, z + 0.0155);
   const band = shape(w - 0.04, h - 0.04, r - 0.02 > 0.005 ? r - 0.02 : 0.005); band.holes.push(shape(w - 0.068, h - 0.068, 0.005));
   const led = new THREE.Mesh(new THREE.ShapeGeometry(band, 8), M.bnLed); led.position.set(x, y, z + 0.0345); parent.add(led);
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.45, h + 0.45), M.bnGlow); glow.position.set(x, y, z + 0.0015); glow.renderOrder = 2; parent.add(glow);
+  const glow = glowRect(parent, M.bnGlow, w + 0.45, h + 0.45, clip ? clip[0] - x : undefined, clip ? clip[1] - x : undefined); glow.position.set(x, y, z + 0.0015);
+}
+// halo additif W × H (dégradé radial de bnGlow étiré sur l'ellipse entière), coupé au rectangle [xa, xb] × [ya, yb] pour ne pas traverser un mur ; plan local xy, face +z
+function glowRect(parent, mat, W, H, xa = -W / 2, xb = W / 2, ya = -H / 2, yb = H / 2) {
+  const a = Math.max(xa, -W / 2), b = Math.min(xb, W / 2), c = Math.max(ya, -H / 2), d = Math.min(yb, H / 2), g = new THREE.PlaneGeometry(b - a, d - c); g.translate((a + b) / 2, (c + d) / 2, 0);
+  const P = g.attributes.position, U = g.attributes.uv; for (let i = 0; i < U.count; i++) U.setXY(i, P.getX(i) / W + 0.5, P.getY(i) / H + 0.5);
+  const m = new THREE.Mesh(g, mat); m.renderOrder = 2; parent.add(m); return m;
 }
 
 // ---------------------------------------------------------------- Balmani Moon : caisson suspendu à tasseaux, extrémités quart-de-rond, plan blanc à cuves intégrées
@@ -337,6 +353,60 @@ function rollHolder(parent, M, x, y, z, ry) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
   cyl(g, M.bnChrome, 0.022, 0.008, 0, 0, 0.004, HP); cyl(g, M.bnChrome, 0.006, 0.07, 0, 0, 0.035, HP); cyl(g, M.bnChrome, 0.006, 0.14, 0.07, 0, 0.07, 0, HP);
   cyl(g, M.bnPaper, 0.055, 0.10, 0.08, -0.012, 0.07, 0, HP, 32);
+  return g;
+}
+
+// ---------------------------------------------------------------- WC du RDC (demande client du 20/10) : meuble vasque sur mesure encastré dans la niche de 30 × 100
+// entre la façade est et le retour de la porte (porte décalée de 10 cm vers le nord pour donner 30 cm de niche).
+// Caisson suspendu de mur à mur, plaqué chêne naturel à fil vertical continu d'une porte à l'autre, deux portes sans poignée (ouverture par pression) cliquables,
+// plan Solid Surface blanc de 2 cm à vasque intégrée, plan à 88 cm du sol fini, robinet mural mitigeur cuivre comme les robinets des salles de bains,
+// siphon chromé et étagères de part et d'autre, bandeau LED sous le caisson, miroir rectangulaire rétroéclairé au-dessus.
+// Repère local : x le long de la cloison du placard (−0,50 = façade est, +0,50 = retour de la porte), z sortant de la cloison, y depuis le sol fini.
+function lavaboNiche(ctx, parent) {
+  const M = ctx.M, yb = 0.40, yt = 0.88, tt = 0.02, D = 0.30, xl = -0.4995, xw = 0.4995, xr = 0.487, df = 0.297, tf = 0.019, gap = 0.003;
+  const place = (o: THREE.Group) => { o.position.set(2.36, 0, 0.86); o.rotation.y = -HP; parent.add(o); return o; };
+  const g = place(new THREE.Group()), gd = place(new THREE.Group()); gd.userData.noMerge = true; // portes animées hors fusion
+  // caisson : fond (vu par-dessous), joues, dos, étagères ; à droite, il s'arrête contre le chambranle de la porte du WC, un fileur ferme l'espace derrière
+  const oak = new MB();
+  slab(oak, xl, xr, yb, yb + tf, 0, df - tf, 0.94, 0.8);
+  slab(oak, xl, xl + tf, yb + tf, yt - tt, 0, df - tf, 0.86); slab(oak, xr - tf, xr, yb + tf, yt - tt, 0, df - tf, 0.86);
+  slab(oak, xl + tf, xr - tf, yb + tf, yt - tt, 0, 0.008, 0.78);
+  slab(oak, xl + tf, -0.07, 0.60, 0.618, 0.008, df - tf - 0.02, 0.88, 0.75); slab(oak, 0.07, xr - tf, 0.60, 0.618, 0.008, df - tf - 0.02, 0.88, 0.75);
+  slab(oak, xr, xw, yb, yt - tt, 0, 0.25, 0.86);
+  oak.mesh(M.bnOak, g);
+  // plan Solid Surface : chant avant arrondi, entaille autour du chambranle (x > 0,4865, z > 0,252), vasque intégrée 44 × 20 × 11 et coque sous la vasque
+  const top = new MB(), b = { x: 0, z: 0.155, w: 0.44, d: 0.20, r: 0.06, rim: 0.01, dw: 0.016, rb: 0.04, depth: 0.11 }, rT = 0.006, rB = 0.003, xn = 0.4865, zn = 0.252;
+  sweep(top, sample([seg.L([xl, D], [xn, D])]), edgeProf(yt - tt, yt, rT, rB), false);
+  const fq = (p: number[][], n: number[]) => { const ids = p.map(([x, y, z]) => top.v(x, y, z, n[0], n[1], n[2], x + z, y)); top.quad(ids[0], ids[1], ids[2], ids[3]); };
+  fq([[xn, yt - tt, D - rB], [xn, yt - tt, zn], [xn, yt, zn], [xn, yt, D - rT]], [1, 0, 0]); fq([[xn, yt - tt, zn], [xw, yt - tt, zn], [xw, yt, zn], [xn, yt, zn]], [0, 0, 1]);
+  const hole = sample(rrect(b.x - b.w / 2 - b.rim, b.x + b.w / 2 + b.rim, b.z - b.d / 2 - b.rim, b.z + b.d / 2 + b.rim, b.r + b.rim), true).map(q => [q.x, q.z]);
+  cap(top, [[xl, 0], [xl, D - rT], [xn, D - rT], [xn, zn], [xw, zn], [xw, 0]], [hole], yt, 1);
+  cap(top, [[xl, 0], [xl, D - rB], [xn, D - rB], [xn, zn], [xw, zn], [xw, 0]], [], yt - tt, -1);
+  const ybs = basin(top, b, yt);
+  slab(top, b.x - b.w / 2 - 0.014, b.x + b.w / 2 + 0.014, ybs - 0.01, yt - tt - 0.002, b.z - b.d / 2 - 0.012, b.z + b.d / 2 + 0.012);
+  top.mesh(M.bnSolid, g);
+  cyl(g, M.bnCopper, 0.02, 0.003, b.x, ybs + 0.0015, b.z, 0, 0, 32); // bonde
+  // siphon chromé jusqu'à la cloison
+  cyl(g, M.bnChrome, 0.015, 0.09, b.x, ybs - 0.057, b.z); cyl(g, M.bnChrome, 0.029, 0.10, b.x, ybs - 0.15, b.z, 0, 0, 28);
+  cyl(g, M.bnChrome, 0.015, b.z, b.x, ybs - 0.17, b.z / 2, HP); cyl(g, M.bnChrome, 0.03, 0.008, b.x, ybs - 0.17, 0.004, HP);
+  // robinet mural : rosace, corps, bec plat jusqu'au-dessus de la vasque, levier sur le dessus
+  const yr = yt + 0.15;
+  cyl(g, M.bnCopper, 0.03, 0.008, 0, yr, 0.004, HP, 0, 40); cyl(g, M.bnCopper, 0.018, 0.05, 0, yr, 0.033, HP, 0, 32);
+  box(g, M.bnCopper, 0.024, 0.011, 0.14, 0, yr - 0.008, 0.11);
+  cyl(g, M.bnCopper, 0.009, 0.014, 0, yr + 0.022, 0.042, 0, 0, 20); box(g, M.bnCopper, 0.012, 0.006, 0.068, 0, yr + 0.031, 0.07, -0.12);
+  // bandeau LED encastré sous le caisson, lumière douce sur le sol (halo additif coupé aux murs et à la cloison)
+  box(g, M.bnLed, xr - xl - 0.06, 0.003, 0.012, (xl + xr) / 2, yb - 0.0015, df - 0.05);
+  const fg = glowRect(g, M.bnGlowSol || (M.bnGlowSol = Object.assign(M.bnGlow.clone(), { opacity: 0.5 })), 1.15, 0.74, xl, xw, -0.36, 0.218);
+  fg.rotation.x = -HP; fg.position.set(0, 0.003, 0.22);
+  rectMirror(g, M, 0, yt + 0.27 + 0.35, 0, 0.80, 0.70, [xl, xw]); // 80 × 70, bas à 1,15 m
+  // portes de 0,46 de haut, en applique, 3 mm sous le plan ; pivot sur l'arête avant côté mur pour s'ouvrir sans toucher les murs
+  for (const [x0, x1, s] of [[xl + 0.001, -gap / 2, -1], [gap / 2, xr - 0.0015, 1]]) {
+    const hx = s < 0 ? x0 : x1, piv = new THREE.Group(); piv.position.set(hx, 0, df); piv.name = 'porte du meuble vasque du WC'; gd.add(piv);
+    const d: Door = { g: piv, meshes: [], open: 0, target: 0, speed: 1.4, kind: 'meuble' };
+    const mb = new MB(); slab(mb, x0, x1, yb + 0.002, yt - tt - gap, df - tf, df, 1, 0.82); // UV dans le repère du meuble : fil continu d'une porte à l'autre
+    const m = mb.mesh(M.bnOak, piv); m.geometry.translate(-hx, 0, -df); m.userData.door = d; d.meshes.push(m);
+    d.apply = v => { piv.rotation.y = s * HP * v * v * (3 - 2 * v); }; d.apply(0); ctx.DOORS.push(d);
+  }
   return g;
 }
 
@@ -475,12 +545,8 @@ export function buildBains(ctx: Ctx) {
 
   // --- WC du RDC (x 0,36 → 2,36, z 0,36 → 1,36) : pack WC au sol Roca The Gap Round dos au mur nord, sous la fenêtre (axe z 0,86), dérouleur
   wcRound(f0, M, T, 0, 0.86, 0); rollHolder(f0, M, 0.80, 0.72, T, 0);
-  // lave-mains suspendu 40 × 24 en céramique, cuve décalée, robinet sur plage latérale, siphon chromé (cloison x 2,36)
-  { const g = new THREE.Group(); g.position.set(2.36, 0, 0.86); g.rotation.y = -HP; f0.add(g);
-    const mb = new MB(), yb = solidTop(mb, rrect(-0.20, 0.20, 0, 0.24, [0.05, 0.05, 0.004, 0.004]), 0.73, 0.85, 0.012, 0.022, [{ x: -0.035, z: 0.125, w: 0.27, d: 0.15, r: 0.06, rim: 0.008, dw: 0.012, rb: 0.035, depth: 0.085 }], true)[0];
-    mb.mesh(M.bnPorc, g); cyl(g, M.bnChrome, 0.016, 0.003, -0.035, yb + 0.0015, 0.125, 0, 0, 24);
-    mixer(g, M.bnChrome, 0.15, 0.85, 0.105, -HP, 0.82);
-    cyl(g, M.bnChrome, 0.014, 0.14, -0.035, 0.70, 0.125); cyl(g, M.bnChrome, 0.028, 0.10, -0.035, 0.60, 0.125, 0, 0, 28); cyl(g, M.bnChrome, 0.014, 0.125, -0.035, 0.58, 0.0625, HP); cyl(g, M.bnChrome, 0.03, 0.008, -0.035, 0.58, 0.004, HP); } // siphon
+  // meuble vasque sur mesure dans la niche de 30 × 100 contre la cloison du placard (x 2,06 → 2,36), miroir au-dessus
+  lavaboNiche(ctx, f0);
 
   // --- WC de l'étage (x 3,93 → 4,83, z 0,36 → 2,11) : pack WC au sol Roca The Gap Round dos au mur est (axe x 4,38 du plan étage p. 10, cuvette dessinée x 4,20 → 4,56),
   // à 5 cm du coffre de décompression 22 × 22 (x 3,93 → 4,15)
