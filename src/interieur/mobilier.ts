@@ -1,8 +1,9 @@
-// Mobilier détaillé (cuisine, séjour, chambres, entrée, garage ; bureau de chambre 1 et pièce « Bureau » : chambre1.js) : appelé avant A.build(groups)
+// Mobilier détaillé (séjour, chambres, entrée, garage ; cuisine : cuisine.ts ; bureau de chambre 1 et pièce « Bureau » : chambre1.js) : appelé avant A.build(groups)
 // Boîtes plates via A.box (UV en mètres) ; le reste est fusionné en un mesh par couple calque × matériau (peu d'appels de dessin).
 // Formes douces (coussins, matelas, couettes) : boîtes arrondies subdivisées, déformées (bombé, drapé) puis lissées.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { buildCuisine } from './cuisine';
 import type { Ctx, Vec3 } from '../types';
 
 let C, M, A; const BK = new Map();
@@ -175,82 +176,6 @@ function materials() {
   M.mobWMGlass = std({ color: '#2a3640', roughness: 0.04, transparent: true, opacity: 0.45, depthWrite: false });
   M.mobGrey = std({ color: '#b7babd', roughness: 0.35, metalness: 0.2 });
   M.mobRubber = std({ color: '#26272a', roughness: 0.8, side: THREE.DoubleSide });
-}
-
-// ---------------------------------------------------------------- cuisine (plan électrique RDC, implantation conservée)
-// Façades mates sans poignée sur profils gola anthracite, joints de 3 mm, plan quartz 4 cm à chant adouci, crédence assortie,
-// plaque induction, évier inox à poser avec égouttoir, colonnes réfrigérateur intégré + four et micro-ondes en verre noir.
-function kitchen() {
-  const k = 'furn0', T = C.T, D = C.D, zw = 4.24, K = new Kit(k), fr = 'front', gl = 'mobGola';
-  const door = [[0.103, 0.795]], drw3 = [[0.103, 0.355], [0.39, 0.605], [0.64, 0.795]]; // façades : porte pleine, 3 tiroirs (gorges gola intermédiaires)
-  // --- linéaire bas le long de l'escalier (façades z zw+0.561→zw+0.58), gorge gola de 6 cm sous le plan
-  A.box(k, T, 2.59, 0, 0.10, zw, zw + 0.52, 'plinth');
-  A.box(k, T, 2.59, 0.10, 0.80, zw, zw + 0.56, { def: fr, pz: gl, py: gl });
-  A.box(k, T, 2.59, 0.80, 0.86, zw, zw + 0.53, { def: fr, pz: gl, ny: gl });
-  for (const [a, b, st] of [[0.943, 0.977, door], [0.98, 1.277, door], [1.28, 1.877, drw3], [1.88, 2.232, door], [2.235, 2.587, door]] as [number, number, number[][]][]) for (const [y0, y1] of st) A.box(k, a, b, y0, y1, zw + 0.561, zw + 0.58, fr);
-  // --- retour sous la fenêtre nord (façades x T+0.561→T+0.58) : tiroirs, évier 2 portes, lave-vaisselle intégré, tiroirs
-  A.box(k, T, T + 0.52, 0, 0.10, zw + 0.52, D - T, 'plinth');
-  A.box(k, T, T + 0.56, 0.10, 0.80, zw + 0.56, D - T, { def: fr, px: gl, py: gl });
-  A.box(k, T, T + 0.53, 0.80, 0.86, zw + 0.53, D - T, { def: fr, px: gl, ny: gl });
-  for (const [a, b, st] of [[4.823, 4.857, door], [4.86, 5.367, drw3], [5.37, 5.832, door], [5.835, 6.297, door], [6.30, 6.897, door], [6.90, 7.497, drw3], [7.50, D - T, door]] as [number, number, number[][]][]) for (const [y0, y1] of st) A.box(k, T + 0.561, T + 0.58, y0, y1, a, b, fr);
-  // --- plan de travail en L d'un seul tenant, découpe de l'évier ; crédence assortie
-  K.g('mobWorktop', slab([[T, zw], [2.59, zw], [2.59, zw + 0.62], [T + 0.62, zw + 0.62], [T + 0.62, D - T], [T, D - T]], [[[0.47, 5.43], [0.87, 5.43], [0.87, 6.31], [0.47, 6.31]]], 0.86, 0.04));
-  A.box(k, T, 2.59, 0.90, 1.45, zw, zw + 0.006, 'mobWorktop'); A.box(k, 1.28, 1.88, 1.45, 1.52, zw, zw + 0.006, 'mobWorktop');
-  // plaque induction 60 cm biseautée (centre x 1,58 : prise 32 A)
-  K.g('mobHob', boxG(0.60, 0.006, 0.52), 1.58, 0.903, zw + 0.31, 0, 0, 0, { keepUV: true });
-  // évier inox à poser : cuve 36 × 36 × 18, égouttoir rainuré, bonde, mitigeur bas (la fenêtre s'ouvre au-dessus)
-  K.g('mobInox', slab(rrect(0.46, 5.42, 0.88, 6.32, 0.012), [rrect(0.49, 5.92, 0.85, 6.28, 0.025), rrect(0.49, 5.46, 0.85, 5.87, 0.012)], 0.90, 0.004, 0.0015));
-  A.box(k, 0.485, 0.49, 0.72, 0.90, 5.915, 6.285, 'mobInox'); A.box(k, 0.85, 0.855, 0.72, 0.90, 5.915, 6.285, 'mobInox');
-  A.box(k, 0.49, 0.85, 0.72, 0.90, 5.915, 5.92, 'mobInox'); A.box(k, 0.49, 0.85, 0.72, 0.90, 6.28, 6.285, 'mobInox'); A.box(k, 0.485, 0.855, 0.715, 0.72, 5.915, 6.285, 'mobInox');
-  K.g('mobChrome', new THREE.CylinderGeometry(0.035, 0.035, 0.004, 24), 0.67, 0.722, 6.10);
-  A.box(k, 0.47, 0.87, 0.892, 0.896, 5.43, 5.90, 'mobInox');
-  for (let i = 0; i < 8; i++) { const x = 0.513 + i * 0.045; A.box(k, x - 0.002, x + 0.002, 0.896, 0.8995, 5.48, 5.85, 'mobInox'); }
-  K.g('mobChrome', new THREE.CylinderGeometry(0.028, 0.03, 0.008, 24), 0.415, 0.904, 6.10);
-  K.rod('mobChrome', [0.415, 0.905, 6.10], [0.415, 1.065, 6.10], 0.022, 20, 0.019);
-  K.rod('mobChrome', [0.405, 1.045, 6.10], [0.625, 1.045, 6.10], 0.0105, 14);
-  K.rod('mobChrome', [0.625, 1.056, 6.10], [0.625, 1.026, 6.10], 0.012, 14);
-  K.rod('mobChrome', [0.415, 1.06, 6.10], [0.415, 1.078, 6.17], 0.0055, 10);
-  // --- meubles hauts (prise de main en débord bas de 2 cm, ruban LED dessous) et hotte intégrée télescopique
-  const wc = (x0, x1, yb, doors, led) => { A.box(k, x0, x1, yb, 2.20, zw, zw + 0.33, { def: fr, pz: gl }); for (const [a, b] of doors) A.box(k, a, b, yb - (led ? 0.02 : 0), 2.197, zw + 0.331, zw + 0.35, fr); if (led) K.box('mobLed', x0 + 0.03, x1 - 0.03, yb - 0.004, yb, zw + 0.27, zw + 0.29); };
-  wc(T, 1.28, 1.45, [[T + 0.002, 0.818], [0.821, 1.277]], 1); wc(1.88, 2.59, 1.45, [[1.883, 2.234], [2.237, 2.588]], 1); wc(1.28, 1.88, 1.60, [[1.283, 1.877]], 0);
-  K.box('mobInox', 1.30, 1.86, 1.525, 1.60, zw + 0.02, zw + 0.40); K.box(gl, 1.32, 1.84, 1.521, 1.525, zw + 0.04, zw + 0.30);
-  for (const x of [1.42, 1.74]) K.g('mobLed', new THREE.CylinderGeometry(0.022, 0.022, 0.003, 20), x, 1.5235, zw + 0.35);
-  // --- colonnes : réfrigérateur intégré (congélateur en bas, gorge gola verticale à droite), four + micro-ondes
-  A.box(k, 2.59, 3.79, 0, 0.10, zw, zw + 0.52, 'plinth'); A.box(k, 2.66, 3.10, 0.025, 0.075, zw + 0.52, zw + 0.522, 'grille'); // grille de ventilation du réfrigérateur dans la plinthe
-  A.box(k, 2.59, 3.79, 0.10, 2.20, zw, zw + 0.578, { def: fr, pz: gl });
-  const fc = (x0, x1, y0, y1) => A.box(k, x0, x1, y0, y1, zw + 0.58, zw + 0.60, fr);
-  fc(2.593, 3.165, 0.103, 0.80); fc(2.593, 3.165, 0.803, 1.80); fc(2.593, 3.165, 1.803, 2.197);
-  fc(3.20, 3.787, 0.103, 0.455); fc(3.20, 3.787, 0.49, 0.835); fc(3.20, 3.787, 1.868, 2.197);
-  const ox0 = 3.20, ox1 = 3.787, oc = (ox0 + ox1) / 2, zf = zw + 0.60;
-  const appliance = (y0, y1, win, disp, knobs) => {
-    A.box(k, ox0, ox1, y0, y1, zw + 0.56, zf + 0.002, 'mobGlassBlack');
-    A.box(k, win[0], win[1], win[2], win[3], zf + 0.002, zf + 0.0028, 'mobGlassWin');
-    A.box(k, disp[0], disp[1], disp[2], disp[3], zf + 0.002, zf + 0.0028, 'mobDisplay');
-    for (const [x, y] of knobs) K.g('mobInox', cylZ(0.016, 0.018), x, y, zf + 0.011);
-    const hy = y1 - 0.042; K.rod('mobInox', [ox0 + 0.045, hy, zf + 0.042], [ox1 - 0.045, hy, zf + 0.042], 0.009, 16);
-    for (const x of [ox0 + 0.07, ox1 - 0.07]) K.rod('mobInox', [x, hy, zf + 0.002], [x, hy, zf + 0.042], 0.0055, 10);
-  };
-  appliance(0.885, 1.48, [ox0 + 0.06, ox1 - 0.06, 0.95, 1.31], [oc - 0.05, oc + 0.05, 1.445, 1.468], [[ox0 + 0.06, 1.457], [ox1 - 0.06, 1.457]]); // four : vitre, bandeau, afficheur, manettes
-  A.box(k, ox0 + 0.005, ox1 - 0.005, 1.4255, 1.4285, zf + 0.002, zf + 0.0034, 'mobInox');
-  appliance(1.485, 1.865, [ox0 + 0.035, ox1 - 0.13, 1.51, 1.785], [ox1 - 0.105, ox1 - 0.025, 1.765, 1.785], [[ox1 - 0.065, 1.64]]); // micro-ondes
-  // --- péninsule (façades côté cuisine, x 2.86), joue « cascade » en quartz, dos plein côté tabourets, débord de 30 cm
-  A.box(k, 2.92, 3.50, 0, 0.10, 6.06, D - T, 'plinth');
-  A.box(k, 2.881, 3.54, 0.10, 0.80, 6.04, D - T, { def: fr, nx: gl, py: gl });
-  A.box(k, 2.91, 3.54, 0.80, 0.86, 6.04, D - T, { def: fr, nx: gl, ny: gl });
-  A.box(k, 3.54, 3.56, 0, 0.86, 6.04, D - T, fr);
-  for (const [a, b, st] of [[6.043, 6.52, drw3], [6.523, 7.00, drw3], [7.003, 7.48, drw3], [7.483, D - T, door]] as [number, number, number[][]][]) for (const [y0, y1] of st) A.box(k, 2.86, 2.879, y0, y1, a, b, fr);
-  K.g('mobWorktop', slab([[2.86, 6.00], [3.86, 6.00], [3.86, D - T], [2.86, D - T]], null, 0.86, 0.04));
-  K.soft('mobWorktop', 2.86, 3.86, 0, 0.862, 6.00, 6.04, 0.003);
-  // coupe de fruits
-  K.g('mobCeramic', lathe([[0, 0], [0.06, 0], [0.07, 0.006], [0.12, 0.05], [0.13, 0.07], [0.124, 0.072], [0.114, 0.053], [0.06, 0.014], [0, 0.012]]), 3.30, 0.90, 6.80);
-  for (const [dx, dy, dz, c] of [[-0.04, 0.045, -0.02, '#e08a2c'], [0.035, 0.045, 0.02, '#e3922f'], [0.0, 0.046, 0.05, '#9bbf4a'], [0.03, 0.05, -0.045, '#b8322a'], [-0.03, 0.085, 0.02, '#d9862a']] as [number, number, number, string][]) K.g('mobPaint', new THREE.SphereGeometry(0.036, 16, 12), 3.30 + dx, 0.90 + dy, 6.80 + dz, 0, 0, 0, { c });
-  // --- 2 tabourets de bar : assise chêne galbée Ø 36, 4 pieds acier noir évasés, repose-pieds annulaire
-  const seat = lathe([[0, 0.618], [0.168, 0.618], [0.178, 0.624], [0.181, 0.634], [0.178, 0.645], [0.168, 0.652], [0.11, 0.647], [0, 0.644]]);
-  for (const z of [6.55, 7.05]) {
-    const S = new Kit(k, mtx(4.18, 0, z, Math.PI / 4)); S.g('mobOak', seat); S.g('blackMatte', new THREE.CylinderGeometry(0.13, 0.13, 0.012, 24), 0, 0.611, 0);
-    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2, c = Math.cos(a), s = Math.sin(a); S.rod('blackMatte', [0.205 * c, 0, 0.205 * s], [0.125 * c, 0.612, 0.125 * s], 0.011, 10); }
-    S.g('blackMatte', new THREE.TorusGeometry(0.173, 0.008, 8, 40).rotateX(Math.PI / 2), 0, 0.25, 0);
-  }
 }
 
 // ---------------------------------------------------------------- séjour
@@ -459,6 +384,6 @@ function terrasse() {
 
 export function buildMobilier(ctx: Ctx) {
   C = ctx; M = ctx.M; A = ctx.A; BK.clear();
-  materials(); kitchen(); dining(); sofa(); tvUnit(); radiators(); garage(); entree(); bedrooms(); terrasse();
+  materials(); buildCuisine(C); dining(); sofa(); tvUnit(); radiators(); garage(); entree(); bedrooms(); terrasse();
   flush();
 }
