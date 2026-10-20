@@ -1,16 +1,17 @@
 // Cuisine (demande du 20/10/2026 : croquis de Sébastien sur le plan v3, photos de sa cuisine actuelle), calque 'furn0', appelé par buildMobilier.
 // Style des photos : meubles hauts laqués crème brillant sans poignée (gorge en bas) dans un caisson apparent en chêne grisé, façades basses
-// en bois gris-brun à fil horizontal avec poignées barres inox, plan stratifié beige effet pierre, crédence en grands carreaux gris clair.
+// en bois gris-brun à fil horizontal avec poignées barres inox, plan stratifié beige effet pierre. Retouches du 20/10 : bois des bas un peu plus
+// clair, crédence en carreaux de ciment 20 × 20 à la place des grands carreaux gris clair.
 // Implantation (x vers le sud depuis la façade nord, z vers l'ouest depuis la cloison de l'escalier ; pièce x 0,36 → 3,79, z 4,24 → 7,54) :
 // - sous la fenêtre nord (meubles bas de 65) : angle Le Mans, coulissant de 26, meuble sous évier 60, lave-vaisselle intégré 60, joue, puis
 //   réfrigérateur combiné en pose libre dans l'angle nord-ouest, à 2 cm du mur, charnières côté mur ; évier 1 grand bac + égouttoir à gauche
 //   (au-dessus du lave-vaisselle), bac et mitigeur devant le semi-fixe : le premier vantail (côté escalier) s'ouvre sans les toucher ;
 // - cloison de l'escalier (bas 65, hauts 37 de 1,45 à 2,15, surmeubles 60 jusqu'au plafond) : fileur, tiroirs 74, plaque 60 au milieu du plan
 //   restant (sur un casserolier), tiroirs 79, colonne four contre le retour (tiroir, four, micro-ondes à hauteur d'enfant, porte, abattant) ;
-//   hotte télescopique intégrée dans le meuble haut au-dessus de la plaque, rangements de part et d'autre ; angle : hauts et surmeubles
+//   groupe filtrant de 86 à extraction extérieure dans un meuble haut de 90 centré sur la plaque (conduit visible), rangements de part et d'autre ; angle : hauts et surmeubles
 //   filants jusqu'au mur nord, bas en angle Le Mans sous la fenêtre (fileurs de 4 et 5 cm pour dégager les poignées) ;
 // - épi 145 × 100 contre la façade ouest, passage de 1,20 devant la colonne : 2 × 3 grands tiroirs de 60 côté cuisine, placards de 40 côté séjour.
-// Portes, tiroirs, abattants, hotte, four, micro-ondes, lave-vaisselle et portes du réfrigérateur s'ouvrent au clic (ctx.DOORS, kind 'cuisine') :
+// Portes, tiroirs, abattants, four, micro-ondes, lave-vaisselle et portes du réfrigérateur s'ouvrent au clic (ctx.DOORS, kind 'cuisine') :
 // chaque pièce mobile est un groupe hors fusion dont les maillages restent légers (obstacles dynamiques de la balade, nav.ts).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -20,8 +21,8 @@ let C, M; const BK = new Map();
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const cl = t => t < 0 ? 0 : t > 1 ? 1 : t, ez = t => { t = cl(t); return t * t * (3 - 2 * t); };
 const HP = Math.PI / 2;
-// hauteurs : plinthe 15, caissons 72, plan 3,8 ; façades 19 mm, jeux de 3 mm
-const PL = 0.15, CT = 0.87, WT = 0.908, FT = 0.019, G = 0.0015;
+// hauteurs : plan de travail à 96 cm (demande du 20/10, « on est grands ») = plinthe 14,2 + caissons hauts de 78 + plan 3,8 ; façades 19 mm, jeux de 3 mm
+const PL = 0.142, CT = 0.922, WT = 0.96, FT = 0.019, G = 0.0015;
 
 // ---------------------------------------------------------------- outils géométriques (repris de mobilier.js)
 function mtx(x, y, z, ry = 0, rx = 0, rz = 0) { return new THREE.Matrix4().compose(V3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), V3(1, 1, 1)); }
@@ -166,7 +167,7 @@ function rack(k, mat, u0, u1, y, z0, z1, n = 6) {
 // ---------------------------------------------------------------- textures et matériaux
 function materials() {
   const { makeTex, pixelNoise, rng, std } = C;
-  // bois à fil horizontal (façades basses gris-brun, caissons des hauts en chêne grisé) : veines ondulées raccordées en largeur
+  // bois à fil horizontal (façades basses gris-brun clair, caissons des hauts en chêne grisé) : veines ondulées raccordées en largeur
   const wood = (base, seed, k) => makeTex(1024, 1.2, (g, s) => {
     pixelNoise(g, s, base, 0.018, 0.035, 3, seed); const r = rng(seed + 1);
     for (let i = 0; i < 70; i++) { const y = r() * s, h = 3 + r() * 26; g.fillStyle = r() < 0.5 ? `rgba(255,248,236,${(0.03 + r() * 0.07) * k})` : `rgba(40,30,22,${(0.03 + r() * 0.08) * k})`; g.fillRect(0, y, s, h); }
@@ -182,18 +183,44 @@ function materials() {
     for (let i = 0; i < 900; i++) { g.strokeStyle = r() < 0.5 ? `rgba(150,138,120,${0.05 + r() * 0.12})` : `rgba(255,252,245,${0.06 + r() * 0.12})`; g.lineWidth = 0.5 + r(); const x = r() * s, y = r() * s, l = 6 + r() * 40; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y + (r() - 0.5) * 3); g.stroke(); }
     for (let i = 0; i < 2500; i++) { g.fillStyle = r() < 0.6 ? `rgba(120,108,92,${0.1 + r() * 0.25})` : `rgba(255,255,250,${0.2 + r() * 0.3})`; g.fillRect(r() * s, r() * s, 1 + r() * 1.5, 1 + r() * 1.5); }
   });
-  // carreaux gris clair 60 × 30 posés droits, joints fins (photos)
-  const tiles = makeTex(1024, 1.2, (g, s) => {
-    pixelNoise(g, s, '#cfcdc8', 0.02, 0.04, 6, 931); const r = rng(932), tw = s / 2, th = s / 4;
-    for (let j = 0; j < 4; j++) for (let i = 0; i < 2; i++) { g.fillStyle = r() < 0.5 ? `rgba(255,255,255,${r() * 0.09})` : `rgba(0,0,0,${r() * 0.05})`; g.fillRect(i * tw, j * th, tw, th); }
-    g.fillStyle = '#b3b0a9'; for (let j = 0; j < 4; j++) g.fillRect(0, j * th, s, 2); for (let i = 0; i < 2; i++) g.fillRect(i * tw, 0, 2, s);
+  // carreaux de ciment 20 × 20, joints de 1 mm : étoile à 8 branches gris chaud et fleur anthracite au centre, pétales anthracite dans les angles
+  // (une fleur tous les 4 carreaux, cerclée d'un filet gris), triangles aux milieux des bords (losanges entre carreaux) ; fond crème mat, nuancé
+  const cement = makeTex(1024, 0.4, (g, s) => {
+    const T = s / 2, cr = '#ece5d7', an = '#50565a', gc = '#a39a8b';
+    const disc = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+    const ell = (x, y, rx, ry, a, c) => { g.fillStyle = c; g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); g.fill(); };
+    const poly = (pts, c) => { g.fillStyle = c; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); };
+    const sq = (r, a, c) => poly([0, 1, 2, 3].map(i => [0.5 + r * Math.cos(a + i * HP), 0.5 + r * Math.sin(a + i * HP)]), c);
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+      g.save(); g.translate(i * T, j * T); g.scale(T, T); g.beginPath(); g.rect(0, 0, 1, 1); g.clip();
+      g.fillStyle = cr; g.fillRect(0, 0, 1, 1);
+      for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+        const a = Math.atan2(y ? -1 : 1, x ? -1 : 1);
+        g.strokeStyle = gc; g.lineWidth = 0.014; g.beginPath(); g.arc(x, y, 0.3, 0, Math.PI * 2); g.stroke();
+        ell(x + 0.13 * Math.cos(a), y + 0.13 * Math.sin(a), 0.12, 0.05, a, an);
+        for (const da of [-Math.PI / 4, Math.PI / 4]) ell(x + 0.09 * Math.cos(a + da), y + 0.09 * Math.sin(a + da), 0.07, 0.028, a + da, gc);
+        disc(x, y, 0.045, gc); disc(x, y, 0.02, cr);
+      }
+      for (const a of [0, HP, Math.PI, 3 * HP]) { const c = Math.cos(a), d = Math.sin(a); poly([[0.5 + 0.5 * c - 0.05 * d, 0.5 + 0.5 * d + 0.05 * c], [0.5 + 0.5 * c + 0.05 * d, 0.5 + 0.5 * d - 0.05 * c], [0.5 + 0.42 * c, 0.5 + 0.42 * d]], an); }
+      sq(0.3, 0, gc); sq(0.3, Math.PI / 4, gc); sq(0.245, 0, cr); sq(0.245, Math.PI / 4, cr);
+      for (let k = 0; k < 4; k++) { const a = k * HP; ell(0.5 + 0.1 * Math.cos(a), 0.5 + 0.1 * Math.sin(a), 0.1, 0.042, a, an); ell(0.5 + 0.085 * Math.cos(a + Math.PI / 4), 0.5 + 0.085 * Math.sin(a + Math.PI / 4), 0.07, 0.03, a + Math.PI / 4, gc); }
+      disc(0.5, 0.5, 0.035, cr); disc(0.5, 0.5, 0.018, an);
+      g.restore();
+    }
+    const n = document.createElement('canvas'); n.width = n.height = s; pixelNoise(n.getContext('2d'), s, '#808080', 0.05, 0.12, 8, 931);
+    g.globalCompositeOperation = 'soft-light'; g.drawImage(n, 0, 0); g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#cdc7bc'; for (let k = 0; k <= 2; k++) { g.fillRect(0, k * T - 1.2, s, 2.4); g.fillRect(k * T - 1.2, 0, 2.4, s); }
   });
-  M.cuBas = std({ map: wood('#7b6d62', 941, 1), roughness: 0.5 });     // façades basses, joues, plinthes
+  // calepinage : rangée entière posée sur le plan de travail, carreaux entiers dans l'angle nord-est (u = x sur la cloison, u = −z au mur nord)
+  cement.offset.set(-0.366 / 0.4, -WT / 0.4);
+  const cementN = cement.clone(); cementN.offset.set(4.246 / 0.4, -WT / 0.4);
+  M.cuBas = std({ map: wood('#988a7b', 941, 0.8), roughness: 0.5 });   // façades basses, joues, plinthes (éclairci le 20/10)
   M.cuChene = std({ map: wood('#b9ab98', 951, 0.65), roughness: 0.55 }); // caissons des meubles hauts
   M.cuLaque = std({ color: '#ece5d4', roughness: 0.1 });                // laqué crème brillant
   M.cuGorge = std({ color: '#a9a191', roughness: 0.4 });
   M.cuPlan = std({ map: stone, roughness: 0.45 });
-  M.cuFaience = std({ map: tiles, roughness: 0.3 });
+  M.cuFaience = std({ map: cement, roughness: 0.55 });                 // crédence, cloison de l'escalier
+  M.cuFaienceN = std({ map: cementN, roughness: 0.55 });               // crédence, mur nord
   M.cuMel = std({ color: '#dcdbd6', roughness: 0.7 });                  // intérieurs mélaminés
   M.cuInox = std({ color: '#d0d3d5', roughness: 0.28, metalness: 0.5 });
   M.cuInoxB = std({ color: '#b9bcbf', roughness: 0.36, metalness: 0.5 }); // inox brossé du réfrigérateur
@@ -239,15 +266,15 @@ function northRun() {
   // sous évier 60 : porte charnières côté angle, sans dessus (cuve), siphon
   carcass(k, -6.30, -5.70, PL, CT, 0.65, { top: false });
   baseDoor(FN, -6.2985, -5.7015, yA, yB, false);
-  // lave-vaisselle intégré 60 : cuve inox, deux paniers, porte abattante (façade bois + contre-porte inox, bandeau de commande sur le chant)
+  // lave-vaisselle intégré 60 XXL (86,5 de haut pour la niche de 92) : cuve inox, deux paniers, porte abattante (façade bois + contre-porte inox, bandeau de commande sur le chant)
   { const a = -6.87, b = -6.33, z0 = -0.60, z1 = -0.075;
-    k.box('cuInoxB', a, b, 0.155, 0.17, z0, z1); k.box('cuInoxB', a, b, 0.84, 0.855, z0, z1); k.box('cuInoxB', a - 0.01, a, 0.155, 0.855, z0, z1); k.box('cuInoxB', b, b + 0.01, 0.155, 0.855, z0, z1); k.box('cuInoxB', a, b, 0.17, 0.84, z0, z0 + 0.01);
+    k.box('cuInoxB', a, b, 0.155, 0.17, z0, z1); k.box('cuInoxB', a, b, 0.89, 0.905, z0, z1); k.box('cuInoxB', a - 0.01, a, 0.155, 0.905, z0, z1); k.box('cuInoxB', b, b + 0.01, 0.155, 0.905, z0, z1); k.box('cuInoxB', a, b, 0.17, 0.89, z0, z0 + 0.01);
     for (const [y, h] of [[0.22, 0.17], [0.52, 0.14]]) { rack(k, 'cuGris', a + 0.02, b - 0.02, y, z0 + 0.03, z1 - 0.03, 8); rack(k, 'cuGris', a + 0.02, b - 0.02, y + h, z0 + 0.03, z1 - 0.03, 1); for (const u of [a + 0.02, b - 0.024]) for (const z of [z0 + 0.03, z1 - 0.034]) k.box('cuGris', u, u + 0.004, y, y + h, z, z + 0.004); }
     k.box('cuGris', a + 0.06, b - 0.06, 0.48, 0.488, (z0 + z1) / 2 - 0.01, (z0 + z1) / 2 + 0.01); // bras de lavage
     mover(FN, [part([0, 0.16, -0.025], kk => {
       kk.box('cuBas', -6.8985, -6.3015, yA, yB, -FT, 0); bar(kk, -6.60, yB - 0.05, hlen(0.60));
-      kk.box('cuInoxB', a + 0.005, b - 0.005, 0.17, 0.835, -0.07, -FT);
-      kk.box('cuNoir', a, b, 0.835, 0.862, -0.07, -FT); kk.box('cuAff', -6.45, -6.40, 0.862, 0.8625, -0.05, -0.035);
+      kk.box('cuInoxB', a + 0.005, b - 0.005, 0.17, 0.885, -0.07, -FT);
+      kk.box('cuNoir', a, b, 0.885, 0.912, -0.07, -FT); kk.box('cuAff', -6.45, -6.40, 0.912, 0.9125, -0.05, -0.035);
     }, rotX(HP))], 0.8);
   }
   k.box('cuBas', -6.919, -6.90, 0, CT, -0.65, 0); // joue de fin de linéaire contre le réfrigérateur
@@ -276,7 +303,7 @@ function northRun() {
 // ---------------------------------------------------------------- cloison de l'escalier : bas, plaque, colonne four, hauts, hotte, surmeubles
 function stairRun() {
   const k = new Kit('furn0', FS), yA = PL + 0.003, yB = CT - 0.003;
-  const d3 = [[yA, 0.427], [0.430, 0.722], [0.725, yB]], d2 = [[yA, 0.507], [0.510, yB]];
+  const d3 = [[yA, 0.442], [0.445, 0.762], [0.765, yB]], d2 = [[yA, 0.529], [0.532, yB]];
   k.box('cuBas', 1.01, 1.06, PL, CT, -FT, 0); // fileur de 5 cm : les tiroirs passent devant la poignée de la porte Le Mans
   for (const [u0, u1, st] of [[1.06, 1.80, d3], [1.80, 2.40, d2], [2.40, 3.19, d3]] as [number, number, number[][]][]) { carcass(k, u0, u1, PL, CT, 0.65); for (const [a, b] of st) drawer(FS, u0, u1, a, b, 0.65); }
   k.box('cuBas', 0.944, 3.79, 0, PL - 0.002, -0.066, -0.05); // plinthe (colonne comprise)
@@ -312,23 +339,34 @@ function stairRun() {
   }
   // plaque induction 60 au milieu du plan libre entre l'angle (x 1,01) et la colonne (x 3,19) : x 1,80 → 2,40, sur le casserolier
   new Kit('furn0').g('mobHob', boxG(0.60, 0.006, 0.52), 2.10, WT + 0.003, 4.57, 0, 0, 0, { keepUV: true });
-  // meubles hauts de 37 (1,45 → 2,15) : 3 portes jusqu'au mur nord, hotte télescopique de 60 au-dessus de la plaque, 2 portes jusqu'à la colonne
-  const yH0 = 1.45, yH1 = 2.15;
-  upperBlock(FH, 0.36, 1.80, yH0, yH1, 0.37, [[0.378, 0.8435, true], [0.8465, 1.3125, true], [1.3155, 1.782, false]], { shelves: [1.80] });
-  upperBlock(FH, 2.40, 3.19, yH0, yH1, 0.37, [[2.418, 2.7935, true], [2.7965, 3.172, false]], { shelves: [1.80] });
-  const kh = upperBlock(FH, 1.80, 2.40, yH0, yH1, 0.37, [[1.818, 2.382, true]], { open: true, ya: 1.566, shelves: [1.86] });
-  // groupe filtrant (recyclage, filtres sous le corps) et visière inox qui sort de 18 cm
-  kh.box('cuInoxB', 1.818, 2.382, 1.49, 1.546, -0.352, -0.22); kh.box('cuGris', 1.83, 2.37, 1.486, 1.49, -0.34, -0.23);
-  mover(FH, [part([0, 0, 0], kk => {
-    kk.box('cuInoxB', 1.82, 2.38, 1.466, 1.49, -0.22, -0.02); kk.box('cuGris', 1.84, 2.36, 1.462, 1.466, -0.20, -0.04);
-    kk.box('cuInox', 1.818, 2.382, 1.466, 1.546, -0.02, -0.001);
-    for (const x of [1.95, 2.25]) kk.box('cuLed', x - 0.025, x + 0.025, 1.4615, 1.462, -0.13, -0.08);
-  }, slideZ(0.18))], 1.0);
-  const kl = new Kit('furn0', FH); kl.box('cuLed', 0.40, 1.76, 1.446, 1.45, -0.06, -0.04); kl.box('cuLed', 2.44, 3.15, 1.446, 1.45, -0.06, -0.04); // rubans LED sous les hauts
+  // meubles hauts de 37 (1,45 → 2,15) : 3 portes jusqu'au mur nord, meuble de 90 centré sur la plaque avec la hotte, 1 porte jusqu'à la colonne
+  const yH0 = 1.45, yH1 = 2.15, ya = 1.566;
+  upperBlock(FH, 0.36, 1.65, yH0, yH1, 0.37, [[0.378, 0.794, true], [0.797, 1.213, true], [1.216, 1.632, false]], { shelves: [1.80] });
+  upperBlock(FH, 2.55, 3.19, yH0, yH1, 0.37, [[2.568, 3.172, false]], { shelves: [1.80] });
+  const kh = upperBlock(FH, 1.65, 2.55, yH0, yH1, 0.37, [[1.668, 2.0985, true], [2.1015, 2.532, false]], { open: true, ya });
+  // groupe filtrant de 86 à extraction extérieure (demande du 20/10, photo Mobalpa) : corps inox, 2 filtres à graisse, bandeau de commande
+  // au nu des portes, 2 spots ; cache-conduit inox Ø 17 jusqu'au haut du meuble, étagères en verre de part et d'autre
+  kh.box('cuInoxB', 1.67, 2.53, yH0, ya - 0.018, -0.33, -0.02);
+  for (const [x0, x1] of [[1.70, 2.085], [2.115, 2.50]]) kh.box('cuGris', x0, x1, yH0 - 0.002, yH0, -0.30, -0.07);
+  kh.box('cuInox', 1.67, 2.53, yH0, ya - 0.004, -0.02, -0.001);
+  for (let i = 0; i < 5; i++) kh.box('cuNoir', 2.02 + i * 0.022, 2.034 + i * 0.022, 1.50, 1.512, -0.001, 0);
+  kh.box('cuAff', 2.135, 2.165, 1.50, 1.512, -0.001, -0.0005);
+  for (const x of [1.85, 2.35]) kh.g('cuLed', new THREE.CylinderGeometry(0.025, 0.025, 0.002, 16), x, yH0 - 0.002, -0.18);
+  kh.g('cuInox', new THREE.CylinderGeometry(0.085, 0.085, yH1 - 0.016 - ya, 32), 2.10, (ya + yH1 - 0.016) / 2, -0.185);
+  for (const [x0, x1] of [[1.666, 2.005], [2.195, 2.534]]) kh.box('cuVerre', x0, x1, 1.857, 1.863, -0.352, -0.03);
+  // conduit Ø 150 (hors meuble du dessus) : monte dans le surmeuble, puis file au fond des surmeubles jusqu'au mur nord ; sortie en façade nord
+  // par une grille à clapet RAL 7016 (tracé supposé, percement à valider avec le constructeur)
+  const kd = new Kit('furn0'), yd = 2.33, zd = 4.425;
+  kd.rod('cuGris', [2.10, yH1 - 0.016, zd], [2.10, yd, zd], 0.075, 20); kd.g('cuGris', new THREE.SphereGeometry(0.075, 20, 12), 2.10, yd, zd);
+  kd.rod('cuGris', [2.10, yd, zd], [0.30, yd, zd], 0.075, 20);
+  const kx = new Kit('site');
+  kx.box('grille', -0.014, -0.002, yd - 0.11, yd + 0.11, zd - 0.11, zd + 0.11);
+  for (let i = 0; i < 7; i++) { const y = yd - 0.081 + i * 0.027; kx.box('cuNoir', -0.0145, -0.012, y - 0.006, y + 0.006, zd - 0.085, zd + 0.085); }
+  const kl = new Kit('furn0', FH); kl.box('cuLed', 0.40, 1.61, 1.446, 1.45, -0.06, -0.04); kl.box('cuLed', 2.59, 3.15, 1.446, 1.45, -0.06, -0.04); // rubans LED sous les hauts
   // surmeubles de 60 jusqu'au plafond (2,15 → 2,50), abattants relevants alignés sur les portes du dessous
-  upperBlock(FT2, 0.36, 1.80, yH1, 2.498, 0.60, [[0.378, 0.8435], [0.8465, 1.3125], [1.3155, 1.782]], { lift: true });
-  upperBlock(FT2, 1.80, 2.40, yH1, 2.498, 0.60, [[1.818, 2.382]], { lift: true });
-  upperBlock(FT2, 2.40, 3.19, yH1, 2.498, 0.60, [[2.418, 2.7935], [2.7965, 3.172]], { lift: true });
+  upperBlock(FT2, 0.36, 1.65, yH1, 2.498, 0.60, [[0.378, 0.794], [0.797, 1.213], [1.216, 1.632]], { lift: true });
+  upperBlock(FT2, 1.65, 2.55, yH1, 2.498, 0.60, [[1.668, 2.0985], [2.1015, 2.532]], { lift: true });
+  upperBlock(FT2, 2.55, 3.19, yH1, 2.498, 0.60, [[2.568, 3.172]], { lift: true });
 }
 
 // ---------------------------------------------------------------- plan de travail, évier, crédence
@@ -352,9 +390,9 @@ function worktopSink() {
   k.rod('cuChrome', [tx, y0 + 0.29, tz], [tx + 0.20, y0 + 0.29, tz], 0.011, 12);
   k.rod('cuChrome', [tx + 0.20, y0 + 0.30, tz], [tx + 0.20, y0 + 0.22, tz], 0.014, 12);
   k.rod('cuChrome', [tx, y0 + 0.12, tz - 0.012], [tx + 0.01, y0 + 0.14, tz - 0.07], 0.006, 8);
-  // crédence en carreaux 6 mm : cloison de l'escalier jusqu'aux hauts (les prises K1 et K4 y sont posées), mur nord jusqu'à l'appui de fenêtre
+  // crédence en carreaux de ciment (dessinée en 6 mm) : cloison de l'escalier jusqu'aux hauts (les prises K1 et K4 y sont posées), mur nord jusqu'à l'appui de fenêtre
   k.box('cuFaience', 0.36, 3.19, WT, 1.45, 4.24, 4.246);
-  k.box('cuFaience', 0.36, 0.366, WT, 1.10, 4.246, 6.919); k.box('cuFaience', 0.36, 0.366, 1.10, 1.45, 4.246, 5.18); k.box('cuFaience', 0.36, 0.366, 1.10, 1.45, 6.58, 6.919);
+  k.box('cuFaienceN', 0.36, 0.366, WT, 1.10, 4.246, 6.919); k.box('cuFaienceN', 0.36, 0.366, 1.10, 1.45, 4.246, 5.18); k.box('cuFaienceN', 0.36, 0.366, 1.10, 1.45, 6.58, 6.919);
 }
 
 // ---------------------------------------------------------------- épi 145 × 100 contre la façade ouest
@@ -363,11 +401,11 @@ function epi() {
   new Kit('furn0').box('cuBas', 2.875, 3.845, 0, CT, 6.105, 6.124); // joue côté passage
   // côté cuisine : deux colonnes de 3 grands tiroirs de 60 de profondeur (largeur 70,8)
   const ke = new Kit('furn0', FE);
-  for (const [u0, u1] of [[6.124, 6.832], [6.832, 7.54]]) { carcass(ke, u0, u1, PL, CT, 0.585); for (const [a, b] of [[yA, 0.388], [0.391, 0.626], [0.629, yB]]) drawer(FE, u0, u1, a, b, 0.585); }
+  for (const [u0, u1] of [[6.124, 6.832], [6.832, 7.54]]) { carcass(ke, u0, u1, PL, CT, 0.585); for (const [a, b] of [[yA, 0.400], [0.403, 0.658], [0.661, yB]]) drawer(FE, u0, u1, a, b, 0.585); }
   ke.box('cuBas', 6.124, 7.54, 0, PL - 0.002, -0.066, -0.05);
   // côté séjour : placards de 40 de profondeur, 3 portes, une tablette
   const kw = new Kit('furn0', FW);
-  carcass(kw, -7.54, -6.124, PL, CT, 0.385, { shelves: [0.51] });
+  carcass(kw, -7.54, -6.124, PL, CT, 0.385, { shelves: [0.53] });
   baseDoor(FW, -6.5945, -6.1255, yA, yB, false); baseDoor(FW, -7.0665, -6.5975, yA, yB, false); baseDoor(FW, -7.5385, -7.0695, yA, yB, true);
   kw.box('cuBas', -7.54, -6.124, 0, PL - 0.002, -0.066, -0.05);
 }
