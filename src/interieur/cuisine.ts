@@ -6,7 +6,7 @@
 // - sous la fenêtre nord (meubles bas de 65) : angle Le Mans, coulissant de 26, meuble sous évier 60, lave-vaisselle intégré 60, joue, puis
 //   réfrigérateur combiné en pose libre dans l'angle nord-ouest, à 2 cm du mur, charnières côté mur ; évier 1 grand bac + égouttoir à gauche
 //   (au-dessus du lave-vaisselle), bac et mitigeur devant le semi-fixe : le premier vantail (côté escalier) s'ouvre sans les toucher ;
-// - cloison de l'escalier (bas 65, hauts 37 de 1,45 à 2,15, surmeubles 60 jusqu'au plafond) : fileur, tiroirs 74, plaque 60 au milieu du plan
+// - cloison de l'escalier (bas 65, hauts 37 de 1,50 à 2,15, surmeubles 60 jusqu'au plafond) : fileur, tiroirs 74, plaque 60 au milieu du plan
 //   restant (sur un casserolier), tiroirs 79, colonne four contre le retour (tiroir, four, micro-ondes à hauteur d'enfant, porte, abattant) ;
 //   groupe filtrant de 86 à extraction extérieure dans un meuble haut de 90 centré sur la plaque (conduit visible), rangements de part et d'autre ; angle : hauts et surmeubles
 //   filants jusqu'au mur nord, bas en angle Le Mans sous la fenêtre (fileurs de 4 et 5 cm pour dégager les poignées) ;
@@ -339,8 +339,8 @@ function stairRun() {
   }
   // plaque induction 60 au milieu du plan libre entre l'angle (x 1,01) et la colonne (x 3,19) : x 1,80 → 2,40, sur le casserolier
   new Kit('furn0').g('mobHob', boxG(0.60, 0.006, 0.52), 2.10, WT + 0.003, 4.57, 0, 0, 0, { keepUV: true });
-  // meubles hauts de 37 (1,45 → 2,15) : 3 portes jusqu'au mur nord, meuble de 90 centré sur la plaque avec la hotte, 1 porte jusqu'à la colonne
-  const yH0 = 1.45, yH1 = 2.15, ya = 1.566;
+  // meubles hauts de 37 (1,50 → 2,15, remontés de 5 cm avec le plan à 96 : hotte à 54 cm de la plaque) : 3 portes jusqu'au mur nord, meuble de 90 centré sur la plaque avec la hotte, 1 porte jusqu'à la colonne
+  const yH0 = 1.50, yH1 = 2.15, ya = yH0 + 0.116;
   upperBlock(FH, 0.36, 1.65, yH0, yH1, 0.37, [[0.378, 0.794, true], [0.797, 1.213, true], [1.216, 1.632, false]], { shelves: [1.80] });
   upperBlock(FH, 2.55, 3.19, yH0, yH1, 0.37, [[2.568, 3.172, false]], { shelves: [1.80] });
   const kh = upperBlock(FH, 1.65, 2.55, yH0, yH1, 0.37, [[1.668, 2.0985, true], [2.1015, 2.532, false]], { open: true, ya });
@@ -349,8 +349,8 @@ function stairRun() {
   kh.box('cuInoxB', 1.67, 2.53, yH0, ya - 0.018, -0.33, -0.02);
   for (const [x0, x1] of [[1.70, 2.085], [2.115, 2.50]]) kh.box('cuGris', x0, x1, yH0 - 0.002, yH0, -0.30, -0.07);
   kh.box('cuInox', 1.67, 2.53, yH0, ya - 0.004, -0.02, -0.001);
-  for (let i = 0; i < 5; i++) kh.box('cuNoir', 2.02 + i * 0.022, 2.034 + i * 0.022, 1.50, 1.512, -0.001, 0);
-  kh.box('cuAff', 2.135, 2.165, 1.50, 1.512, -0.001, -0.0005);
+  for (let i = 0; i < 5; i++) kh.box('cuNoir', 2.02 + i * 0.022, 2.034 + i * 0.022, yH0 + 0.05, yH0 + 0.062, -0.001, 0);
+  kh.box('cuAff', 2.135, 2.165, yH0 + 0.05, yH0 + 0.062, -0.001, -0.0005);
   for (const x of [1.85, 2.35]) kh.g('cuLed', new THREE.CylinderGeometry(0.025, 0.025, 0.002, 16), x, yH0 - 0.002, -0.18);
   kh.g('cuInox', new THREE.CylinderGeometry(0.085, 0.085, yH1 - 0.016 - ya, 32), 2.10, (ya + yH1 - 0.016) / 2, -0.185);
   for (const [x0, x1] of [[1.666, 2.005], [2.195, 2.534]]) kh.box('cuVerre', x0, x1, 1.857, 1.863, -0.352, -0.03);
@@ -362,7 +362,7 @@ function stairRun() {
   const kx = new Kit('site');
   kx.box('grille', -0.014, -0.002, yd - 0.11, yd + 0.11, zd - 0.11, zd + 0.11);
   for (let i = 0; i < 7; i++) { const y = yd - 0.081 + i * 0.027; kx.box('cuNoir', -0.0145, -0.012, y - 0.006, y + 0.006, zd - 0.085, zd + 0.085); }
-  const kl = new Kit('furn0', FH); kl.box('cuLed', 0.40, 1.61, 1.446, 1.45, -0.06, -0.04); kl.box('cuLed', 2.59, 3.15, 1.446, 1.45, -0.06, -0.04); // rubans LED sous les hauts
+  const kl = new Kit('furn0', FH); kl.box('cuLed', 0.40, 1.61, yH0 - 0.004, yH0, -0.06, -0.04); kl.box('cuLed', 2.59, 3.15, yH0 - 0.004, yH0, -0.06, -0.04); // rubans LED sous les hauts
   // surmeubles de 60 jusqu'au plafond (2,15 → 2,50), abattants relevants alignés sur les portes du dessous
   upperBlock(FT2, 0.36, 1.65, yH1, 2.498, 0.60, [[0.378, 0.794], [0.797, 1.213], [1.216, 1.632]], { lift: true });
   upperBlock(FT2, 1.65, 2.55, yH1, 2.498, 0.60, [[1.668, 2.0985], [2.1015, 2.532]], { lift: true });
@@ -391,8 +391,8 @@ function worktopSink() {
   k.rod('cuChrome', [tx + 0.20, y0 + 0.30, tz], [tx + 0.20, y0 + 0.22, tz], 0.014, 12);
   k.rod('cuChrome', [tx, y0 + 0.12, tz - 0.012], [tx + 0.01, y0 + 0.14, tz - 0.07], 0.006, 8);
   // crédence en carreaux de ciment (dessinée en 6 mm) : cloison de l'escalier jusqu'aux hauts (les prises K1 et K4 y sont posées), mur nord jusqu'à l'appui de fenêtre
-  k.box('cuFaience', 0.36, 3.19, WT, 1.45, 4.24, 4.246);
-  k.box('cuFaienceN', 0.36, 0.366, WT, 1.10, 4.246, 6.919); k.box('cuFaienceN', 0.36, 0.366, 1.10, 1.45, 4.246, 5.18); k.box('cuFaienceN', 0.36, 0.366, 1.10, 1.45, 6.58, 6.919);
+  k.box('cuFaience', 0.36, 3.19, WT, 1.50, 4.24, 4.246);
+  k.box('cuFaienceN', 0.36, 0.366, WT, 1.10, 4.246, 6.919); k.box('cuFaienceN', 0.36, 0.366, 1.10, 1.50, 4.246, 5.18); k.box('cuFaienceN', 0.36, 0.366, 1.10, 1.50, 6.58, 6.919);
 }
 
 // ---------------------------------------------------------------- épi 145 × 100 contre la façade ouest
