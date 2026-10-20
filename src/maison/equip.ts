@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Ctx } from '../types';
+import { RISE, XS, ZS, Z1, noseY } from './traceEscalier';
 
 export function buildEquipment(ctx: Ctx) {
   const { M, std } = ctx;
@@ -238,8 +239,8 @@ function spots(ctx) {
 // Découpé au niveau du plancher de l'étage : la partie basse dans 'rdc', la partie haute dans 'r1' (vues en coupe).
 function gardeCorps(ctx) {
   const { A, E1 } = ctx, mat = 'ral7016';
-  const rise = E1 / 16, xs = 1.26, zj = 3.27, go = (3.91 - xs) / 11, ov = 0.02; // xs, go : comme buildStair (main.js)
-  const yN = x => rise * (5 + (x + ov - xs) / go), yH = x => yN(x) + 0.90; // ligne des nez au jour, dessus de main courante
+  const rise = RISE, xs = XS, zj = ZS, ov = 0.02; // tracé de buildStair (traceEscalier.ts)
+  const yN = x => noseY(x + ov), yH = x => yN(x) + 0.90; // ligne des nez au jour, dessus de main courante
   const zp0 = zj - 0.052, zp1 = zj - 0.012, zc = (zp0 + zp1) / 2;
   const prism = (layer, x0, x1, z0, z1, yb0, yb1, yt0, yt1) => prismX(A, layer, mat, x0, x1, z0, z1, yb0, yb1, yt0, yt1);
   // découpe à +2,87 entre les deux calques
@@ -256,9 +257,11 @@ function gardeCorps(ctx) {
   };
   const box = (x0, x1, y0, y1, z0, z1) => part(x0, x1, z0, z1, y0, y0, y1, y1);
   // main courante plate 40×10, du poteau de départ au poteau d'arrivée
-  const xd = xs + 0.005, xa = 3.85; // poteau de départ au jour de la partie basse (x 1,26)
+  // poteau de départ au jour de la partie basse (x 1,26), décalé pour que sa platine reste sur la marche 1 quand les balancées
+  // commencent avant l'angle du jour
+  const xd = xs + (Z1 < zj - 1e-6 ? 0.032 : 0.005), xa = 3.85;
   part(xd, xa, zp0, zp1, yH(xd) - 0.01, yH(xa) - 0.01, yH(xd), yH(xa));
-  // poteau de départ sur platine (marche 1), patte sur la joue de la marche 2
+  // poteau de départ sur platine (marche 1), patte sur la joue de la marche suivante
   box(xd - 0.03, xd + 0.07, rise, rise + 0.008, zp0 - 0.028, zj - 0.002);
   part(xd, xd + 0.04, zp0, zp1, rise + 0.008, rise + 0.008, yH(xd) - 0.01, yH(xd + 0.04) - 0.01);
   box(xd + 0.005, xd + 0.035, 0.235, 0.315, zp1, zj);
