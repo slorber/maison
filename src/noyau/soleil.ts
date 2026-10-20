@@ -21,9 +21,10 @@ export function initEclairage() {
   scene.fog = new THREE.Fog(0xcfd8de, 60, 200);
   amb = new THREE.AmbientLight(0xf6f7fa, 0); scene.add(amb);
   // lampes calées sur les points lumineux des plans électriques p. 12 et 13 (interieur/electricite.ts) : salle à manger entre ses 2 DCL, salon, cuisine (centre,
-  // péninsule), entrée entre ses 2 DCL, garage ; étage : bains, chambres 1 à 3, palier, bureau (WC, salle d'eau et dressing : spots ou sans lampe)
-  for (const [lv, x, z] of [[0, 6.45, 5.52], [0, 10.17, 5.54], [0, 1.955, 5.455], [0, 3.34, 6.74], [0, 2.65, 2.18], [0, 9.92, 1.68], [1, 2.155, 1.795], [1, 10.81, 2.315], [1, 7.65, 3.68], [1, 2.46, 5.91], [1, 6.57, 5.91], [1, 10.51, 5.91]]) {
-    const pl = new THREE.PointLight(0xfff2e4, 0, 9, 2); pl.position.set(x, lv ? H.r1Ceil - 0.35 : H.rdcCeil - 0.35, z); pl.userData.lv = lv; scene.add(pl); roomLights.push(pl);
+  // péninsule), entrée entre ses 2 DCL, garage, WC ; étage : bains, chambres 1 à 3, palier, bureau (WC, salle d'eau et dressing : spots ou sans lampe)
+  // [niveau, x, z, portée, facteur d'intensité] ; WC du RDC : petite pièce, portée courte pour ne pas éclairer l'entrée à travers la cloison
+  for (const [lv, x, z, dist = 9, k] of [[0, 6.45, 5.52], [0, 10.17, 5.54], [0, 1.955, 5.455], [0, 3.34, 6.74], [0, 2.65, 2.18], [0, 9.92, 1.68], [0, 1.366, 0.854, 3.2, 0.6], [1, 2.155, 1.795], [1, 10.81, 2.315], [1, 7.65, 3.68], [1, 2.46, 5.91], [1, 6.57, 5.91], [1, 10.51, 5.91]]) {
+    const pl = new THREE.PointLight(0xfff2e4, 0, dist, 2); pl.position.set(x, lv ? H.r1Ceil - 0.35 : H.rdcCeil - 0.35, z); pl.userData.lv = lv; if (k) pl.userData.k = k; scene.add(pl); roomLights.push(pl);
   }
 }
 
