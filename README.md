@@ -76,6 +76,7 @@ src/
     chambre1.ts           bureau de la chambre parentale, pièce bureau, canapé-lit
     sousEscalier.ts       placard et banquette sous l'escalier
     prises.ts             prises, prises extérieures, robinets
+    electricite.ts        interrupteurs, commandes de volets, DAAF, bouches VMC, luminaires (proposition)
     voiture.ts            Peugeot 5008 III
   terrain/                parcelle et voisinage
     relief.ts             limites, points levés, terrain fini, profil de rue, allée ; hAt(x, z)

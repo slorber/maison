@@ -3,7 +3,7 @@
 //   en cadre noir, en hauteur sur la même cloison, face au lit (axe du lit x = 10,65) ; fauteuil Herman Miller Aeron.
 // - Bureau : bureau 120 × 64 dos à la cloison de la chambre 2 (bout à 10 cm du radiateur) avec MacBook Pro 16", écran 32" et écran 24"
 //   en portrait, même fauteuil Aeron, canapé-lit (matelas 140 × 190, 83 cm de profondeur fermé) le long de la cloison du palier, dépliable
-//   au clic (ouvrant déclaré dans ctx.DOORS, comme les portes), étagère à casiers façon Kallax 2 × 4 en chêne clair dans l'angle libre.
+//   au clic (ouvrant déclaré dans ctx.DOORS, comme les portes), étagère à casiers façon Kallax 2 × 2 en chêne clair dans l'angle libre.
 // Le mobilier fixe est fusionné en un mesh par matériau (peu d'appels de dessin) ; seules les pièces mobiles du canapé restent séparées.
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -374,12 +374,13 @@ function canape() {
 }
 
 // ---------------------------------------------------------------- rangement du bureau
-// Étagère à casiers façon Ikea Kallax 2 × 4 debout (77 × 147,6, profondeur 39) en chêne clair, contre la façade ouest (nu z 7,54) dans l'angle
+// Étagère à casiers façon Ikea Kallax 2 × 2 (77 × 77, profondeur 39) en chêne clair, contre la façade ouest (nu z 7,54) dans l'angle
 // libre avec la cloison de la chambre 3 (nu x 5,09) : x 5,10 → 5,87, z 7,14 → 7,53. Elle s'arrête à 8 cm du tableau de la fenêtre (x 5,95,
 // vantail ouvert à 85° dégagé) et reste loin du canapé ouvert (z ≤ 6,30). Cadre de 40 mm, montant et tablettes de 16 mm, casiers de 33,7 cm,
-// dos ouvert ; quatre boîtes en toile et quelques livres. Repère : origine au sol à l'angle avant gauche (x 5,10, z 7,14), z vers le mur.
+// dos ouvert ; deux boîtes en toile et quelques livres. Basse (2 × 2 au lieu de 2 × 4) pour laisser voir la commande du volet roulant V35
+// (plan p. 13, x 5,84 à 1,10 m, voir electricite.ts). Repère : origine au sol à l'angle avant gauche (x 5,10, z 7,14), z vers le mur.
 function rangement() {
-  const K = new Kit('furn1', mtx(5.10, C.E1, 7.14)), W = 0.77, D = 0.39, o = 0.04, t = 0.016, c = 0.337, H = 2 * o + 4 * c + 3 * t;
+  const K = new Kit('furn1', mtx(5.10, C.E1, 7.14)), W = 0.77, D = 0.39, o = 0.04, t = 0.016, c = 0.337, H = 2 * o + 2 * c + t;
   // joues et montant central : fil du bois vertical (UV en mètres, u suivant la hauteur sur les faces verticales ; repère sans rotation)
   const vert = (x0, x1, y0, y1) => { const g = boxG(x1 - x0, y1 - y0, D).translate((x0 + x1) / 2, (y0 + y1) / 2, D / 2), p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
     for (let i = 0; i < p.count; i++) if (Math.abs(n.getY(i)) > 0.5) uv.setXY(i, p.getX(i), -p.getZ(i)); else uv.setXY(i, p.getY(i), Math.abs(n.getX(i)) > 0.5 ? p.getZ(i) : p.getX(i));
@@ -387,7 +388,7 @@ function rangement() {
   vert(0, o, 0, H); vert(W - o, W, 0, H); // joues
   K.box('mobOak', o, W - o, H - o, H, 0, D); K.box('mobOak', o, W - o, 0, o, 0, D); // dessus et socle
   vert(o + c, o + c + t, o, H - o); // montant central
-  for (let i = 1; i < 4; i++) { const y = o + i * c + (i - 1) * t; K.box('mobOak', o, W - o, y, y + t, 0, D); } // tablettes
+  for (let i = 1; i < 2; i++) { const y = o + i * c + (i - 1) * t; K.box('mobOak', o, W - o, y, y + t, 0, D); } // tablettes
   const cell = (i, j) => [o + i * (c + t), o + j * (c + t)]; // coin bas gauche du casier (colonne i, rangée j depuis le bas)
   // boîte en toile 33 × 33 × 37 à poignée découpée, affleurant la face avant
   const boite = (i, j, col) => { const [x, y] = cell(i, j); K.soft('mobFab', x + 0.004, x + c - 0.004, y, y + c - 0.006, 0.006, D - 0.012, 0.008, { nA: 1, c: col });
@@ -396,12 +397,11 @@ function rangement() {
   const livres = (i, j, L, lean?) => { let [x, y] = cell(i, j); x += 0.012;
     L.forEach(([e, h, p, col], k) => { const a = lean && k === L.length - 1 ? 0.32 : 0, sa = Math.sin(a), ca = Math.cos(a); // penché : coin haut gauche contre le livre précédent
       K.g('mobPaint', boxG(e, h, p), x + h / 2 * sa + e / 2 * ca, y + h / 2 * ca + e / 2 * sa, 0.02 + p / 2, 0, 0, a, { c: col }); x += e + 0.001; }); };
-  boite(0, 0, '#8e8b85'); boite(1, 0, '#8e8b85'); boite(1, 1, '#cfc5b2'); boite(0, 2, '#cfc5b2');
+  boite(0, 0, '#8e8b85'); boite(1, 0, '#cfc5b2');
   livres(0, 1, [[0.032, 0.285, 0.21, '#2f3e46'], [0.024, 0.27, 0.20, '#c9b88f'], [0.04, 0.29, 0.22, '#e3ddd0'], [0.02, 0.24, 0.17, '#4f5d4a'], [0.028, 0.26, 0.19, '#a8573f'],
     [0.035, 0.25, 0.18, '#1f2a36'], [0.022, 0.235, 0.16, '#b9a27a'], [0.03, 0.28, 0.21, '#6b4f3a']]);
-  { const [x, y] = cell(1, 2); let yy = y; for (const [w, h, p, col] of [[0.27, 0.035, 0.21, '#e3ddd0'], [0.25, 0.028, 0.19, '#2f3e46'], [0.235, 0.03, 0.17, '#a8573f']] as [number, number, number, string][]) {
+  { const [x, y] = cell(1, 1); let yy = y; for (const [w, h, p, col] of [[0.27, 0.035, 0.21, '#e3ddd0'], [0.25, 0.028, 0.19, '#2f3e46'], [0.235, 0.03, 0.17, '#a8573f']] as [number, number, number, string][]) {
     K.box('mobPaint', x + 0.04, x + 0.04 + w, yy, yy + h, 0.03, 0.03 + p, { c: col }); yy += h; } } // pile couchée
-  livres(0, 3, [[0.03, 0.25, 0.18, '#4f5d4a'], [0.026, 0.27, 0.20, '#e3ddd0'], [0.034, 0.24, 0.17, '#1f2a36'], [0.022, 0.26, 0.19, '#c9b88f'], [0.03, 0.235, 0.17, '#8a8f94']], true);
 }
 
 export function buildChambre1(ctx: Ctx) {
