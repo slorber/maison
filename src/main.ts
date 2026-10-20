@@ -29,6 +29,7 @@ import { buildSousEscalier } from './interieur/sousEscalier';
 import { buildChambre1 } from './interieur/chambre1';
 import { buildVoiture } from './interieur/voiture';
 import { buildPrises } from './interieur/prises';
+import { buildElectricite } from './interieur/electricite';
 import { labelRenderer, initEtiquettes } from './interface/etiquettes';
 import { VIEWS, setView, applyVisibility, animateView } from './interface/vues';
 import { bindUI } from './interface/panneau';
@@ -49,7 +50,7 @@ function init() {
   buildTextures(); buildMaterials();
   for (const l of LAYERS) { groups[l] = new THREE.Group(); groups[l].name = l; scene.add(groups[l]); }
   buildShell(); buildInterior(); buildRoof(); buildFurniture(); buildSite();
-  buildEquipment(ctx()); buildEnvironment(ctx()); buildRue(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildPrises(ctx()); buildOuvrants(ctx());
+  buildEquipment(ctx()); buildEnvironment(ctx()); buildRue(ctx()); buildBains(ctx()); buildMobilier(ctx()); buildChambre1(ctx()); buildVoiture(ctx()); buildSousEscalier(ctx()); buildPrises(ctx()); buildElectricite(ctx()); buildOuvrants(ctx());
   A.build(groups);
 
   initEclairage(); // ciel, soleil, ambiance, lampes des pièces
