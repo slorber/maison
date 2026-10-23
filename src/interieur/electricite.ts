@@ -71,7 +71,7 @@ export const COMMANDES: Commande[] = [
     circuit: 'DCL au-dessus de la péninsule, en va-et-vient avec I08', src: P12 },
   { id: 'I11', piece: 'Cuisine', lv: 'rdc', n: '+x', face: 3.86, postes: [['i', 4.840]], h: HC, st: 'inf', type: 'interrupteur simple allumage', mur: 'retour de la cuisine côté salle à manger (nu x 3,86, z 4,24 → 4,89)',
     circuit: 'DCL du centre de la cuisine', src: P12 },
-  { id: 'V12', piece: 'Cuisine', lv: 'rdc', n: '+x', face: T, postes: [['vr', 5.079]], h: HC, st: 'inf', type: 'commande de volet roulant', mur: 'façade nord (nu x 0,36), à l\'est de la fenêtre', circuit: 'volet roulant de la fenêtre nord', src: P12 + ', cercle vert « VR »' },
+  { id: 'V12', piece: 'Cuisine', lv: 'rdc', n: '+x', face: T + 0.006, postes: [['vr', 5.079]], h: HC, st: 'inf', type: 'commande de volet roulant', mur: 'façade nord (nu x 0,36), à l\'est de la fenêtre, sur la crédence de 6 mm (cuisine.ts)', circuit: 'volet roulant de la fenêtre nord', src: P12 + ', cercle vert « VR »' },
   { id: 'V13', piece: 'Séjour', lv: 'rdc', n: '-z', face: D - T, postes: [['vr', 9.340]], h: HC, st: 'inf', type: 'commande de volet roulant', mur: 'façade ouest (nu z 7,54), au nord de la fenêtre', circuit: 'volet roulant de la fenêtre ouest du séjour', src: P12 + ', cercle vert « VR »' },
   // ---- étage (p. 13)
   { id: 'I20', piece: 'Bains', lv: 'r1', n: '+x', face: T, postes: [['i', 2.748]], h: 1.20, st: 'inf', type: 'interrupteur simple allumage', mur: 'façade nord (nu x 0,36), à gauche de la prise double B1',

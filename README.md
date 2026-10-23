@@ -70,7 +70,8 @@ src/
     ouvrants.ts           fenêtres, baies, porte d'entrée et porte de garage cliquables
     equip.ts              PAC, nourrice, spots, garde-corps, grilles VH
   interieur/              aménagement intérieur
-    mobilier.ts           cuisine, séjour, chambres, radiateurs, butée de porte d'entrée, garage
+    mobilier.ts           séjour, chambres, radiateurs, butée de porte d'entrée, garage
+    cuisine.ts            cuisine équipée (meubles, électroménager, crédence, hotte)
     bains.ts              salles de bains, WC, douches, sèche-serviettes
     chambre1.ts           bureau de la chambre parentale, pièce bureau, canapé-lit
     sousEscalier.ts       placard et banquette sous l'escalier

@@ -20,7 +20,7 @@ export const VIEWS: Record<string, View> = {
   rdc: { p: [6.45, 19.5, 13.5], t: [6.45, 0, 4.4], mode: 'rdc' },
   r1: { p: [6.45, 22.5, 13.5], t: [6.45, 2.9, 4.4], mode: 'r1' },
   i_sejour: { p: [12.25, 1.65, 3.85], t: [3.0, 1.15, 6.9], mode: 'ext', inside: 1 },
-  i_cuisine: { p: [6.2, 1.6, 6.3], t: [1.0, 1.0, 5.0], mode: 'ext', inside: 1 },
+  i_cuisine: { p: [5.4, 1.7, 6.5], t: [1.2, 1.0, 5.4], mode: 'ext', inside: 1 },
   i_entree: { p: [4.9, 1.6, 2.95], t: [0.4, 1.2, 2.0], mode: 'ext', inside: 1 },
   i_ch1: { p: [9.45, 4.42, 3.85], t: [12.2, 3.6, 0.9], mode: 'ext', inside: 1 },
   i_bains: { p: [0.72, 4.47, 0.95], t: [3.6, 3.85, 2.15], mode: 'ext', inside: 1 },
