@@ -9,9 +9,9 @@ export const FACE = { W: { axis: 'x', F: D, s: 1 }, E: { axis: 'x', F: 0, s: -1 
 // a0/a1 : position le long de la façade (X pour l'ouest, Z pour nord et sud) ; vr : volet roulant BBI ; gc : garde-corps
 export const OPEN = {
   W: [
-    { a0: 2.04, a1: 3.44, y0: 1.10, y1: 2.15, t: 'win', n: 2, lvl: 0, vr: 1 }, // cuisine
+    // fenêtre ouest de la cuisine (plan p. 9 : x 2,04 → 3,44, 1,40 × 1,05, allège 1,10, VR) supprimée à la demande du client (23/10/2026) : mur plein côté épi
     { a0: 5.55, a1: 7.35, y0: 0, y1: 2.15, t: 'baie', n: 2, lvl: 0, vr: 1 }, // porte-fenêtre 2 vantaux du séjour, serrure barillet
-    { a0: 9.46, a1: 10.86, y0: 1.10, y1: 2.15, t: 'win', n: 2, lvl: 0, vr: 1 }, // séjour : 2,04 + 1,40 + 2,11 + 1,80 + 2,11 = 9,46 (plan p. 9, symétrique de la cuisine)
+    { a0: 9.46, a1: 10.86, y0: 1.10, y1: 2.15, t: 'win', n: 2, lvl: 0, vr: 1 }, // séjour : 2,04 + 1,40 + 2,11 + 1,80 + 2,11 = 9,46 (plan p. 9, symétrique de l'ancienne fenêtre ouest de la cuisine)
     { a0: 2.24, a1: 3.24, y0: 3.57, y1: 5.02, t: 'win', n: 2, lvl: 1, vr: 1, gc: 1 },
     { a0: 5.95, a1: 6.95, y0: 3.57, y1: 5.02, t: 'win', n: 2, lvl: 1, vr: 1, gc: 1 },
     { a0: 9.66, a1: 10.66, y0: 3.57, y1: 5.02, t: 'win', n: 2, lvl: 1, vr: 1, gc: 1 },
